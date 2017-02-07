@@ -10,8 +10,8 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 )
 
-var healthHostport = flag.String("health-hostport", ":8080", "The hostport to listen for health requests")
-var pprofHostport = flag.String("pprof-hostport", ":6060", "The hostport to listen for pprof")
+var healthHostport = flag.String("health", ":8080", "The hostport to listen for health requests")
+var pprofHostport = flag.String("pprof", ":6060", "The hostport to listen for pprof")
 
 func main() {
 	flag.Parse()
