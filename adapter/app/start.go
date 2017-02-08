@@ -1,6 +1,7 @@
 package app
 
 import (
+	"crypto/tls"
 	"log"
 	"net"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // StartAdapter starts the health endpoint and gRPC service.
@@ -17,7 +19,7 @@ func StartAdapter(opts ...AdapterOption) (actualHealth, actualService string) {
 	conf := setupConfig(opts)
 
 	actualHealth = startHealthServer(conf.healthAddr)
-	actualService = startAdapterService(conf.serviceAddr)
+	actualService = startAdapterService(conf.serviceAddr, conf.serviceCreds)
 
 	return actualHealth, actualService
 }
@@ -45,14 +47,16 @@ func startHealthServer(hostport string) string {
 	return l.Addr().String()
 }
 
-func startAdapterService(hostport string) string {
+func startAdapterService(hostport string, creds credentials.TransportCredentials) string {
 	lis, err := net.Listen("tcp", hostport)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
 	adapterService := service.New()
-	grpcServer := grpc.NewServer() // TODO: Add opts
+	grpcServer := grpc.NewServer(
+		grpc.Creds(creds),
+	)
 	v1.RegisterAdapterServer(grpcServer, adapterService)
 
 	go func() {
@@ -79,9 +83,17 @@ func WithServiceAddr(addr string) func(*config) {
 	}
 }
 
+// WithServiceTLSConfig sets the TLS config for the adapter TLS mutual auth.
+func WithServiceTLSConfig(cfg *tls.Config) func(*config) {
+	return func(c *config) {
+		c.serviceCreds = credentials.NewTLS(cfg)
+	}
+}
+
 type config struct {
-	healthAddr  string
-	serviceAddr string
+	healthAddr   string
+	serviceAddr  string
+	serviceCreds credentials.TransportCredentials
 }
 
 func setupConfig(opts []AdapterOption) *config {
