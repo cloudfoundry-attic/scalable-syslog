@@ -1,4 +1,4 @@
-package endtoend_test
+package service_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestEndtoend(t *testing.T) {
+func TestService(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Adapter - Endtoend Suite")
+	RunSpecs(t, "Adapter - Service Suite")
 }

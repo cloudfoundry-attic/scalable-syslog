@@ -11,6 +11,7 @@ import (
 )
 
 var healthHostport = flag.String("health", ":8080", "The hostport to listen for health requests")
+var adapterHostport = flag.String("adapter", ":443", "The hostport to for the adapter service")
 var pprofHostport = flag.String("pprof", ":6060", "The hostport to listen for pprof")
 
 func main() {
@@ -18,8 +19,12 @@ func main() {
 	log.Print("Starting adapter...")
 	defer log.Print("Closing adapter.")
 
-	actualHostPort := app.StartAdapter(*healthHostport)
-	log.Printf("Health endpoint is listening on %s", actualHostPort)
+	healthHostport, serviceHealthport := app.StartAdapter(
+		app.WithHealthAddr(*healthHostport),
+		app.WithServiceAddr(*adapterHostport),
+	)
+	log.Printf("Health endpoint is listening on %s", healthHostport)
+	log.Printf("Adapter service is listening on %s", serviceHealthport)
 
 	log.Println(http.ListenAndServe(*pprofHostport, nil))
 }

@@ -17,7 +17,10 @@ var _ = Describe("Adapter - Endtoend", func() {
 	)
 
 	BeforeEach(func() {
-		adapterHealthAddr = app.StartAdapter("localhost:0")
+		adapterHealthAddr, _ = app.StartAdapter(
+			app.WithHealthAddr("localhost:0"),
+			app.WithServiceAddr("localhost:0"),
+		)
 	})
 
 	It("reports the number of drains", func() {
