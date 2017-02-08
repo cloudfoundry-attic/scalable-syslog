@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package v1;
+
+service Adapter {
+    rpc Drains(DrainsRequest) returns (DrainsResponse) {}
+}
+
+message DrainsRequest {}
+
+message DrainsResponse {
+    repeated Drain drains = 1;
+}
+
+message Drain {
+    string appId = 1;
+    string hostname = 2;
+    repeated string drainUrls = 3;
+}
