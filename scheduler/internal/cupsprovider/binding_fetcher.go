@@ -9,7 +9,7 @@ import (
 
 // Getter is configured to fetch HTTP responses
 type Getter interface {
-	Get() (resp *http.Response, err error)
+	Get(nextID int) (resp *http.Response, err error)
 }
 
 // BindingFetcher uses a Getter to fetch and decode Bindings
@@ -25,6 +25,7 @@ type Binding struct {
 
 type cupsResponse struct {
 	Results map[string]Binding
+	NextID  int `json:"next_id"`
 }
 
 // NewBindingFetcher returns a new BindingFetcher
@@ -37,25 +38,37 @@ func NewBindingFetcher(g Getter) *BindingFetcher {
 // FetchBindings reaches out to the CUPS provider via the Getter and decodes
 // the response. If it does not get a 200, it returns an error.
 func (f *BindingFetcher) FetchBindings() (map[string]Binding, error) {
-	resp, err := f.getter.Get()
-	if err != nil {
-		return nil, err
-	}
+	drains := make(map[string]Binding)
+	nextID := 0
+	for {
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received %d status code from CUPS provider", resp.StatusCode)
-	}
+		resp, err := f.getter.Get(nextID)
+		if err != nil {
+			return nil, err
+		}
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("received %d status code from CUPS provider", resp.StatusCode)
+		}
 
-	var cupsResp cupsResponse
-	if err = json.Unmarshal(body, &cupsResp); err != nil {
-		return nil, fmt.Errorf("invalid CUPS response body")
-	}
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
 
-	return cupsResp.Results, nil
+		var cupsResp cupsResponse
+		if err = json.Unmarshal(body, &cupsResp); err != nil {
+			return nil, fmt.Errorf("invalid CUPS response body")
+		}
+
+		for appID, binding := range cupsResp.Results {
+			drains[appID] = binding
+		}
+
+		if cupsResp.NextID == 0 {
+			return drains, nil
+		}
+		nextID = cupsResp.NextID
+	}
 }

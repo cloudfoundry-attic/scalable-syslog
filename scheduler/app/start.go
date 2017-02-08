@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -105,6 +106,6 @@ type clientWrapper struct {
 	addr   string
 }
 
-func (w clientWrapper) Get() (*http.Response, error) {
-	return w.client.Get(w.addr)
+func (w clientWrapper) Get(nextID int) (*http.Response, error) {
+	return w.client.Get(fmt.Sprintf("%s?batch_size=50&next_id=%d", w.addr, nextID))
 }

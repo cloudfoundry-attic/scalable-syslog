@@ -13,6 +13,9 @@ import (
 
 type mockGetter struct {
 	GetCalled chan bool
+	GetInput  struct {
+		NextID chan int
+	}
 	GetOutput struct {
 		Resp chan *http.Response
 		Err  chan error
@@ -22,12 +25,14 @@ type mockGetter struct {
 func newMockGetter() *mockGetter {
 	m := &mockGetter{}
 	m.GetCalled = make(chan bool, 100)
+	m.GetInput.NextID = make(chan int, 100)
 	m.GetOutput.Resp = make(chan *http.Response, 100)
 	m.GetOutput.Err = make(chan error, 100)
 	return m
 }
-func (m *mockGetter) Get() (resp *http.Response, err error) {
+func (m *mockGetter) Get(nextID int) (resp *http.Response, err error) {
 	m.GetCalled <- true
+	m.GetInput.NextID <- nextID
 	return <-m.GetOutput.Resp, <-m.GetOutput.Err
 }
 
