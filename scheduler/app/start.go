@@ -5,27 +5,106 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cupsprovider"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/drainstore"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/handlers"
 )
 
-func StartScheduler(healthHostport string) (actualHealth string) {
-	l, err := net.Listen("tcp", healthHostport)
+// StartScheduler starts polling the CUPS provider and serves the HTTP
+// health endpoint.
+func StartScheduler(opts ...SchedulerOption) (actualHealth string) {
+	conf := setupConfig(opts)
+
+	l, err := net.Listen("tcp", conf.healthAddr)
 	if err != nil {
-		log.Fatalf("Unable to setup Health endpoint (%s): %s", healthHostport, err)
+		log.Fatalf("Unable to setup Health endpoint (%s): %s", conf.healthAddr, err)
 	}
 
 	server := http.Server{
-		Addr:         healthHostport,
+		Addr:         conf.healthAddr,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
 
-	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"drainCount": 0}`))
-	})
+	client := clientWrapper{
+		client: conf.client,
+		addr:   conf.cupsURL,
+	}
+
+	store := drainstore.NewCache()
+	fetcher := cupsprovider.NewBindingFetcher(client)
+	cupsprovider.StartPoller(conf.interval, fetcher, store)
+
+	router := http.NewServeMux()
+	router.Handle("/health", handlers.NewHealth(store))
+
+	server.Handler = router
 
 	go func() {
 		log.Fatalf("Health server closing: %s", server.Serve(l))
 	}()
 
 	return l.Addr().String()
+}
+
+// SchedulerOption is a type that will manipulate a config
+type SchedulerOption func(c *config)
+
+// WithHealthAddr sets the address for the health endpoint to bind to.
+func WithHealthAddr(addr string) func(*config) {
+	return func(c *config) {
+		c.healthAddr = addr
+	}
+}
+
+// WithCUPSUrl is the endpoint of the CUPS provider
+func WithCUPSUrl(URL string) func(*config) {
+	return func(c *config) {
+		c.cupsURL = URL
+	}
+}
+
+// WithHTTPClient sets the http.Client to poll the CUPS provider
+func WithHTTPClient(client *http.Client) func(*config) {
+	return func(c *config) {
+		c.client = client
+	}
+}
+
+// WithPollingInterval sets the interval to poll the CUPS provider
+func WithPollingInterval(interval time.Duration) func(*config) {
+	return func(c *config) {
+		c.interval = interval
+	}
+}
+
+type config struct {
+	healthAddr string
+	cupsURL    string
+	client     *http.Client
+	interval   time.Duration
+}
+
+func setupConfig(opts []SchedulerOption) *config {
+	conf := config{
+		healthAddr: ":8080",
+		client:     http.DefaultClient,
+		interval:   15 * time.Second,
+	}
+
+	for _, o := range opts {
+		o(&conf)
+	}
+
+	return &conf
+}
+
+type clientWrapper struct {
+	client *http.Client
+	addr   string
+}
+
+func (w clientWrapper) Get() (*http.Response, error) {
+	return w.client.Get(w.addr)
 }

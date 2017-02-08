@@ -5,7 +5,31 @@
 
 package cupsprovider_test
 
-import "github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cupsprovider"
+import (
+	"net/http"
+
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cupsprovider"
+)
+
+type mockGetter struct {
+	GetCalled chan bool
+	GetOutput struct {
+		Resp chan *http.Response
+		Err  chan error
+	}
+}
+
+func newMockGetter() *mockGetter {
+	m := &mockGetter{}
+	m.GetCalled = make(chan bool, 100)
+	m.GetOutput.Resp = make(chan *http.Response, 100)
+	m.GetOutput.Err = make(chan error, 100)
+	return m
+}
+func (m *mockGetter) Get() (resp *http.Response, err error) {
+	m.GetCalled <- true
+	return <-m.GetOutput.Resp, <-m.GetOutput.Err
+}
 
 type mockProvider struct {
 	FetchBindingsCalled chan bool

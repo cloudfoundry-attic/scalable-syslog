@@ -1,6 +1,4 @@
-package cupsprovider_test
-
-//go:generate hel
+package drainstore_test
 
 import (
 	"log"
@@ -11,8 +9,8 @@ import (
 	"testing"
 )
 
-func TestCupsprovider(t *testing.T) {
+func TestDrainstore(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Scheduler - CupsProvider Suite")
+	RunSpecs(t, "Scheduler - Drainstore Suite")
 }

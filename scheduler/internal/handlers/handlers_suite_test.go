@@ -1,6 +1,4 @@
-package cupsprovider_test
-
-//go:generate hel
+package handlers_test
 
 import (
 	"log"
@@ -11,8 +9,10 @@ import (
 	"testing"
 )
 
-func TestCupsprovider(t *testing.T) {
+//go:generate hel
+
+func TestHandlers(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Scheduler - CupsProvider Suite")
+	RunSpecs(t, "Scheduler - Handlers Suite")
 }
