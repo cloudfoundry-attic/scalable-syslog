@@ -12,20 +12,30 @@ type DrainCounter interface {
 	Count() (drains int)
 }
 
+type AdapterCounter interface {
+	Count() (adapters int)
+}
+
 // The Health handler will report the number of drains back to user.
 type Health struct {
-	counter DrainCounter
+	counter        DrainCounter
+	adapterCounter AdapterCounter
 }
 
 // NewHealth returns a new Health handler.
-func NewHealth(c DrainCounter) *Health {
+func NewHealth(c DrainCounter, a AdapterCounter) *Health {
 	return &Health{
-		counter: c,
+		counter:        c,
+		adapterCounter: a,
 	}
 }
 
 // Handle implements the http.Handler interface.
 func (h *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	output := fmt.Sprintf(`{"drainCount": %d}`, h.counter.Count())
+	output := fmt.Sprintf(
+		`{"drainCount": %d,"adapterCount": %d}`,
+		h.counter.Count(),
+		h.adapterCounter.Count(),
+	)
 	w.Write([]byte(output))
 }

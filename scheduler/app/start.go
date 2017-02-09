@@ -10,11 +10,12 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cups"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/drainstore"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/handlers"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/orchestrator"
 )
 
-// StartScheduler starts polling the CUPS provider and serves the HTTP
+// Start starts polling the CUPS provider and serves the HTTP
 // health endpoint.
-func StartScheduler(opts ...SchedulerOption) (actualHealth string) {
+func Start(opts ...SchedulerOption) (actualHealth string) {
 	log.Print("Starting scheduler...")
 
 	conf := setupConfig(opts)
@@ -24,24 +25,25 @@ func StartScheduler(opts ...SchedulerOption) (actualHealth string) {
 		log.Fatalf("Unable to setup Health endpoint (%s): %s", conf.healthAddr, err)
 	}
 
+	client := clientWrapper{
+		client: conf.client,
+		addr:   conf.cupsURL,
+	}
+	fetcher := cups.NewBindingFetcher(client)
+
+	store := drainstore.NewCache()
+	cups.StartPoller(conf.interval, fetcher, store)
+
+	o := orchestrator.New(conf.adapters)
+
+	router := http.NewServeMux()
+	router.Handle("/health", handlers.NewHealth(store, o))
+
 	server := http.Server{
 		Addr:         conf.healthAddr,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
-
-	client := clientWrapper{
-		client: conf.client,
-		addr:   conf.cupsURL,
-	}
-
-	store := drainstore.NewCache()
-	fetcher := cups.NewBindingFetcher(client)
-	cups.StartPoller(conf.interval, fetcher, store)
-
-	router := http.NewServeMux()
-	router.Handle("/health", handlers.NewHealth(store))
-
 	server.Handler = router
 
 	go func() {
@@ -83,11 +85,19 @@ func WithPollingInterval(interval time.Duration) func(*config) {
 	}
 }
 
+// WithAdapterAddrs sets the list of adapter addresses
+func WithAdapterAddrs(addrs []string) func(*config) {
+	return func(c *config) {
+		c.adapters = addrs
+	}
+}
+
 type config struct {
 	healthAddr string
 	cupsURL    string
 	client     *http.Client
 	interval   time.Duration
+	adapters   []string
 }
 
 func setupConfig(opts []SchedulerOption) *config {

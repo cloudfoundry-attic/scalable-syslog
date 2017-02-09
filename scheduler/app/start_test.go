@@ -17,11 +17,11 @@ var _ = Describe("Scheduler - Endtoend", func() {
 	var (
 		schedulerAddr string
 
-		cupsProvider *httptest.Server
+		dataSource *httptest.Server
 	)
 
 	BeforeEach(func() {
-		cupsProvider = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		dataSource = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`
 					{
 					  "results": {
@@ -37,14 +37,15 @@ var _ = Describe("Scheduler - Endtoend", func() {
 				`))
 		}))
 
-		schedulerAddr = app.StartScheduler(
+		schedulerAddr = app.Start(
 			app.WithHealthAddr("localhost:0"),
-			app.WithCUPSUrl(cupsProvider.URL),
+			app.WithCUPSUrl(dataSource.URL),
 			app.WithPollingInterval(time.Millisecond),
+			app.WithAdapterAddrs([]string{"1.2.3.4:1234"}),
 		)
 	})
 
-	It("reports the number of drains", func() {
+	It("reports health info", func() {
 		f := func() []byte {
 			resp, err := http.Get(fmt.Sprintf("http://%s/health", schedulerAddr))
 			Expect(err).ToNot(HaveOccurred())
@@ -54,12 +55,12 @@ var _ = Describe("Scheduler - Endtoend", func() {
 			Expect(err).ToNot(HaveOccurred())
 			return body
 		}
-		Eventually(f).Should(MatchJSON(`{"drainCount": 2}`))
+		Eventually(f).Should(MatchJSON(`{"drainCount": 2, "adapterCount": 1}`))
 	})
 
 })
 
 func TestEndtoend(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Scheduler Endtoend Suite")
+	RunSpecs(t, "Scheduler - Endtoend Suite")
 }

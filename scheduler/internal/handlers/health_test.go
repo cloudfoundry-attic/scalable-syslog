@@ -23,16 +23,23 @@ var _ = Describe("Health", func() {
 	BeforeEach(func() {
 		recorder = httptest.NewRecorder()
 		mockDrainCounter = newMockDrainCounter()
-		health = handlers.NewHealth(mockDrainCounter)
+		health = handlers.NewHealth(mockDrainCounter, &spyAdapterCounter{})
 	})
 
 	It("returns JSON body with drain count", func() {
 		mockDrainCounter.CountOutput.Drains <- 5
+
 		health.ServeHTTP(recorder, new(http.Request))
 		Expect(recorder.Code).To(Equal(http.StatusOK))
-		Expect(recorder.Body.Bytes()).To(MatchJSON(`{"drainCount": 5}`))
+		Expect(recorder.Body.Bytes()).To(MatchJSON(`{"drainCount": 5, "adapterCount": 1}`))
 	})
 })
+
+type spyAdapterCounter struct{}
+
+func (s *spyAdapterCounter) Count() int {
+	return 1
+}
 
 func TestHandlers(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
