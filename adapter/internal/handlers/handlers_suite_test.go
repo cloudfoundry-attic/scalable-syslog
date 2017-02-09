@@ -1,4 +1,4 @@
-package controller_test
+package handlers_test
 
 import (
 	"log"
@@ -11,8 +11,8 @@ import (
 
 //go:generate hel
 
-func TestService(t *testing.T) {
+func TestHandlers(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Adapter - Controller Suite")
+	RunSpecs(t, "Adapter - Handlers Suite")
 }

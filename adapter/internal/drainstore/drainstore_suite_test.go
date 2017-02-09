@@ -1,4 +1,4 @@
-package controller_test
+package drainstore_test
 
 import (
 	"log"
@@ -9,10 +9,8 @@ import (
 	"testing"
 )
 
-//go:generate hel
-
-func TestService(t *testing.T) {
+func TestDrainstore(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Adapter - Controller Suite")
+	RunSpecs(t, "Adapter - Drainstore Suite")
 }

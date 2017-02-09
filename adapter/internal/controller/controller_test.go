@@ -11,11 +11,35 @@ import (
 )
 
 var _ = Describe("Controller", func() {
-	It("returns a list of known bindings", func() {
-		s := controller.New()
+	var (
+		mockStore *mockBindingStore
+		c         *controller.Controller
+	)
 
-		resp, err := s.ListBindings(context.Background(), new(v1.ListBindingsRequest))
+	BeforeEach(func() {
+		mockStore = newMockBindingStore()
+		c = controller.New(mockStore)
+	})
+
+	It("returns a list of known bindings", func() {
+		mockStore.ListOutput.Bindings <- []*v1.Binding{nil, nil}
+		resp, err := c.ListBindings(context.Background(), new(v1.ListBindingsRequest))
+
 		Expect(err).ToNot(HaveOccurred())
-		Expect(resp.Bindings).To(HaveLen(0))
+		Expect(resp.Bindings).To(HaveLen(2))
+	})
+
+	It("adds new bindings to the store", func() {
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host",
+			Drain:    "some.url",
+		}
+		_, err := c.CreateBinding(context.Background(), &v1.CreateBindingRequest{
+			Binding: binding,
+		})
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(mockStore.AddInput.Binding).To(Receive(Equal(binding)))
 	})
 })

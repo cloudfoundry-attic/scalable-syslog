@@ -1,32 +1,37 @@
 package controller
 
 import (
-	"sync"
-
 	"golang.org/x/net/context"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 )
 
+// BindingsStore stores and lists bindings
+type BindingStore interface {
+	Add(binding *v1.Binding)
+	List() (bindings []*v1.Binding)
+}
+
+// Controller implements the v1.AdapterServer interface.
 type Controller struct {
-	mu       sync.Mutex
-	bindings []*v1.Binding
+	store BindingStore
 }
 
-func New() *Controller {
-	return new(Controller)
+// New returns a new Controller.
+func New(s BindingStore) *Controller {
+	return &Controller{
+		store: s,
+	}
 }
 
-func (s *Controller) ListBindings(ctx context.Context, req *v1.ListBindingsRequest) (*v1.ListBindingsResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return &v1.ListBindingsResponse{Bindings: s.bindings}, nil
+// ListBindings returns a list of bindings from the bindings store.
+func (c *Controller) ListBindings(ctx context.Context, req *v1.ListBindingsRequest) (*v1.ListBindingsResponse, error) {
+	return &v1.ListBindingsResponse{Bindings: c.store.List()}, nil
 }
 
-func (s *Controller) CreateBinding(ctx context.Context, req *v1.CreateBindingRequest) (*v1.CreateBindingResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.bindings = append(s.bindings, req.Binding)
+// CreateBinding adds a new binding to the bindings store.
+func (c *Controller) CreateBinding(ctx context.Context, req *v1.CreateBindingRequest) (*v1.CreateBindingResponse, error) {
+	c.store.Add(req.Binding)
 
 	return new(v1.CreateBindingResponse), nil
 }

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/controller"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/drainstore"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/handlers"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	"google.golang.org/grpc"
@@ -18,13 +20,15 @@ import (
 func StartAdapter(opts ...AdapterOption) (actualHealth, actualService string) {
 	conf := setupConfig(opts)
 
-	actualHealth = startHealthServer(conf.healthAddr)
-	actualService = startAdapterService(conf.controllerAddr, conf.controllerCreds)
+	cache := drainstore.NewCache()
+
+	actualHealth = startHealthServer(conf.healthAddr, cache)
+	actualService = startAdapterService(conf.controllerAddr, conf.controllerCreds, cache)
 
 	return actualHealth, actualService
 }
 
-func startHealthServer(hostport string) string {
+func startHealthServer(hostport string, cache *drainstore.Cache) string {
 	l, err := net.Listen("tcp", hostport)
 	if err != nil {
 		log.Fatalf("Unable to setup Health endpoint (%s): %s", hostport, err)
@@ -36,9 +40,9 @@ func startHealthServer(hostport string) string {
 		WriteTimeout: 5 * time.Second,
 	}
 
-	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"drainCount": 0}`))
-	})
+	router := http.NewServeMux()
+	router.Handle("/health", handlers.NewHealth(cache))
+	server.Handler = router
 
 	go func() {
 		log.Fatalf("Health server closing: %s", server.Serve(l))
@@ -47,13 +51,13 @@ func startHealthServer(hostport string) string {
 	return l.Addr().String()
 }
 
-func startAdapterService(hostport string, creds credentials.TransportCredentials) string {
+func startAdapterService(hostport string, creds credentials.TransportCredentials, cache *drainstore.Cache) string {
 	lis, err := net.Listen("tcp", hostport)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	adapterService := controller.New()
+	adapterService := controller.New(cache)
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
 	)
