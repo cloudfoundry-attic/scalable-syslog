@@ -45,4 +45,16 @@ var _ = Describe("Cache", func() {
 
 		Expect(bindings).To(HaveLen(1))
 	})
+
+	It("removes a binding", func() {
+		binding := &v1.Binding{
+			AppId:    "some-id",
+			Hostname: "some-hostname",
+			Drain:    "some.url",
+		}
+		cache.Add(binding)
+		cache.Delete(binding)
+
+		Expect(cache.List()).To(HaveLen(0))
+	})
 })

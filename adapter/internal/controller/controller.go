@@ -9,6 +9,7 @@ import (
 // BindingsStore stores and lists bindings
 type BindingStore interface {
 	Add(binding *v1.Binding)
+	Delete(binding *v1.Binding)
 	List() (bindings []*v1.Binding)
 }
 
@@ -34,4 +35,11 @@ func (c *Controller) CreateBinding(ctx context.Context, req *v1.CreateBindingReq
 	c.store.Add(req.Binding)
 
 	return new(v1.CreateBindingResponse), nil
+}
+
+// DeleteBinding removes a binding from the bindings store.
+func (c *Controller) DeleteBinding(ctx context.Context, req *v1.DeleteBindingRequest) (*v1.DeleteBindingResponse, error) {
+	c.store.Delete(req.Binding)
+
+	return new(v1.DeleteBindingResponse), nil
 }

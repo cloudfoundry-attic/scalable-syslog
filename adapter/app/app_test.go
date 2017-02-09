@@ -54,6 +54,26 @@ var _ = Describe("App", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(body).To(MatchJSON(`{"drainCount": 1}`))
 	})
+
+	It("deletes a binding", func() {
+		_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
+			Binding: binding,
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = client.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
+			Binding: binding,
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		healthResp, err := http.Get(fmt.Sprintf("http://%s/health", adapterHealthAddr))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(healthResp.StatusCode).To(Equal(http.StatusOK))
+
+		body, err := ioutil.ReadAll(healthResp.Body)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(body).To(MatchJSON(`{"drainCount": 0}`))
+	})
 })
 
 func startAdapterClient(addr string) v1.AdapterClient {

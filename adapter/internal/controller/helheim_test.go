@@ -12,6 +12,10 @@ type mockBindingStore struct {
 	AddInput  struct {
 		Binding chan *v1.Binding
 	}
+	DeleteCalled chan bool
+	DeleteInput  struct {
+		Binding chan *v1.Binding
+	}
 	ListCalled chan bool
 	ListOutput struct {
 		Bindings chan []*v1.Binding
@@ -22,6 +26,8 @@ func newMockBindingStore() *mockBindingStore {
 	m := &mockBindingStore{}
 	m.AddCalled = make(chan bool, 100)
 	m.AddInput.Binding = make(chan *v1.Binding, 100)
+	m.DeleteCalled = make(chan bool, 100)
+	m.DeleteInput.Binding = make(chan *v1.Binding, 100)
 	m.ListCalled = make(chan bool, 100)
 	m.ListOutput.Bindings = make(chan []*v1.Binding, 100)
 	return m
@@ -29,6 +35,10 @@ func newMockBindingStore() *mockBindingStore {
 func (m *mockBindingStore) Add(binding *v1.Binding) {
 	m.AddCalled <- true
 	m.AddInput.Binding <- binding
+}
+func (m *mockBindingStore) Delete(binding *v1.Binding) {
+	m.DeleteCalled <- true
+	m.DeleteInput.Binding <- binding
 }
 func (m *mockBindingStore) List() (bindings []*v1.Binding) {
 	m.ListCalled <- true

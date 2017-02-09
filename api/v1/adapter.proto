@@ -5,6 +5,7 @@ package scalablesyslog;
 service Adapter {
     rpc ListBindings(ListBindingsRequest) returns (ListBindingsResponse) {}
     rpc CreateBinding(CreateBindingRequest) returns (CreateBindingResponse) {}
+    rpc DeleteBinding(DeleteBindingRequest) returns (DeleteBindingResponse) {}
 }
 
 message Binding {
@@ -24,4 +25,10 @@ message CreateBindingRequest {
 }
 
 message CreateBindingResponse {}
+
+message DeleteBindingRequest {
+    Binding binding = 1;
+}
+
+message DeleteBindingResponse {}
 

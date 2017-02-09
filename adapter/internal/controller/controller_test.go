@@ -42,4 +42,18 @@ var _ = Describe("Controller", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(mockStore.AddInput.Binding).To(Receive(Equal(binding)))
 	})
+
+	It("deletes existing bindings to the store", func() {
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host",
+			Drain:    "some.url",
+		}
+		_, err := c.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
+			Binding: binding,
+		})
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(mockStore.DeleteInput.Binding).To(Receive(Equal(binding)))
+	})
 })
