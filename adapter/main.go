@@ -34,8 +34,8 @@ func main() {
 
 	healthHostport, controllerHealthport := app.StartAdapter(
 		app.WithHealthAddr(*healthHostport),
-		app.WithServiceAddr(*adapterHostport),
-		app.WithServiceTLSConfig(tlsConfig),
+		app.WithControllerAddr(*adapterHostport),
+		app.WithControllerTLSConfig(tlsConfig),
 	)
 	log.Printf("Health endpoint is listening on %s", healthHostport)
 	log.Printf("Adapter controller is listening on %s", controllerHealthport)
