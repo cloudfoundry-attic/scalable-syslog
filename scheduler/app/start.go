@@ -15,7 +15,7 @@ import (
 
 // Start starts polling the CUPS provider and serves the HTTP
 // health endpoint.
-func Start(opts ...SchedulerOption) (actualHealth string) {
+func Start(opts ...AppOption) (actualHealth string) {
 	log.Print("Starting scheduler...")
 
 	conf := setupConfig(opts)
@@ -25,16 +25,16 @@ func Start(opts ...SchedulerOption) (actualHealth string) {
 		log.Fatalf("Unable to setup Health endpoint (%s): %s", conf.healthAddr, err)
 	}
 
-	client := clientWrapper{
+	client := cupsHTTPClient{
 		client: conf.client,
 		addr:   conf.cupsURL,
 	}
 	fetcher := cups.NewBindingFetcher(client)
 
-	store := drainstore.NewCache()
+	store := drainstore.New()
 	cups.StartPoller(conf.interval, fetcher, store)
 
-	o := orchestrator.New(conf.adapters)
+	o := orchestrator.New(conf.adapterAddrs)
 
 	router := http.NewServeMux()
 	router.Handle("/health", handlers.NewHealth(store, o))
@@ -54,8 +54,8 @@ func Start(opts ...SchedulerOption) (actualHealth string) {
 	return l.Addr().String()
 }
 
-// SchedulerOption is a type that will manipulate a config
-type SchedulerOption func(c *config)
+// AppOption is a type that will manipulate a config
+type AppOption func(c *config)
 
 // WithHealthAddr sets the address for the health endpoint to bind to.
 func WithHealthAddr(addr string) func(*config) {
@@ -88,19 +88,19 @@ func WithPollingInterval(interval time.Duration) func(*config) {
 // WithAdapterAddrs sets the list of adapter addresses
 func WithAdapterAddrs(addrs []string) func(*config) {
 	return func(c *config) {
-		c.adapters = addrs
+		c.adapterAddrs = addrs
 	}
 }
 
 type config struct {
-	healthAddr string
-	cupsURL    string
-	client     *http.Client
-	interval   time.Duration
-	adapters   []string
+	healthAddr   string
+	cupsURL      string
+	client       *http.Client
+	interval     time.Duration
+	adapterAddrs []string
 }
 
-func setupConfig(opts []SchedulerOption) *config {
+func setupConfig(opts []AppOption) *config {
 	conf := config{
 		healthAddr: ":8080",
 		client:     http.DefaultClient,
@@ -114,11 +114,11 @@ func setupConfig(opts []SchedulerOption) *config {
 	return &conf
 }
 
-type clientWrapper struct {
+type cupsHTTPClient struct {
 	client *http.Client
 	addr   string
 }
 
-func (w clientWrapper) Get(nextID int) (*http.Response, error) {
+func (w cupsHTTPClient) Get(nextID int) (*http.Response, error) {
 	return w.client.Get(fmt.Sprintf("%s?batch_size=50&next_id=%d", w.addr, nextID))
 }

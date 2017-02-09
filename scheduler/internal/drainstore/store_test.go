@@ -17,7 +17,7 @@ var _ = Describe("Cache", func() {
 	)
 
 	BeforeEach(func() {
-		cache = drainstore.NewCache()
+		cache = drainstore.New()
 	})
 
 	It("updates the count according to the last state", func() {

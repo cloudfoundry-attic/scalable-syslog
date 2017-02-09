@@ -13,8 +13,8 @@ type Cache struct {
 	count int
 }
 
-// NewCache returns a new Cache
-func NewCache() *Cache {
+// New returns a new Cache
+func New() *Cache {
 	return &Cache{}
 }
 
