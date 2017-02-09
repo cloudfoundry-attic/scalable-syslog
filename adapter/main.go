@@ -13,8 +13,8 @@ import (
 
 var (
 	healthHostport  = flag.String("health", ":8080", "The hostport to listen for health requests")
-	adapterHostport = flag.String("adapter", ":4443", "The hostport to for the adapter controller")
-	pprofHostport   = flag.String("pprof", ":6060", "The hostport to listen for pprof")
+	adapterHostport = flag.String("addr", ":4443", "The hostport to for the adapter controller")
+	pprofHostport   = flag.String("pprof", "localhost:6060", "The hostport to listen for pprof")
 
 	caFile     = flag.String("ca", "", "The file path for the CA cert")
 	certFile   = flag.String("cert", "", "The file path for the adapter server cert")
