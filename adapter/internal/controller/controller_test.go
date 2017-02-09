@@ -14,8 +14,8 @@ var _ = Describe("Controller", func() {
 	It("returns a list of known drains", func() {
 		s := controller.New()
 
-		resp, err := s.Drains(context.Background(), new(v1.DrainsRequest))
+		resp, err := s.ListBindings(context.Background(), new(v1.ListBindingsRequest))
 		Expect(err).ToNot(HaveOccurred())
-		Expect(resp.Drains).To(HaveLen(0))
+		Expect(resp.Bindings).To(HaveLen(0))
 	})
 })

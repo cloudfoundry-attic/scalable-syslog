@@ -26,9 +26,9 @@ var _ = Describe("App Controller", func() {
 	It("returns a list of known drains", func() {
 		client := startAdapterClient(adapterServiceHost)
 
-		drains, err := client.Drains(context.Background(), new(v1.DrainsRequest))
+		resp, err := client.ListBindings(context.Background(), new(v1.ListBindingsRequest))
 		Expect(err).ToNot(HaveOccurred())
-		Expect(drains.Drains).To(HaveLen(0))
+		Expect(resp.Bindings).To(HaveLen(0))
 	})
 })
 

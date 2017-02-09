@@ -9,9 +9,9 @@ It is generated from these files:
 	adapter.proto
 
 It has these top-level messages:
-	DrainsRequest
-	DrainsResponse
-	Drain
+	ListBindingsRequest
+	ListBindingsResponse
+	Binding
 */
 package v1
 
@@ -35,66 +35,66 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-type DrainsRequest struct {
+type ListBindingsRequest struct {
 }
 
-func (m *DrainsRequest) Reset()                    { *m = DrainsRequest{} }
-func (m *DrainsRequest) String() string            { return proto.CompactTextString(m) }
-func (*DrainsRequest) ProtoMessage()               {}
-func (*DrainsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+func (m *ListBindingsRequest) Reset()                    { *m = ListBindingsRequest{} }
+func (m *ListBindingsRequest) String() string            { return proto.CompactTextString(m) }
+func (*ListBindingsRequest) ProtoMessage()               {}
+func (*ListBindingsRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
-type DrainsResponse struct {
-	Drains []*Drain `protobuf:"bytes,1,rep,name=drains" json:"drains,omitempty"`
+type ListBindingsResponse struct {
+	Bindings []*Binding `protobuf:"bytes,1,rep,name=bindings" json:"bindings,omitempty"`
 }
 
-func (m *DrainsResponse) Reset()                    { *m = DrainsResponse{} }
-func (m *DrainsResponse) String() string            { return proto.CompactTextString(m) }
-func (*DrainsResponse) ProtoMessage()               {}
-func (*DrainsResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (m *ListBindingsResponse) Reset()                    { *m = ListBindingsResponse{} }
+func (m *ListBindingsResponse) String() string            { return proto.CompactTextString(m) }
+func (*ListBindingsResponse) ProtoMessage()               {}
+func (*ListBindingsResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
 
-func (m *DrainsResponse) GetDrains() []*Drain {
+func (m *ListBindingsResponse) GetBindings() []*Binding {
 	if m != nil {
-		return m.Drains
+		return m.Bindings
 	}
 	return nil
 }
 
-type Drain struct {
-	AppId     string   `protobuf:"bytes,1,opt,name=appId" json:"appId,omitempty"`
-	Hostname  string   `protobuf:"bytes,2,opt,name=hostname" json:"hostname,omitempty"`
-	DrainUrls []string `protobuf:"bytes,3,rep,name=drainUrls" json:"drainUrls,omitempty"`
+type Binding struct {
+	AppId    string `protobuf:"bytes,1,opt,name=appId" json:"appId,omitempty"`
+	Hostname string `protobuf:"bytes,2,opt,name=hostname" json:"hostname,omitempty"`
+	Drain    string `protobuf:"bytes,3,opt,name=drain" json:"drain,omitempty"`
 }
 
-func (m *Drain) Reset()                    { *m = Drain{} }
-func (m *Drain) String() string            { return proto.CompactTextString(m) }
-func (*Drain) ProtoMessage()               {}
-func (*Drain) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+func (m *Binding) Reset()                    { *m = Binding{} }
+func (m *Binding) String() string            { return proto.CompactTextString(m) }
+func (*Binding) ProtoMessage()               {}
+func (*Binding) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
 
-func (m *Drain) GetAppId() string {
+func (m *Binding) GetAppId() string {
 	if m != nil {
 		return m.AppId
 	}
 	return ""
 }
 
-func (m *Drain) GetHostname() string {
+func (m *Binding) GetHostname() string {
 	if m != nil {
 		return m.Hostname
 	}
 	return ""
 }
 
-func (m *Drain) GetDrainUrls() []string {
+func (m *Binding) GetDrain() string {
 	if m != nil {
-		return m.DrainUrls
+		return m.Drain
 	}
-	return nil
+	return ""
 }
 
 func init() {
-	proto.RegisterType((*DrainsRequest)(nil), "v1.DrainsRequest")
-	proto.RegisterType((*DrainsResponse)(nil), "v1.DrainsResponse")
-	proto.RegisterType((*Drain)(nil), "v1.Drain")
+	proto.RegisterType((*ListBindingsRequest)(nil), "v1.ListBindingsRequest")
+	proto.RegisterType((*ListBindingsResponse)(nil), "v1.ListBindingsResponse")
+	proto.RegisterType((*Binding)(nil), "v1.Binding")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -108,7 +108,7 @@ const _ = grpc.SupportPackageIsVersion4
 // Client API for Adapter service
 
 type AdapterClient interface {
-	Drains(ctx context.Context, in *DrainsRequest, opts ...grpc.CallOption) (*DrainsResponse, error)
+	ListBindings(ctx context.Context, in *ListBindingsRequest, opts ...grpc.CallOption) (*ListBindingsResponse, error)
 }
 
 type adapterClient struct {
@@ -119,9 +119,9 @@ func NewAdapterClient(cc *grpc.ClientConn) AdapterClient {
 	return &adapterClient{cc}
 }
 
-func (c *adapterClient) Drains(ctx context.Context, in *DrainsRequest, opts ...grpc.CallOption) (*DrainsResponse, error) {
-	out := new(DrainsResponse)
-	err := grpc.Invoke(ctx, "/v1.Adapter/Drains", in, out, c.cc, opts...)
+func (c *adapterClient) ListBindings(ctx context.Context, in *ListBindingsRequest, opts ...grpc.CallOption) (*ListBindingsResponse, error) {
+	out := new(ListBindingsResponse)
+	err := grpc.Invoke(ctx, "/v1.Adapter/ListBindings", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -131,27 +131,27 @@ func (c *adapterClient) Drains(ctx context.Context, in *DrainsRequest, opts ...g
 // Server API for Adapter service
 
 type AdapterServer interface {
-	Drains(context.Context, *DrainsRequest) (*DrainsResponse, error)
+	ListBindings(context.Context, *ListBindingsRequest) (*ListBindingsResponse, error)
 }
 
 func RegisterAdapterServer(s *grpc.Server, srv AdapterServer) {
 	s.RegisterService(&_Adapter_serviceDesc, srv)
 }
 
-func _Adapter_Drains_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DrainsRequest)
+func _Adapter_ListBindings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBindingsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AdapterServer).Drains(ctx, in)
+		return srv.(AdapterServer).ListBindings(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/v1.Adapter/Drains",
+		FullMethod: "/v1.Adapter/ListBindings",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AdapterServer).Drains(ctx, req.(*DrainsRequest))
+		return srv.(AdapterServer).ListBindings(ctx, req.(*ListBindingsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -161,8 +161,8 @@ var _Adapter_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*AdapterServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Drains",
-			Handler:    _Adapter_Drains_Handler,
+			MethodName: "ListBindings",
+			Handler:    _Adapter_ListBindings_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -172,17 +172,17 @@ var _Adapter_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("adapter.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 189 bytes of a gzipped FileDescriptorProto
+	// 190 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xe2, 0xe2, 0x4d, 0x4c, 0x49, 0x2c,
-	0x28, 0x49, 0x2d, 0xd2, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x2a, 0x33, 0x54, 0xe2, 0xe7,
-	0xe2, 0x75, 0x29, 0x4a, 0xcc, 0xcc, 0x2b, 0x0e, 0x4a, 0x2d, 0x2c, 0x4d, 0x2d, 0x2e, 0x51, 0x32,
-	0xe6, 0xe2, 0x83, 0x09, 0x14, 0x17, 0xe4, 0xe7, 0x15, 0xa7, 0x0a, 0x29, 0x72, 0xb1, 0xa5, 0x80,
-	0x45, 0x24, 0x18, 0x15, 0x98, 0x35, 0xb8, 0x8d, 0x38, 0xf5, 0xca, 0x0c, 0xf5, 0xc0, 0x6a, 0x82,
-	0xa0, 0x12, 0x4a, 0xe1, 0x5c, 0xac, 0x60, 0x01, 0x21, 0x11, 0x2e, 0xd6, 0xc4, 0x82, 0x02, 0xcf,
-	0x14, 0x09, 0x46, 0x05, 0x46, 0x0d, 0xce, 0x20, 0x08, 0x47, 0x48, 0x8a, 0x8b, 0x23, 0x23, 0xbf,
-	0xb8, 0x24, 0x2f, 0x31, 0x37, 0x55, 0x82, 0x09, 0x2c, 0x01, 0xe7, 0x0b, 0xc9, 0x70, 0x71, 0x82,
-	0x0d, 0x09, 0x2d, 0xca, 0x29, 0x96, 0x60, 0x56, 0x60, 0xd6, 0xe0, 0x0c, 0x42, 0x08, 0x18, 0xd9,
-	0x70, 0xb1, 0x3b, 0x42, 0xdc, 0x2c, 0x64, 0xc8, 0xc5, 0x06, 0x71, 0x98, 0x90, 0x20, 0xdc, 0x01,
-	0x30, 0x57, 0x4b, 0x09, 0x21, 0x0b, 0x41, 0xdc, 0xad, 0xc4, 0x90, 0xc4, 0x06, 0xf6, 0xa7, 0x31,
-	0x20, 0x00, 0x00, 0xff, 0xff, 0xc2, 0xda, 0x74, 0xba, 0xf8, 0x00, 0x00, 0x00,
+	0x28, 0x49, 0x2d, 0xd2, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x2a, 0x33, 0x54, 0x12, 0xe5,
+	0x12, 0xf6, 0xc9, 0x2c, 0x2e, 0x71, 0xca, 0xcc, 0x4b, 0xc9, 0xcc, 0x4b, 0x2f, 0x0e, 0x4a, 0x2d,
+	0x2c, 0x4d, 0x2d, 0x2e, 0x51, 0xb2, 0xe7, 0x12, 0x41, 0x15, 0x2e, 0x2e, 0xc8, 0xcf, 0x2b, 0x4e,
+	0x15, 0x52, 0xe7, 0xe2, 0x48, 0x82, 0x8a, 0x49, 0x30, 0x2a, 0x30, 0x6b, 0x70, 0x1b, 0x71, 0xeb,
+	0x95, 0x19, 0xea, 0x41, 0xd5, 0x05, 0xc1, 0x25, 0x95, 0x02, 0xb9, 0xd8, 0xa1, 0x82, 0x42, 0x22,
+	0x5c, 0xac, 0x89, 0x05, 0x05, 0x9e, 0x29, 0x12, 0x8c, 0x0a, 0x8c, 0x1a, 0x9c, 0x41, 0x10, 0x8e,
+	0x90, 0x14, 0x17, 0x47, 0x46, 0x7e, 0x71, 0x49, 0x5e, 0x62, 0x6e, 0xaa, 0x04, 0x13, 0x58, 0x02,
+	0xce, 0x07, 0xe9, 0x48, 0x29, 0x4a, 0xcc, 0xcc, 0x93, 0x60, 0x86, 0xe8, 0x00, 0x73, 0x8c, 0xfc,
+	0xb8, 0xd8, 0x1d, 0x21, 0xee, 0x17, 0x72, 0xe6, 0xe2, 0x41, 0x76, 0x9e, 0x90, 0x38, 0xc8, 0x11,
+	0x58, 0xfc, 0x21, 0x25, 0x81, 0x29, 0x01, 0xf1, 0x89, 0x12, 0x43, 0x12, 0x1b, 0x38, 0x14, 0x8c,
+	0x01, 0x01, 0x00, 0x00, 0xff, 0xff, 0x74, 0x84, 0x1b, 0x9f, 0x16, 0x01, 0x00, 0x00,
 }

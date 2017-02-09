@@ -12,6 +12,6 @@ func New() *Controller {
 	return new(Controller)
 }
 
-func (s *Controller) Drains(context.Context, *v1.DrainsRequest) (*v1.DrainsResponse, error) {
-	return new(v1.DrainsResponse), nil
+func (s *Controller) ListBindings(context.Context, *v1.ListBindingsRequest) (*v1.ListBindingsResponse, error) {
+	return new(v1.ListBindingsResponse), nil
 }
