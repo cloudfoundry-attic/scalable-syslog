@@ -33,5 +33,6 @@ var _ = Describe("Health", func() {
 		Expect(recorder.Body.Bytes()).To(MatchJSON(`{
 			"drainCount": 2
 		}`))
+		Expect(recorder.Header().Get("Content-Type")).To(Equal("application/json"))
 	})
 })
