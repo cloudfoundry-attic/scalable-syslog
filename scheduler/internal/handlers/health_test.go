@@ -27,6 +27,9 @@ var _ = Describe("Health", func() {
 
 		health.ServeHTTP(recorder, new(http.Request))
 		Expect(recorder.Code).To(Equal(http.StatusOK))
+		Expect(recorder.Header().Get("Content-Type")).To(
+			Equal("application/json; charset=utf-8"),
+		)
 		Expect(recorder.Body.Bytes()).To(MatchJSON(`{"drainCount": 5, "adapterCount": 1}`))
 	})
 })
