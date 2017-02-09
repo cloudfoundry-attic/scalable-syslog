@@ -1,8 +1,10 @@
 package handlers_test
 
 import (
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"testing"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/handlers"
 
@@ -31,3 +33,9 @@ var _ = Describe("Health", func() {
 		Expect(recorder.Body.Bytes()).To(MatchJSON(`{"drainCount": 5}`))
 	})
 })
+
+func TestHandlers(t *testing.T) {
+	log.SetOutput(GinkgoWriter)
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Scheduler - Handlers Suite")
+}

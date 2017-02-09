@@ -1,7 +1,7 @@
-// Package cupsprovider handles integration to the CUPS provider.
+// Package cups handles integration to the CUPS provider.
 // It periodically reaches out to the provider and decodes its response.
 // It then stores the result in a provided store.
-package cupsprovider
+package cups
 
 import (
 	"log"

@@ -1,4 +1,4 @@
-package cupsprovider
+package cups
 
 import (
 	"encoding/json"

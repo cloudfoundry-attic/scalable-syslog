@@ -1,4 +1,4 @@
-package cupsprovider_test
+package cups_test
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cupsprovider"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cups"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -15,12 +15,12 @@ import (
 var _ = Describe("BindingFetcher", func() {
 	var (
 		mockGetter *mockGetter
-		fetcher    *cupsprovider.BindingFetcher
+		fetcher    *cups.BindingFetcher
 	)
 
 	BeforeEach(func() {
 		mockGetter = newMockGetter()
-		fetcher = cupsprovider.NewBindingFetcher(mockGetter)
+		fetcher = cups.NewBindingFetcher(mockGetter)
 	})
 
 	Context("when the getter does not return an error", func() {

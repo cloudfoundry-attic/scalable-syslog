@@ -3,12 +3,12 @@
 // doing.  Expect any changes made manually to be overwritten
 // the next time hel regenerates this file.
 
-package cupsprovider_test
+package cups_test
 
 import (
 	"net/http"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cupsprovider"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cups"
 )
 
 type mockGetter struct {
@@ -39,7 +39,7 @@ func (m *mockGetter) Get(nextID int) (resp *http.Response, err error) {
 type mockProvider struct {
 	FetchBindingsCalled chan bool
 	FetchBindingsOutput struct {
-		Bindings chan map[string]cupsprovider.Binding
+		Bindings chan map[string]cups.Binding
 		Err      chan error
 	}
 }
@@ -47,11 +47,11 @@ type mockProvider struct {
 func newMockProvider() *mockProvider {
 	m := &mockProvider{}
 	m.FetchBindingsCalled = make(chan bool, 100)
-	m.FetchBindingsOutput.Bindings = make(chan map[string]cupsprovider.Binding, 100)
+	m.FetchBindingsOutput.Bindings = make(chan map[string]cups.Binding, 100)
 	m.FetchBindingsOutput.Err = make(chan error, 100)
 	return m
 }
-func (m *mockProvider) FetchBindings() (bindings map[string]cupsprovider.Binding, err error) {
+func (m *mockProvider) FetchBindings() (bindings map[string]cups.Binding, err error) {
 	m.FetchBindingsCalled <- true
 	return <-m.FetchBindingsOutput.Bindings, <-m.FetchBindingsOutput.Err
 }
@@ -59,17 +59,17 @@ func (m *mockProvider) FetchBindings() (bindings map[string]cupsprovider.Binding
 type mockStore struct {
 	StoreBindingsCalled chan bool
 	StoreBindingsInput  struct {
-		Bindings chan map[string]cupsprovider.Binding
+		Bindings chan map[string]cups.Binding
 	}
 }
 
 func newMockStore() *mockStore {
 	m := &mockStore{}
 	m.StoreBindingsCalled = make(chan bool, 100)
-	m.StoreBindingsInput.Bindings = make(chan map[string]cupsprovider.Binding, 100)
+	m.StoreBindingsInput.Bindings = make(chan map[string]cups.Binding, 100)
 	return m
 }
-func (m *mockStore) StoreBindings(bindings map[string]cupsprovider.Binding) {
+func (m *mockStore) StoreBindings(bindings map[string]cups.Binding) {
 	m.StoreBindingsCalled <- true
 	m.StoreBindingsInput.Bindings <- bindings
 }

@@ -1,10 +1,11 @@
-package endtoend_test
+package app_test
 
 import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"testing"
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
@@ -57,3 +58,8 @@ var _ = Describe("Scheduler - Endtoend", func() {
 	})
 
 })
+
+func TestEndtoend(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Scheduler Endtoend Suite")
+}

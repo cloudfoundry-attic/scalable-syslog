@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cupsprovider"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cups"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/drainstore"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/handlers"
 )
@@ -34,8 +34,8 @@ func StartScheduler(opts ...SchedulerOption) (actualHealth string) {
 	}
 
 	store := drainstore.NewCache()
-	fetcher := cupsprovider.NewBindingFetcher(client)
-	cupsprovider.StartPoller(conf.interval, fetcher, store)
+	fetcher := cups.NewBindingFetcher(client)
+	cups.StartPoller(conf.interval, fetcher, store)
 
 	router := http.NewServeMux()
 	router.Handle("/health", handlers.NewHealth(store))

@@ -1,7 +1,10 @@
 package drainstore_test
 
 import (
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cupsprovider"
+	"log"
+	"testing"
+
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cups"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/drainstore"
 
 	. "github.com/onsi/ginkgo"
@@ -21,7 +24,7 @@ var _ = Describe("Cache", func() {
 		cache.StoreBindings(nil)
 		Expect(cache.Count()).To(Equal(0))
 
-		cache.StoreBindings(map[string]cupsprovider.Binding{
+		cache.StoreBindings(map[string]cups.Binding{
 			"a": {
 				Hostname: "some-hostname",
 				Drains: []string{
@@ -41,3 +44,9 @@ var _ = Describe("Cache", func() {
 		Expect(cache.Count()).To(Equal(4))
 	})
 })
+
+func TestDrainstore(t *testing.T) {
+	log.SetOutput(GinkgoWriter)
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Scheduler - Drainstore Suite")
+}

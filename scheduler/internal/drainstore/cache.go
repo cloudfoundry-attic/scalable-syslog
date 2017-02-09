@@ -4,7 +4,7 @@ package drainstore
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cupsprovider"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cups"
 )
 
 // Cache stores the bindings.
@@ -27,7 +27,7 @@ func (c *Cache) Count() int {
 }
 
 // StoreBindings caches the current bindings from the CUPS provider.
-func (c *Cache) StoreBindings(bindings map[string]cupsprovider.Binding) {
+func (c *Cache) StoreBindings(bindings map[string]cups.Binding) {
 	var count int
 	for _, v := range bindings {
 		count += len(v.Drains)

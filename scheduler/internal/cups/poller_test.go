@@ -1,10 +1,12 @@
-package cupsprovider_test
+package cups_test
 
 import (
 	"errors"
+	"log"
+	"testing"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cupsprovider"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cups"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,13 +22,13 @@ var _ = Describe("Poller", func() {
 		mockProvider = newMockProvider()
 		mockStore = newMockStore()
 
-		cupsprovider.StartPoller(time.Millisecond, mockProvider, mockStore)
+		cups.StartPoller(time.Millisecond, mockProvider, mockStore)
 	})
 
 	Context("when the provider does not return an error", func() {
 		BeforeEach(func() {
-			mockProvider.FetchBindingsOutput.Bindings <- map[string]cupsprovider.Binding{
-				"A": cupsprovider.Binding{
+			mockProvider.FetchBindingsOutput.Bindings <- map[string]cups.Binding{
+				"A": cups.Binding{
 					Hostname: "some-hostname",
 				},
 			}
@@ -34,9 +36,9 @@ var _ = Describe("Poller", func() {
 		})
 
 		It("periodically polls the provider and stores the result", func() {
-			var bindings map[string]cupsprovider.Binding
+			var bindings map[string]cups.Binding
 			Eventually(mockStore.StoreBindingsInput.Bindings).Should(Receive(&bindings))
-			Expect(bindings).To(HaveKeyWithValue("A", cupsprovider.Binding{
+			Expect(bindings).To(HaveKeyWithValue("A", cups.Binding{
 				Hostname: "some-hostname",
 			}))
 		})
@@ -54,3 +56,9 @@ var _ = Describe("Poller", func() {
 		})
 	})
 })
+
+func TestCups(t *testing.T) {
+	log.SetOutput(GinkgoWriter)
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Scheduler - Cups Suite")
+}
