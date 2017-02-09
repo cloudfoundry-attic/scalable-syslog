@@ -15,7 +15,7 @@ import (
 var (
 	healthHostport = flag.String("health", ":8080", "The hostport to listen for health requests")
 	pprofHostport  = flag.String("pprof", ":6060", "The hostport to listen for pprof")
-	cupsProvider   = flag.String("cups-provider", "", "The URL of the CUPS provider")
+	cupsProvider   = flag.String("cups-url", "", "The URL of the CUPS provider")
 
 	caFile         = flag.String("cups-ca", "", "The file path for the CA cert")
 	certFile       = flag.String("cups-cert", "", "The file path for the client cert")

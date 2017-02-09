@@ -42,9 +42,15 @@ var _ = Describe("BindingFetcher", func() {
 						  ],
 						  "hostname": "org.space.logspinner"
 						}
-					  }
+					  },
+					  "next_id": 50
 					}
 				`)),
+				}
+
+				mockGetter.GetOutput.Resp <- &http.Response{
+					StatusCode: http.StatusOK,
+					Body:       ioutil.NopCloser(strings.NewReader(`{ "results": { }, "next_id": null }`)),
 				}
 			})
 
@@ -57,6 +63,13 @@ var _ = Describe("BindingFetcher", func() {
 				Expect(bindings).To(HaveKey(appID))
 				Expect(bindings[appID].Hostname).To(Equal("org.space.logspinner"))
 				Expect(bindings[appID].Drains).To(ConsistOf("syslog://some.url", "syslog://some.other.url"))
+			})
+
+			It("fetches all the pages", func() {
+				fetcher.FetchBindings()
+				Expect(mockGetter.GetCalled).To(HaveLen(2))
+				Expect(mockGetter.GetInput.NextID).To(Receive(Equal(0)))
+				Expect(mockGetter.GetInput.NextID).To(Receive(Equal(50)))
 			})
 		})
 
