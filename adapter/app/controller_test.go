@@ -1,4 +1,4 @@
-package endtoend_test
+package app_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Service", func() {
+var _ = Describe("App Controller", func() {
 	var (
 		adapterServiceHost string
 	)

@@ -1,4 +1,4 @@
-package endtoend_test
+package app_test
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Adapter - Endtoend", func() {
+var _ = Describe("App Healthcheck", func() {
 	var (
 		adapterHealthAddr string
 	)
