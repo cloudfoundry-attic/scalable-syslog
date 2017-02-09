@@ -28,21 +28,17 @@ func main() {
 
 	flag.Parse()
 
-	log.Print("Starting scheduler...")
-	defer log.Print("Closing scheduler.")
-
 	tlsConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *commonName)
 	if err != nil {
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
 	tlsConfig.InsecureSkipVerify = *skipCertVerify
 
-	schedulerAddr := app.StartScheduler(
+	app.StartScheduler(
 		app.WithHealthAddr(*healthHostport),
 		app.WithCUPSUrl(*cupsProvider),
 		app.WithHTTPClient(api.NewHTTPSClient(tlsConfig, 5*time.Second)),
 	)
-	log.Printf("Health endpoint is listening on %s", schedulerAddr)
 
 	log.Println(http.ListenAndServe(*pprofHostport, nil))
 }

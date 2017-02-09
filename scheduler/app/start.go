@@ -15,6 +15,8 @@ import (
 // StartScheduler starts polling the CUPS provider and serves the HTTP
 // health endpoint.
 func StartScheduler(opts ...SchedulerOption) (actualHealth string) {
+	log.Print("Starting scheduler...")
+
 	conf := setupConfig(opts)
 
 	l, err := net.Listen("tcp", conf.healthAddr)
@@ -43,6 +45,7 @@ func StartScheduler(opts ...SchedulerOption) (actualHealth string) {
 	server.Handler = router
 
 	go func() {
+		log.Printf("Health endpoint is listening on %s", l.Addr().String())
 		log.Fatalf("Health server closing: %s", server.Serve(l))
 	}()
 
