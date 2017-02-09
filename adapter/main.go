@@ -13,7 +13,7 @@ import (
 
 var (
 	healthHostport  = flag.String("health", ":8080", "The hostport to listen for health requests")
-	adapterHostport = flag.String("adapter", ":443", "The hostport to for the adapter service")
+	adapterHostport = flag.String("adapter", ":443", "The hostport to for the adapter controller")
 	pprofHostport   = flag.String("pprof", ":6060", "The hostport to listen for pprof")
 
 	caFile     = flag.String("ca", "", "The file path for the CA cert")
@@ -32,13 +32,13 @@ func main() {
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
 
-	healthHostport, serviceHealthport := app.StartAdapter(
+	healthHostport, controllerHealthport := app.StartAdapter(
 		app.WithHealthAddr(*healthHostport),
 		app.WithServiceAddr(*adapterHostport),
 		app.WithServiceTLSConfig(tlsConfig),
 	)
 	log.Printf("Health endpoint is listening on %s", healthHostport)
-	log.Printf("Adapter service is listening on %s", serviceHealthport)
+	log.Printf("Adapter controller is listening on %s", controllerHealthport)
 
 	log.Println(http.ListenAndServe(*pprofHostport, nil))
 }

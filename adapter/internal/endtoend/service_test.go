@@ -19,7 +19,7 @@ var _ = Describe("Service", func() {
 	BeforeEach(func() {
 		_, adapterServiceHost = app.StartAdapter(
 			app.WithHealthAddr("localhost:0"),
-			app.WithServiceAddr("localhost:0"),
+			app.WithControllerAddr("localhost:0"),
 		)
 	})
 

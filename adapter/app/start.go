@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/service"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/controller"
 	"github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	"google.golang.org/grpc"
@@ -19,7 +19,7 @@ func StartAdapter(opts ...AdapterOption) (actualHealth, actualService string) {
 	conf := setupConfig(opts)
 
 	actualHealth = startHealthServer(conf.healthAddr)
-	actualService = startAdapterService(conf.serviceAddr, conf.serviceCreds)
+	actualService = startAdapterService(conf.controllerAddr, conf.controllerCreds)
 
 	return actualHealth, actualService
 }
@@ -53,7 +53,7 @@ func startAdapterService(hostport string, creds credentials.TransportCredentials
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	adapterService := service.New()
+	adapterService := controller.New()
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
 	)
@@ -76,30 +76,30 @@ func WithHealthAddr(addr string) func(*config) {
 	}
 }
 
-// WithServiceAddr sets the address for the gRPC service to bind to.
-func WithServiceAddr(addr string) func(*config) {
+// WithServiceAddr sets the address for the gRPC controller to bind to.
+func WithControllerAddr(addr string) func(*config) {
 	return func(c *config) {
-		c.serviceAddr = addr
+		c.controllerAddr = addr
 	}
 }
 
 // WithServiceTLSConfig sets the TLS config for the adapter TLS mutual auth.
-func WithServiceTLSConfig(cfg *tls.Config) func(*config) {
+func WithControllerTLSConfig(cfg *tls.Config) func(*config) {
 	return func(c *config) {
-		c.serviceCreds = credentials.NewTLS(cfg)
+		c.controllerCreds = credentials.NewTLS(cfg)
 	}
 }
 
 type config struct {
-	healthAddr   string
-	serviceAddr  string
-	serviceCreds credentials.TransportCredentials
+	healthAddr      string
+	controllerAddr  string
+	controllerCreds credentials.TransportCredentials
 }
 
 func setupConfig(opts []AdapterOption) *config {
 	conf := config{
-		healthAddr:  ":8080",
-		serviceAddr: ":443",
+		healthAddr:     ":8080",
+		controllerAddr: ":443",
 	}
 
 	for _, o := range opts {

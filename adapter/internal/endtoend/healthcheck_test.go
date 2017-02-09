@@ -19,7 +19,7 @@ var _ = Describe("Adapter - Endtoend", func() {
 	BeforeEach(func() {
 		adapterHealthAddr, _ = app.StartAdapter(
 			app.WithHealthAddr("localhost:0"),
-			app.WithServiceAddr("localhost:0"),
+			app.WithControllerAddr("localhost:0"),
 		)
 	})
 

@@ -1,6 +1,8 @@
-package service_test
+package controller_test
 
 import (
+	"log"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -8,6 +10,7 @@ import (
 )
 
 func TestService(t *testing.T) {
+	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Adapter - Service Suite")
+	RunSpecs(t, "Adapter - Controller Suite")
 }
