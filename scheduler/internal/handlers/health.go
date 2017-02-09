@@ -7,25 +7,21 @@ import (
 	"net/http"
 )
 
-// DrainCounter returns the current number of drains.
-type DrainCounter interface {
-	Count() (drains int)
-}
-
-type AdapterCounter interface {
-	Count() (adapters int)
+// Counter provides numerical information about an object's health.
+type Counter interface {
+	Count() int
 }
 
 // The Health handler will report the number of drains back to user.
 type Health struct {
-	counter        DrainCounter
-	adapterCounter AdapterCounter
+	drainCounter   Counter
+	adapterCounter Counter
 }
 
 // NewHealth returns a new Health handler.
-func NewHealth(c DrainCounter, a AdapterCounter) *Health {
+func NewHealth(c Counter, a Counter) *Health {
 	return &Health{
-		counter:        c,
+		drainCounter:   c,
 		adapterCounter: a,
 	}
 }
@@ -34,7 +30,7 @@ func NewHealth(c DrainCounter, a AdapterCounter) *Health {
 func (h *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	output := fmt.Sprintf(
 		`{"drainCount": %d,"adapterCount": %d}`,
-		h.counter.Count(),
+		h.drainCounter.Count(),
 		h.adapterCounter.Count(),
 	)
 	w.Write([]byte(output))

@@ -14,20 +14,16 @@ import (
 
 var _ = Describe("Health", func() {
 	var (
-		mockDrainCounter *mockDrainCounter
-		recorder         *httptest.ResponseRecorder
-
-		health *handlers.Health
+		recorder *httptest.ResponseRecorder
+		health   *handlers.Health
 	)
 
 	BeforeEach(func() {
 		recorder = httptest.NewRecorder()
-		mockDrainCounter = newMockDrainCounter()
-		health = handlers.NewHealth(mockDrainCounter, &spyAdapterCounter{})
+		health = handlers.NewHealth(newSpyCounter(5), newSpyCounter(1))
 	})
 
 	It("returns JSON body with drain count", func() {
-		mockDrainCounter.CountOutput.Drains <- 5
 
 		health.ServeHTTP(recorder, new(http.Request))
 		Expect(recorder.Code).To(Equal(http.StatusOK))
@@ -35,10 +31,16 @@ var _ = Describe("Health", func() {
 	})
 })
 
-type spyAdapterCounter struct{}
+func newSpyCounter(count int) *spyCounter {
+	return &spyCounter{count: count}
+}
 
-func (s *spyAdapterCounter) Count() int {
-	return 1
+type spyCounter struct {
+	count int
+}
+
+func (s *spyCounter) Count() int {
+	return s.count
 }
 
 func TestHandlers(t *testing.T) {
