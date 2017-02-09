@@ -11,7 +11,7 @@ import (
 )
 
 var _ = Describe("Controller", func() {
-	It("returns a list of known drains", func() {
+	It("returns a list of known bindings", func() {
 		s := controller.New()
 
 		resp, err := s.ListBindings(context.Background(), new(v1.ListBindingsRequest))

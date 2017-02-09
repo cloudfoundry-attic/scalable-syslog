@@ -4,6 +4,13 @@ package v1;
 
 service Adapter {
     rpc ListBindings(ListBindingsRequest) returns (ListBindingsResponse) {}
+    rpc CreateBinding(CreateBindingRequest) returns (CreateBindingResponse) {}
+}
+
+message Binding {
+    string appId = 1;
+    string hostname = 2;
+    string drain = 3;
 }
 
 message ListBindingsRequest {}
@@ -12,8 +19,9 @@ message ListBindingsResponse {
     repeated Binding bindings = 1;
 }
 
-message Binding {
-    string appId = 1;
-    string hostname = 2;
-    string drain = 3;
+message CreateBindingRequest {
+    Binding binding = 1;
 }
+
+message CreateBindingResponse {}
+
