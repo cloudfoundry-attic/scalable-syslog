@@ -3,6 +3,7 @@ package app_test
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -61,6 +62,7 @@ var _ = Describe("Scheduler - Endtoend", func() {
 })
 
 func TestEndtoend(t *testing.T) {
+	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Scheduler - Endtoend Suite")
 }

@@ -1,6 +1,8 @@
 package orchestrator_test
 
 import (
+	"testing"
+
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/orchestrator"
 
 	. "github.com/onsi/ginkgo"
@@ -17,3 +19,8 @@ var _ = Describe("Orchestrator", func() {
 	})
 
 })
+
+func TestOrchestrator(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Orchestrator Suite")
+}
