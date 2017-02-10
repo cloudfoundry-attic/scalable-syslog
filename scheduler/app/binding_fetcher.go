@@ -1,10 +1,11 @@
-package cups
+package app
 
 import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sync"
 )
 
 // Getter is configured to fetch HTTP responses
@@ -14,7 +15,9 @@ type Getter interface {
 
 // BindingFetcher uses a Getter to fetch and decode Bindings
 type BindingFetcher struct {
-	getter Getter
+	getter     Getter
+	drainCount int
+	mu         sync.RWMutex
 }
 
 // Binding reflects the JSON encoded output from the CUPS provider
@@ -23,8 +26,10 @@ type Binding struct {
 	Hostname string
 }
 
+type AppBindings map[string]Binding
+
 type cupsResponse struct {
-	Results map[string]Binding
+	Results AppBindings
 	NextID  int `json:"next_id"`
 }
 
@@ -37,9 +42,10 @@ func NewBindingFetcher(g Getter) *BindingFetcher {
 
 // FetchBindings reaches out to the CUPS provider via the Getter and decodes
 // the response. If it does not get a 200, it returns an error.
-func (f *BindingFetcher) FetchBindings() (map[string]Binding, error) {
-	drains := make(map[string]Binding)
+func (f *BindingFetcher) FetchBindings() (AppBindings, error) {
+	drains := make(AppBindings)
 	nextID := 0
+	f.resetDrainCount()
 	for {
 
 		resp, err := f.getter.Get(nextID)
@@ -64,6 +70,7 @@ func (f *BindingFetcher) FetchBindings() (map[string]Binding, error) {
 
 		for appID, binding := range cupsResp.Results {
 			drains[appID] = binding
+			f.incrementDrainCount(len(binding.Drains))
 		}
 
 		if cupsResp.NextID == 0 {
@@ -71,4 +78,25 @@ func (f *BindingFetcher) FetchBindings() (map[string]Binding, error) {
 		}
 		nextID = cupsResp.NextID
 	}
+}
+
+func (f *BindingFetcher) resetDrainCount() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.drainCount = 0
+}
+
+func (f *BindingFetcher) incrementDrainCount(c int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.drainCount += c
+}
+
+func (f *BindingFetcher) Count() int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	return f.drainCount
 }

@@ -1,13 +1,10 @@
-package handlers_test
+package app_test
 
 import (
-	"log"
 	"net/http"
 	"net/http/httptest"
-	"testing"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/handlers"
-
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -15,16 +12,15 @@ import (
 var _ = Describe("Health", func() {
 	var (
 		recorder *httptest.ResponseRecorder
-		health   *handlers.Health
+		health   *app.Health
 	)
 
 	BeforeEach(func() {
 		recorder = httptest.NewRecorder()
-		health = handlers.NewHealth(newSpyCounter(5), newSpyCounter(1))
+		health = app.NewHealth(newSpyCounter(1), newSpyCounter(5))
 	})
 
 	It("returns JSON body with drain count", func() {
-
 		health.ServeHTTP(recorder, new(http.Request))
 		Expect(recorder.Code).To(Equal(http.StatusOK))
 		Expect(recorder.Header().Get("Content-Type")).To(
@@ -44,10 +40,4 @@ type spyCounter struct {
 
 func (s *spyCounter) Count() int {
 	return s.count
-}
-
-func TestHandlers(t *testing.T) {
-	log.SetOutput(GinkgoWriter)
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Scheduler - Handlers Suite")
 }

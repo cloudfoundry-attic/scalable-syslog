@@ -1,6 +1,6 @@
 // Package handlers contains the HTTP handlers that are used
 // for easy debugging and health checks for operators.
-package handlers
+package app
 
 import (
 	"fmt"
@@ -14,15 +14,15 @@ type Counter interface {
 
 // The Health handler will report the number of drains back to user.
 type Health struct {
-	drainCounter   Counter
 	adapterCounter Counter
+	drainCounter   Counter
 }
 
 // NewHealth returns a new Health handler.
-func NewHealth(c Counter, a Counter) *Health {
+func NewHealth(a Counter, b Counter) *Health {
 	return &Health{
-		drainCounter:   c,
 		adapterCounter: a,
+		drainCounter:   b,
 	}
 }
 

@@ -4,21 +4,25 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"google.golang.org/grpc"
+
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Scheduler - Endtoend", func() {
+var _ = Describe("Scheduler - End to End", func() {
 	var (
 		schedulerAddr string
-
-		dataSource *httptest.Server
+		dataSource    *httptest.Server
+		testServer    *testAdapterServer
 	)
 
 	BeforeEach(func() {
@@ -28,7 +32,6 @@ var _ = Describe("Scheduler - Endtoend", func() {
 					  "results": {
 						"9be15160-4845-4f05-b089-40e827ba61f1": {
 						  "drains": [
-							"syslog://some.url",
 							"syslog://some.other.url"
 						  ],
 						  "hostname": "org.space.logspinner"
@@ -38,11 +41,20 @@ var _ = Describe("Scheduler - Endtoend", func() {
 				`))
 		}))
 
+		lis, err := net.Listen("tcp", "localhost:0")
+		Expect(err).ToNot(HaveOccurred())
+
+		testServer = NewTestAdapterServer()
+		grpcServer := grpc.NewServer()
+		v1.RegisterAdapterServer(grpcServer, testServer)
+
+		go grpcServer.Serve(lis)
+
 		schedulerAddr = app.Start(
 			app.WithHealthAddr("localhost:0"),
 			app.WithCUPSUrl(dataSource.URL),
 			app.WithPollingInterval(time.Millisecond),
-			app.WithAdapterAddrs([]string{"1.2.3.4:1234"}),
+			app.WithAdapterAddrs([]string{lis.Addr().String()}),
 		)
 	})
 
@@ -56,13 +68,26 @@ var _ = Describe("Scheduler - Endtoend", func() {
 			Expect(err).ToNot(HaveOccurred())
 			return body
 		}
-		Eventually(f).Should(MatchJSON(`{"drainCount": 2, "adapterCount": 1}`))
+		Eventually(f).Should(MatchJSON(`{"drainCount": 1, "adapterCount": 1}`))
 	})
 
+	It("writes bindings to the adapter", func() {
+		expectedRequest := &v1.CreateBindingRequest{
+			Binding: &v1.Binding{
+				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+				Drain:    "syslog://some.other.url",
+				Hostname: "org.space.logspinner",
+			},
+		}
+
+		Eventually(testServer.ActualCreateBindingRequest).Should(
+			Receive(Equal(expectedRequest)),
+		)
+	})
 })
 
 func TestEndtoend(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Scheduler - Endtoend Suite")
+	RunSpecs(t, "Scheduler Suite")
 }

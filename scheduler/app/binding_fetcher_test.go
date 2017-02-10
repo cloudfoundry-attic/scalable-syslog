@@ -1,4 +1,4 @@
-package cups_test
+package app_test
 
 import (
 	"errors"
@@ -6,8 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cups"
-
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -15,12 +14,12 @@ import (
 var _ = Describe("BindingFetcher", func() {
 	var (
 		mockGetter *mockGetter
-		fetcher    *cups.BindingFetcher
+		fetcher    *app.BindingFetcher
 	)
 
 	BeforeEach(func() {
 		mockGetter = newMockGetter()
-		fetcher = cups.NewBindingFetcher(mockGetter)
+		fetcher = app.NewBindingFetcher(mockGetter)
 	})
 
 	Context("when the getter does not return an error", func() {
@@ -70,6 +69,12 @@ var _ = Describe("BindingFetcher", func() {
 				Expect(mockGetter.GetCalled).To(HaveLen(2))
 				Expect(mockGetter.GetInput.NextID).To(Receive(Equal(0)))
 				Expect(mockGetter.GetInput.NextID).To(Receive(Equal(50)))
+			})
+
+			It("reports the number of application syslog drains", func() {
+				Expect(fetcher.Count()).To(Equal(0))
+				fetcher.FetchBindings()
+				Expect(fetcher.Count()).To(Equal(2))
 			})
 		})
 

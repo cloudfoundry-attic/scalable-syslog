@@ -6,11 +6,6 @@ import (
 	"net"
 	"net/http"
 	"time"
-
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/cups"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/drainstore"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/handlers"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/orchestrator"
 )
 
 // Start starts polling the CUPS provider and serves the HTTP
@@ -20,24 +15,18 @@ func Start(opts ...AppOption) (actualHealth string) {
 
 	conf := setupConfig(opts)
 
-	l, err := net.Listen("tcp", conf.healthAddr)
-	if err != nil {
-		log.Fatalf("Unable to setup Health endpoint (%s): %s", conf.healthAddr, err)
-	}
-
 	client := cupsHTTPClient{
 		client: conf.client,
 		addr:   conf.cupsURL,
 	}
-	fetcher := cups.NewBindingFetcher(client)
+	fetcher := NewBindingFetcher(client)
 
-	store := drainstore.New()
-	cups.StartPoller(conf.interval, fetcher, store)
-
-	o := orchestrator.New(conf.adapterAddrs)
+	pool := NewAdapterWriterPool(conf.adapterAddrs)
+	orchestrator := NewOrchestrator(fetcher, pool)
+	go orchestrator.Run(conf.interval)
 
 	router := http.NewServeMux()
-	router.Handle("/health", handlers.NewHealth(store, o))
+	router.Handle("/health", NewHealth(fetcher, pool))
 
 	server := http.Server{
 		Addr:         conf.healthAddr,
@@ -45,6 +34,11 @@ func Start(opts ...AppOption) (actualHealth string) {
 		WriteTimeout: 5 * time.Second,
 	}
 	server.Handler = router
+
+	l, err := net.Listen("tcp", conf.healthAddr)
+	if err != nil {
+		log.Fatalf("Unable to setup Health endpoint (%s): %s", conf.healthAddr, err)
+	}
 
 	go func() {
 		log.Printf("Health endpoint is listening on %s", l.Addr().String())
