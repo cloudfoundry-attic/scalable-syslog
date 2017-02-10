@@ -30,7 +30,7 @@ func main() {
 
 type logServer struct{}
 
-func (s *logServer) Sender(r *loggregator.StreamRequest, server loggregator.Egress_SenderServer) error {
+func (s *logServer) Sender(r *loggregator.EgressRequest, server loggregator.Egress_SenderServer) error {
 	var i int
 	for {
 		e := buildEnvelope(i%2 == 0, r.GetFilter().GetSourceId())
@@ -47,8 +47,8 @@ func (s *logServer) Sender(r *loggregator.StreamRequest, server loggregator.Egre
 func buildEnvelope(isLog bool, sourceId string) *loggregator.Envelope {
 	if isLog {
 		return &loggregator.Envelope{
-			Timestamp:  time.Now().UnixNano(),
-			SourceUuid: sourceId,
+			Timestamp: time.Now().UnixNano(),
+			SourceId:  sourceId,
 			Message: &loggregator.Envelope_Log{
 				Log: &loggregator.Log{
 					Payload: []byte("Some happy log"),
@@ -58,8 +58,8 @@ func buildEnvelope(isLog bool, sourceId string) *loggregator.Envelope {
 		}
 	}
 	return &loggregator.Envelope{
-		Timestamp:  time.Now().UnixNano(),
-		SourceUuid: sourceId,
+		Timestamp: time.Now().UnixNano(),
+		SourceId:  sourceId,
 		Message: &loggregator.Envelope_Counter{
 			Counter: &loggregator.Counter{
 				Name: "some-counter-name",
