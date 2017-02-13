@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
+	"github.com/cloudfoundry-incubator/scalable-syslog/api"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 	. "github.com/onsi/ginkgo"
@@ -44,17 +46,40 @@ var _ = Describe("Scheduler - End to End", func() {
 		lis, err := net.Listen("tcp", "localhost:0")
 		Expect(err).ToNot(HaveOccurred())
 
+		adapterTLSConfig, err := api.NewMutualTLSConfig(
+			Cert("adapter.crt"),
+			Cert("adapter.key"),
+			Cert("scalable-syslog-ca.crt"),
+			"adapter",
+		)
+		if err != nil {
+			log.Fatalf("Invalid TLS config: %s", err)
+		}
+
 		testServer = NewTestAdapterServer()
-		grpcServer := grpc.NewServer()
+		grpcServer := grpc.NewServer(
+			grpc.Creds(credentials.NewTLS(adapterTLSConfig)),
+		)
 		v1.RegisterAdapterServer(grpcServer, testServer)
 
 		go grpcServer.Serve(lis)
+
+		tlsConfig, err := api.NewMutualTLSConfig(
+			Cert("scheduler.crt"),
+			Cert("scheduler.key"),
+			Cert("scalable-syslog-ca.crt"),
+			"adapter",
+		)
+		if err != nil {
+			log.Fatalf("Invalid TLS config: %s", err)
+		}
 
 		schedulerAddr = app.Start(
 			app.WithHealthAddr("localhost:0"),
 			app.WithCUPSUrl(dataSource.URL),
 			app.WithPollingInterval(time.Millisecond),
 			app.WithAdapterAddrs([]string{lis.Addr().String()}),
+			app.WithTLSConfig(tlsConfig),
 		)
 	})
 

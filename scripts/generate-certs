@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -ex
+
+if [ "$1" = "" ]; then
+    echo "usage: $0 <ca.crt> <ca.key>"
+    echo "       $0 no-ca"
+    exit 1
+fi
+
+# Place keys and certificates here
+depot_path="scalable-syslog-certs"
+mkdir -p ${depot_path}
+
+# Install certstrap
+go get -v github.com/square/certstrap
+
+if [ "$1" = "no-ca" ]; then
+    ca_name="scalable-syslog-ca"
+    # CA to distribute to scalable-syslog certs
+    certstrap --depot-path ${depot_path} init --passphrase '' --common-name $ca_name
+else
+    ca_cert_path=$1
+    ca_key_path=$2
+    ca_name=$(basename ${ca_cert_path} ".crt")
+    ln -s ${ca_cert_path} ${depot_path}/
+    ln -s ${ca_key_path} ${depot_path}/
+fi
+
+# Scheduler certificate
+certstrap --depot-path ${depot_path} request-cert --passphrase '' --common-name scheduler
+certstrap --depot-path ${depot_path} sign scheduler --CA $ca_name
+
+# Adapter certificate
+certstrap --depot-path ${depot_path} request-cert --passphrase '' --common-name adapter
+certstrap --depot-path ${depot_path} sign adapter --CA $ca_name

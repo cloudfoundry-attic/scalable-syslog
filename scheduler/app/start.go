@@ -1,11 +1,15 @@
 package app
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // Start starts polling the CUPS provider and serves the HTTP
@@ -21,7 +25,10 @@ func Start(opts ...AppOption) (actualHealth string) {
 	}
 	fetcher := NewBindingFetcher(client)
 
-	pool := NewAdapterWriterPool(conf.adapterAddrs)
+	creds := credentials.NewTLS(conf.tlsConfig)
+	pool := NewAdapterWriterPool(conf.adapterAddrs,
+		grpc.WithTransportCredentials(creds),
+	)
 	orchestrator := NewOrchestrator(fetcher, pool)
 	go orchestrator.Run(conf.interval)
 
@@ -86,12 +93,20 @@ func WithAdapterAddrs(addrs []string) func(*config) {
 	}
 }
 
+// WithTLSConfig sets the TLS mutual auth config for communication with adapter.
+func WithTLSConfig(cfg *tls.Config) func(*config) {
+	return func(c *config) {
+		c.tlsConfig = cfg
+	}
+}
+
 type config struct {
 	healthAddr   string
 	cupsURL      string
 	client       *http.Client
 	interval     time.Duration
 	adapterAddrs []string
+	tlsConfig    *tls.Config
 }
 
 func setupConfig(opts []AppOption) *config {

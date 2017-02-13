@@ -12,11 +12,11 @@ type Pool struct {
 	clients []v1.AdapterClient
 }
 
-func NewAdapterWriterPool(addrs []string) *Pool {
+func NewAdapterWriterPool(addrs []string, dialOpts ...grpc.DialOption) *Pool {
 	var clients []v1.AdapterClient
 
 	for _, a := range addrs {
-		conn, err := grpc.Dial(a, grpc.WithInsecure())
+		conn, err := grpc.Dial(a, dialOpts...)
 
 		if err != nil {
 			log.Print(err)

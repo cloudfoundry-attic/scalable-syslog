@@ -46,8 +46,8 @@ func (f *BindingFetcher) FetchBindings() (AppBindings, error) {
 	drains := make(AppBindings)
 	nextID := 0
 	f.resetDrainCount()
-	for {
 
+	for {
 		resp, err := f.getter.Get(nextID)
 		if err != nil {
 			return nil, err

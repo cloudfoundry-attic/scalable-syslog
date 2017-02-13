@@ -13,7 +13,7 @@ import (
 var _ = Describe("Connection Pool", func() {
 	It("returns the number of adapters", func() {
 		adapters := []string{"1.2.3.4:1234"}
-		p := app.NewAdapterWriterPool(adapters)
+		p := app.NewAdapterWriterPool(adapters, grpc.WithInsecure())
 
 		Expect(p.Count()).To(Equal(1))
 	})
@@ -27,7 +27,7 @@ var _ = Describe("Connection Pool", func() {
 		v1.RegisterAdapterServer(grpcServer, testServer)
 		go grpcServer.Serve(lis)
 
-		p := app.NewAdapterWriterPool([]string{lis.Addr().String()})
+		p := app.NewAdapterWriterPool([]string{lis.Addr().String()}, grpc.WithInsecure())
 
 		p.Write(&v1.Binding{
 			AppId:    "app-id",
