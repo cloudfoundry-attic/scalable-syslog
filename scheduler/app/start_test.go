@@ -79,7 +79,7 @@ var _ = Describe("Scheduler - End to End", func() {
 			app.WithCUPSUrl(dataSource.URL),
 			app.WithPollingInterval(time.Millisecond),
 			app.WithAdapterAddrs([]string{lis.Addr().String()}),
-			app.WithTLSConfig(tlsConfig),
+			app.WithAdapterTLSConfig(tlsConfig),
 		)
 	})
 

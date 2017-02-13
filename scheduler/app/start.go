@@ -25,7 +25,7 @@ func Start(opts ...AppOption) (actualHealth string) {
 	}
 	fetcher := NewBindingFetcher(client)
 
-	creds := credentials.NewTLS(conf.tlsConfig)
+	creds := credentials.NewTLS(conf.adapterTLSConfig)
 	pool := NewAdapterWriterPool(conf.adapterAddrs,
 		grpc.WithTransportCredentials(creds),
 	)
@@ -93,20 +93,20 @@ func WithAdapterAddrs(addrs []string) func(*config) {
 	}
 }
 
-// WithTLSConfig sets the TLS mutual auth config for communication with adapter.
-func WithTLSConfig(cfg *tls.Config) func(*config) {
+// WithAdapterTLSConfig sets the TLS mutual auth config for communication with adapter.
+func WithAdapterTLSConfig(cfg *tls.Config) func(*config) {
 	return func(c *config) {
-		c.tlsConfig = cfg
+		c.adapterTLSConfig = cfg
 	}
 }
 
 type config struct {
-	healthAddr   string
-	cupsURL      string
-	client       *http.Client
-	interval     time.Duration
-	adapterAddrs []string
-	tlsConfig    *tls.Config
+	healthAddr       string
+	cupsURL          string
+	client           *http.Client
+	interval         time.Duration
+	adapterAddrs     []string
+	adapterTLSConfig *tls.Config
 }
 
 func setupConfig(opts []AppOption) *config {

@@ -26,8 +26,8 @@ func main() {
 	caFile := flag.String("ca", "", "The file path for the CA cert")
 	certFile := flag.String("cert", "", "The file path for the adapter server cert")
 	keyFile := flag.String("key", "", "The file path for the adapter server key")
-	commonName := flag.String("cn", "", "The common name used for the TLS config")
 
+	adapterCommonName := flag.String("adapter-cn", "", "The common name used for the TLS config")
 	adapterIPs := flag.String("adapter-ips", "", "Comma separated list of adapter IP addresses")
 	adapterPort := flag.String("adapter-port", "", "The port of the adapter API")
 
@@ -44,7 +44,7 @@ func main() {
 	}
 	cupsTLSConfig.InsecureSkipVerify = *skipCertVerify
 
-	tlsConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *commonName)
+	adapterTLSConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *adapterCommonName)
 	if err != nil {
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
@@ -54,7 +54,7 @@ func main() {
 		app.WithCUPSUrl(*cupsProvider),
 		app.WithHTTPClient(api.NewHTTPSClient(cupsTLSConfig, 5*time.Second)),
 		app.WithAdapterAddrs(adapterAddrs),
-		app.WithTLSConfig(tlsConfig),
+		app.WithAdapterTLSConfig(adapterTLSConfig),
 	)
 
 	log.Println(http.ListenAndServe(*pprofHostport, nil))
