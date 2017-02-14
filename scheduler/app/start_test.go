@@ -25,11 +25,20 @@ var _ = Describe("Scheduler - End to End", func() {
 		schedulerAddr string
 		dataSource    *httptest.Server
 		testServer    *testAdapterServer
+		binding       *v1.Binding
 	)
 
 	BeforeEach(func() {
+		binding = &v1.Binding{
+			AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+			Drain:    "syslog://some.other.url",
+			Hostname: "org.space.logspinner",
+		}
+
+		count := 0
 		dataSource = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte(`
+			if count == 0 {
+				w.Write([]byte(`
 					{
 					  "results": {
 						"9be15160-4845-4f05-b089-40e827ba61f1": {
@@ -41,6 +50,14 @@ var _ = Describe("Scheduler - End to End", func() {
 					  }
 					}
 				`))
+			} else {
+				w.Write([]byte(`
+					{
+					  "results": {}
+					}
+				`))
+			}
+			count++
 		}))
 
 		lis, err := net.Listen("tcp", "localhost:0")
@@ -98,14 +115,20 @@ var _ = Describe("Scheduler - End to End", func() {
 
 	It("writes bindings to the adapter", func() {
 		expectedRequest := &v1.CreateBindingRequest{
-			Binding: &v1.Binding{
-				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
-				Drain:    "syslog://some.other.url",
-				Hostname: "org.space.logspinner",
-			},
+			Binding: binding,
 		}
 
 		Eventually(testServer.ActualCreateBindingRequest).Should(
+			Receive(Equal(expectedRequest)),
+		)
+	})
+
+	It("tells the adapters to delete the removed binding", func() {
+		expectedRequest := &v1.DeleteBindingRequest{
+			Binding: binding,
+		}
+
+		Eventually(testServer.ActualDeleteBindingRequest).Should(
 			Receive(Equal(expectedRequest)),
 		)
 	})

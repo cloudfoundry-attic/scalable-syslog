@@ -12,28 +12,33 @@ import (
 
 var _ = Describe("Orchestrator", func() {
 	It("writes syslog bindings to the writer", func() {
-		testReader := &spyReader{
-			bindings: app.AppBindings{
-				"app-id": app.Binding{
-					Hostname: "org.space.app",
-					Drains:   []string{"syslog://my-app-drain", "syslog://other-drain"},
-				},
+		mockReader := newMockBindingReader()
+		mockReader.FetchBindingsOutput.AppBindings <- app.AppBindings{
+			"app-id": app.Binding{
+				Hostname: "org.space.app",
+				Drains:   []string{"syslog://my-app-drain", "syslog://other-drain"},
 			},
 		}
-		testWriter := NewSpyWriter()
-		o := app.NewOrchestrator(testReader, testWriter)
+		close(mockReader.FetchBindingsOutput.Err)
+		close(mockReader.FetchBindingsOutput.AppBindings)
+		mockPool := newMockAdapterPool()
+		close(mockPool.ListOutput.Bindings)
+		close(mockPool.ListOutput.Err)
+		close(mockPool.CreateOutput.Err)
+		close(mockPool.DeleteOutput.Err)
 
+		o := app.NewOrchestrator(mockReader, mockPool)
 		go o.Run(1 * time.Millisecond)
 		defer o.Stop()
 
-		Eventually(testWriter.ActualWrites, 2).Should(Receive(Equal(
+		Eventually(mockPool.CreateInput.Binding, 2).Should(Receive(Equal(
 			&v1.Binding{
 				AppId:    "app-id",
 				Hostname: "org.space.app",
 				Drain:    "syslog://my-app-drain",
 			},
 		)))
-		Eventually(testWriter.ActualWrites, 2).Should(Receive(Equal(
+		Eventually(mockPool.CreateInput.Binding, 2).Should(Receive(Equal(
 			&v1.Binding{
 				AppId:    "app-id",
 				Hostname: "org.space.app",
@@ -43,45 +48,66 @@ var _ = Describe("Orchestrator", func() {
 	})
 
 	It("does not write when the read fails", func() {
-		testReader := &spyReader{
-			bindings: app.AppBindings{
-				"app-id": app.Binding{
-					Hostname: "org.space.app",
-					Drains:   []string{"syslog://my-app-drain", "syslog://other-drain"},
-				},
-			},
-			err: errors.New("Nope!"),
-		}
-		testWriter := NewSpyWriter()
-		o := app.NewOrchestrator(testReader, testWriter)
+		mockReader := newMockBindingReader()
+		mockReader.FetchBindingsOutput.Err <- errors.New("Nope!")
+		close(mockReader.FetchBindingsOutput.Err)
+		close(mockReader.FetchBindingsOutput.AppBindings)
 
+		mockPool := newMockAdapterPool()
+		close(mockPool.ListOutput.Bindings)
+		close(mockPool.ListOutput.Err)
+		close(mockPool.CreateOutput.Err)
+		close(mockPool.DeleteOutput.Err)
+
+		o := app.NewOrchestrator(mockReader, mockPool)
 		go o.Run(1 * time.Millisecond)
 		defer o.Stop()
 
-		Consistently(testWriter.ActualWrites).ShouldNot(Receive())
+		Consistently(mockPool.CreateCalled).ShouldNot(Receive())
+	})
+
+	It("deletes bindings that are no longer present", func() {
+		mockReader := newMockBindingReader()
+		mockReader.FetchBindingsOutput.AppBindings <- app.AppBindings{
+			"app-id": app.Binding{
+				Hostname: "org.space.app",
+				Drains:   []string{"syslog://my-app-drain"},
+			},
+		}
+		close(mockReader.FetchBindingsOutput.AppBindings)
+		close(mockReader.FetchBindingsOutput.Err)
+		mockPool := newMockAdapterPool()
+		mockPool.ListOutput.Bindings <- [][]*v1.Binding{{
+			&v1.Binding{
+				AppId:    "app-id",
+				Hostname: "org.space.app",
+				Drain:    "syslog://my-app-drain",
+			},
+			&v1.Binding{
+				AppId:    "app-id",
+				Hostname: "org.space.app",
+				Drain:    "syslog://other-drain",
+			},
+		}}
+		close(mockPool.ListOutput.Bindings)
+		close(mockPool.ListOutput.Err)
+		close(mockPool.CreateOutput.Err)
+		close(mockPool.DeleteOutput.Err)
+
+		o := app.NewOrchestrator(mockReader, mockPool)
+		go o.Run(1 * time.Millisecond)
+		defer o.Stop()
+
+		Eventually(mockPool.DeleteInput.Binding).Should(HaveLen(1))
+
+		var binding *v1.Binding
+		Eventually(mockPool.DeleteInput.Binding).Should(Receive(&binding))
+		Expect(binding).To(Equal(
+			&v1.Binding{
+				AppId:    "app-id",
+				Hostname: "org.space.app",
+				Drain:    "syslog://other-drain",
+			},
+		))
 	})
 })
-
-type spyReader struct {
-	bindings app.AppBindings
-	err      error
-}
-
-func (s *spyReader) FetchBindings() (app.AppBindings, error) {
-	return s.bindings, s.err
-}
-
-func NewSpyWriter() *spyWriter {
-	return &spyWriter{
-		ActualWrites: make(chan *v1.Binding, 10),
-	}
-}
-
-type spyWriter struct {
-	ActualWrites chan *v1.Binding
-}
-
-func (s *spyWriter) Write(b *v1.Binding) error {
-	s.ActualWrites <- b
-	return nil
-}

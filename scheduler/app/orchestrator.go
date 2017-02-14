@@ -10,57 +10,100 @@ import (
 )
 
 type BindingReader interface {
-	FetchBindings() (AppBindings, error)
+	FetchBindings() (appBindings AppBindings, err error)
 }
 
-type BindingWriter interface {
-	Write(*v1.Binding) error
+type AdapterPool interface {
+	List() (bindings [][]*v1.Binding, err error)
+	Create(binding *v1.Binding) (err error)
+	Delete(binding *v1.Binding) (err error)
 }
 
 // Orchestrator manages writes to a number of adapters.
 type Orchestrator struct {
 	reader BindingReader
-	writer BindingWriter
+	pool   AdapterPool
 	once   sync.Once
 	done   chan bool
 }
 
-// New creates an orchestrator.
-func NewOrchestrator(r BindingReader, w BindingWriter) *Orchestrator {
+// NewOrchestrator creates a new orchestrator.
+func NewOrchestrator(r BindingReader, w AdapterPool) *Orchestrator {
 	return &Orchestrator{
 		reader: r,
-		writer: w,
+		pool:   w,
 		done:   make(chan bool),
 	}
 }
 
-// Start the orchestrator
+// Run starts the orchestrator.
 func (o *Orchestrator) Run(interval time.Duration) {
 	for {
 		select {
 		case <-time.Tick(interval):
-			bindings, err := o.reader.FetchBindings()
+			expectedBindings, err := o.reader.FetchBindings()
 			if err != nil {
 				continue
 			}
 
-			for appID, cupsBinding := range bindings {
-				for _, drain := range cupsBinding.Drains {
-					err := o.writer.Write(&v1.Binding{
-						Hostname: cupsBinding.Hostname,
-						AppId:    appID,
-						Drain:    drain,
-					})
-
-					if err != nil {
-						log.Printf("orchestrator failed to write: %s", err)
-					}
-				}
-			}
+			o.cleanupBindings(expectedBindings)
+			o.createBindings(expectedBindings)
 		case <-o.done:
 			return
 		}
 	}
+}
+
+func (o *Orchestrator) createBindings(expectedBindings AppBindings) {
+	for appID, cupsBinding := range expectedBindings {
+		for _, drain := range cupsBinding.Drains {
+			err := o.pool.Create(&v1.Binding{
+				Hostname: cupsBinding.Hostname,
+				AppId:    appID,
+				Drain:    drain,
+			})
+
+			if err != nil {
+				log.Printf("orchestrator failed to write: %s", err)
+			}
+		}
+	}
+}
+
+func (o *Orchestrator) cleanupBindings(expectedBindings AppBindings) {
+	actualBindings, err := o.pool.List()
+	if err != nil {
+		log.Printf("Failed to get actual bindings: %s", err)
+		return
+	}
+
+	var toDelete []*v1.Binding
+	for _, adapterBindings := range actualBindings {
+		for _, ab := range adapterBindings {
+			if !exists(expectedBindings, ab) {
+				toDelete = append(toDelete, ab)
+			}
+		}
+	}
+
+	for _, ab := range toDelete {
+		o.pool.Delete(ab)
+	}
+}
+
+func exists(actualBindings AppBindings, ab *v1.Binding) bool {
+	b, ok := actualBindings[ab.AppId]
+	if !ok {
+		return false
+	}
+
+	for _, d := range b.Drains {
+		if d == ab.Drain {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (o *Orchestrator) Stop() {

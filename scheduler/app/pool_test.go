@@ -11,6 +11,30 @@ import (
 )
 
 var _ = Describe("Connection Pool", func() {
+	var (
+		testServer *testAdapterServer
+		serverAddr string
+		binding    *v1.Binding
+	)
+
+	BeforeEach(func() {
+		binding = &v1.Binding{
+			AppId:    "app-id",
+			Hostname: "org.space.app",
+			Drain:    "syslog://my-drain-url",
+		}
+
+		lis, err := net.Listen("tcp", "localhost:0")
+		Expect(err).ToNot(HaveOccurred())
+
+		testServer = NewTestAdapterServer()
+		grpcServer := grpc.NewServer()
+		v1.RegisterAdapterServer(grpcServer, testServer)
+		go grpcServer.Serve(lis)
+
+		serverAddr = lis.Addr().String()
+	})
+
 	It("returns the number of adapters", func() {
 		adapters := []string{"1.2.3.4:1234"}
 		p := app.NewAdapterWriterPool(adapters, grpc.WithInsecure())
@@ -19,30 +43,38 @@ var _ = Describe("Connection Pool", func() {
 	})
 
 	It("writes to a gRPC server", func() {
-		lis, err := net.Listen("tcp", "localhost:0")
-		Expect(err).ToNot(HaveOccurred())
+		p := app.NewAdapterWriterPool([]string{serverAddr}, grpc.WithInsecure())
 
-		testServer := NewTestAdapterServer()
-		grpcServer := grpc.NewServer()
-		v1.RegisterAdapterServer(grpcServer, testServer)
-		go grpcServer.Serve(lis)
-
-		p := app.NewAdapterWriterPool([]string{lis.Addr().String()}, grpc.WithInsecure())
-
-		p.Write(&v1.Binding{
-			AppId:    "app-id",
-			Hostname: "org.space.app",
-			Drain:    "syslog://my-drain-url",
-		})
+		p.Create(binding)
 
 		Eventually(testServer.ActualCreateBindingRequest).Should(Receive(Equal(
 			&v1.CreateBindingRequest{
-				Binding: &v1.Binding{
-					AppId:    "app-id",
-					Hostname: "org.space.app",
-					Drain:    "syslog://my-drain-url",
-				},
+				Binding: binding,
 			},
 		)))
+	})
+
+	It("makes a call to remove drain", func() {
+		p := app.NewAdapterWriterPool([]string{serverAddr}, grpc.WithInsecure())
+
+		p.Delete(binding)
+
+		Eventually(testServer.ActualDeleteBindingRequest).Should(Receive(Equal(
+			&v1.DeleteBindingRequest{
+				Binding: binding,
+			},
+		)))
+	})
+
+	It("gets a list of bindings from all adapters", func() {
+		p := app.NewAdapterWriterPool([]string{serverAddr}, grpc.WithInsecure())
+		p.Create(binding)
+
+		bindings, err := p.List()
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(bindings).To(Equal([][]*v1.Binding{
+			{binding},
+		}))
 	})
 })

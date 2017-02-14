@@ -8,8 +8,97 @@ package app_test
 import (
 	"net/http"
 
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 )
+
+type mockCounter struct {
+	CountCalled chan bool
+	CountOutput struct {
+		Ret0 chan int
+	}
+}
+
+func newMockCounter() *mockCounter {
+	m := &mockCounter{}
+	m.CountCalled = make(chan bool, 100)
+	m.CountOutput.Ret0 = make(chan int, 100)
+	return m
+}
+func (m *mockCounter) Count() int {
+	m.CountCalled <- true
+	return <-m.CountOutput.Ret0
+}
+
+type mockBindingReader struct {
+	FetchBindingsCalled chan bool
+	FetchBindingsOutput struct {
+		AppBindings chan app.AppBindings
+		Err         chan error
+	}
+}
+
+func newMockBindingReader() *mockBindingReader {
+	m := &mockBindingReader{}
+	m.FetchBindingsCalled = make(chan bool, 100)
+	m.FetchBindingsOutput.AppBindings = make(chan app.AppBindings, 100)
+	m.FetchBindingsOutput.Err = make(chan error, 100)
+	return m
+}
+func (m *mockBindingReader) FetchBindings() (appBindings app.AppBindings, err error) {
+	m.FetchBindingsCalled <- true
+	return <-m.FetchBindingsOutput.AppBindings, <-m.FetchBindingsOutput.Err
+}
+
+type mockAdapterPool struct {
+	ListCalled chan bool
+	ListOutput struct {
+		Bindings chan [][]*v1.Binding
+		Err      chan error
+	}
+	CreateCalled chan bool
+	CreateInput  struct {
+		Binding chan *v1.Binding
+	}
+	CreateOutput struct {
+		Err chan error
+	}
+	DeleteCalled chan bool
+	DeleteInput  struct {
+		Binding chan *v1.Binding
+	}
+	DeleteOutput struct {
+		Err chan error
+	}
+}
+
+func newMockAdapterPool() *mockAdapterPool {
+	m := &mockAdapterPool{}
+	m.ListCalled = make(chan bool, 100)
+	m.ListOutput.Bindings = make(chan [][]*v1.Binding, 100)
+	m.ListOutput.Err = make(chan error, 100)
+	m.CreateCalled = make(chan bool, 100)
+	m.CreateInput.Binding = make(chan *v1.Binding, 100)
+	m.CreateOutput.Err = make(chan error, 100)
+	m.DeleteCalled = make(chan bool, 100)
+	m.DeleteInput.Binding = make(chan *v1.Binding, 100)
+	m.DeleteOutput.Err = make(chan error, 100)
+	return m
+}
+func (m *mockAdapterPool) List() (bindings [][]*v1.Binding, err error) {
+	m.ListCalled <- true
+	return <-m.ListOutput.Bindings, <-m.ListOutput.Err
+}
+func (m *mockAdapterPool) Create(binding *v1.Binding) (err error) {
+	m.CreateCalled <- true
+	m.CreateInput.Binding <- binding
+	return <-m.CreateOutput.Err
+}
+func (m *mockAdapterPool) Delete(binding *v1.Binding) (err error) {
+	m.DeleteCalled <- true
+	m.DeleteInput.Binding <- binding
+	return <-m.DeleteOutput.Err
+}
 
 type mockGetter struct {
 	GetCalled chan bool
@@ -34,42 +123,4 @@ func (m *mockGetter) Get(nextID int) (resp *http.Response, err error) {
 	m.GetCalled <- true
 	m.GetInput.NextID <- nextID
 	return <-m.GetOutput.Resp, <-m.GetOutput.Err
-}
-
-type mockProvider struct {
-	FetchBindingsCalled chan bool
-	FetchBindingsOutput struct {
-		Bindings chan map[string]app.Binding
-		Err      chan error
-	}
-}
-
-func newMockProvider() *mockProvider {
-	m := &mockProvider{}
-	m.FetchBindingsCalled = make(chan bool, 100)
-	m.FetchBindingsOutput.Bindings = make(chan map[string]app.Binding, 100)
-	m.FetchBindingsOutput.Err = make(chan error, 100)
-	return m
-}
-func (m *mockProvider) FetchBindings() (bindings map[string]app.Binding, err error) {
-	m.FetchBindingsCalled <- true
-	return <-m.FetchBindingsOutput.Bindings, <-m.FetchBindingsOutput.Err
-}
-
-type mockStore struct {
-	StoreBindingsCalled chan bool
-	StoreBindingsInput  struct {
-		Bindings chan map[string]app.Binding
-	}
-}
-
-func newMockStore() *mockStore {
-	m := &mockStore{}
-	m.StoreBindingsCalled = make(chan bool, 100)
-	m.StoreBindingsInput.Bindings = make(chan map[string]app.Binding, 100)
-	return m
-}
-func (m *mockStore) StoreBindings(bindings map[string]app.Binding) {
-	m.StoreBindingsCalled <- true
-	m.StoreBindingsInput.Bindings <- bindings
 }
