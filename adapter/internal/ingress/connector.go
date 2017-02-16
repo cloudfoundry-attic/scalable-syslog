@@ -21,17 +21,17 @@ func NewConnector(addr string, opts ...grpc.DialOption) *Connector {
 	}
 }
 
-func (c *Connector) Connect() (io.Closer, v2.Egress_ReceiverClient) {
+func (c *Connector) Connect() (io.Closer, v2.Egress_ReceiverClient, error) {
 	conn, err := grpc.Dial(c.addr, c.opts...)
 	if err != nil {
-		panic(err) // TODO: I SHOULD NOT PANIC
+		return nil, nil, err
 	}
 
 	client := v2.NewEgressClient(conn)
 	receiver, err := client.Receiver(context.Background(), new(v2.EgressRequest))
 	if err != nil {
-		panic(err) // TODO: I SHOULD NOT PANIC
+		return nil, nil, err
 	}
 
-	return conn, receiver
+	return conn, receiver, nil
 }

@@ -2,13 +2,14 @@ package ingress
 
 import (
 	"io"
+	"log"
 	"time"
 
 	v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 )
 
 type ConnectionBuilder interface {
-	Connect() (io.Closer, v2.Egress_ReceiverClient)
+	Connect() (io.Closer, v2.Egress_ReceiverClient, error)
 }
 
 type connection struct {
@@ -19,21 +20,18 @@ type connection struct {
 type Consumer struct {
 	connector     ConnectionBuilder
 	connectionTTL time.Duration
-	connections   []connection
+	connections   []*connection
 }
 
 func NewConsumer(connector ConnectionBuilder, count int, ttl time.Duration) *Consumer {
 	c := &Consumer{
 		connector:     connector,
 		connectionTTL: ttl,
+		connections:   make([]*connection, count),
 	}
 
 	for i := 0; i < count; i++ {
-		closer, client := c.connector.Connect()
-		c.connections = append(c.connections, connection{
-			closer: closer,
-			client: client,
-		})
+		c.openNewConnection(i)
 	}
 
 	go c.monitorConnectionsForRolling()
@@ -42,17 +40,28 @@ func NewConsumer(connector ConnectionBuilder, count int, ttl time.Duration) *Con
 }
 
 func (c *Consumer) monitorConnectionsForRolling() {
-	ticker := time.NewTicker(c.connectionTTL)
-
-	for range ticker.C {
+	for range time.Tick(c.connectionTTL) {
 		for i, conn := range c.connections {
-			conn.closer.Close()
-
-			closer, client := c.connector.Connect()
-			c.connections[i] = connection{
-				closer: closer,
-				client: client,
+			if conn != nil {
+				conn.closer.Close()
 			}
+
+			c.openNewConnection(i)
 		}
+	}
+}
+
+func (c *Consumer) openNewConnection(idx int) {
+	closer, client, err := c.connector.Connect()
+	if err != nil {
+		log.Printf("Failed to connect to loggregator API: %s", err)
+
+		c.connections[idx] = nil
+		return
+	}
+
+	c.connections[idx] = &connection{
+		closer: closer,
+		client: client,
 	}
 }
