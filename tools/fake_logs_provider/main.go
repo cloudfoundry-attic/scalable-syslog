@@ -20,12 +20,14 @@ func main() {
 	keyFile := flag.String("key", "", "The server TLS private key")
 	commonName := flag.String("cn", "", "The server common name for TLS")
 
+	flag.Parse()
+
 	log.Print("Starting fake logs provider...")
 	defer log.Print("Closing fake logs provider.")
 
 	tlsConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *commonName)
 	if err != nil {
-		log.Fatalf("failed to build TLS config:L %s", err)
+		log.Fatalf("failed to build TLS config: %s", err)
 	}
 	creds := credentials.NewTLS(tlsConfig)
 

@@ -148,7 +148,7 @@ func setupConfig(opts []AdapterOption) *config {
 	conf := config{
 		healthAddr:       ":8080",
 		controllerAddr:   ":443",
-		logsAPIConnCount: 3,
+		logsAPIConnCount: 5,
 		logsAPIConnTTL:   600 * time.Second,
 	}
 

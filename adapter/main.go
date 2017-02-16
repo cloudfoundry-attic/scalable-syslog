@@ -21,6 +21,11 @@ func main() {
 	keyFile := flag.String("key", "", "The file path for the adapter server key")
 	commonName := flag.String("cn", "", "The common name used for the TLS config")
 
+	rlpCaFile := flag.String("rlp-ca", "", "The file path for the Loggregator CA cert")
+	rlpCertFile := flag.String("rlp-cert", "", "The file path for the adapter RLP client cert")
+	rlpKeyFile := flag.String("rlp-key", "", "The file path for the adapter RLP client key")
+	rlpCommonName := flag.String("rlp-cn", "", "The common name for the Loggregator egress API")
+
 	logsApiAddr := flag.String("logs-api-addr", "", "The address for the logs API")
 	flag.Parse()
 
@@ -29,11 +34,17 @@ func main() {
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
 
+	rlpTlsConfig, err := api.NewMutualTLSConfig(*rlpCertFile, *rlpKeyFile, *rlpCaFile, *rlpCommonName)
+	if err != nil {
+		log.Fatalf("Invalid RLP TLS config: %s", err)
+	}
+
 	app.StartAdapter(
 		app.WithHealthAddr(*healthHostport),
 		app.WithControllerAddr(*adapterHostport),
 		app.WithControllerTLSConfig(tlsConfig),
 		app.WithLogsEgressAPIAddr(*logsApiAddr),
+		app.WithLogsEgressAPITLSConfig(rlpTlsConfig),
 	)
 
 	log.Println(http.ListenAndServe(*pprofHostport, nil))

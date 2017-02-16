@@ -3,6 +3,7 @@ package ingress
 import (
 	"context"
 	"io"
+	"log"
 
 	v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 
@@ -32,6 +33,8 @@ func (c *Connector) Connect() (io.Closer, v2.Egress_ReceiverClient, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+
+	log.Println("Created new connection to loggregator egress API")
 
 	return conn, receiver, nil
 }
