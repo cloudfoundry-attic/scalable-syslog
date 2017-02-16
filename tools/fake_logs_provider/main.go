@@ -6,22 +6,35 @@ import (
 	"net"
 	"time"
 
+	"github.com/cloudfoundry-incubator/scalable-syslog/api"
 	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
+
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 func main() {
 	addr := flag.String("addr", ":8082", "The address to bind to")
+	caFile := flag.String("ca", "", "The file path to the CA file")
+	certFile := flag.String("cert", "", "The server TLS cert")
+	keyFile := flag.String("key", "", "The server TLS private key")
+	commonName := flag.String("cn", "", "The server common name for TLS")
 
 	log.Print("Starting fake logs provider...")
 	defer log.Print("Closing fake logs provider.")
+
+	tlsConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *commonName)
+	if err != nil {
+		log.Fatalf("failed to build TLS config:L %s", err)
+	}
+	creds := credentials.NewTLS(tlsConfig)
 
 	lis, err := net.Listen("tcp", *addr)
 	if err != nil {
 		log.Fatalf("failed to listen: %s", err)
 	}
-	s := grpc.NewServer()
-	loggregator.RegisterEgressServer(s, new(logServer))
+	s := grpc.NewServer(grpc.Creds(creds))
+	loggregator_v2.RegisterEgressServer(s, new(logServer))
 
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
@@ -30,7 +43,7 @@ func main() {
 
 type logServer struct{}
 
-func (s *logServer) Sender(r *loggregator.EgressRequest, server loggregator.Egress_SenderServer) error {
+func (s *logServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator_v2.Egress_ReceiverServer) error {
 	var i int
 	for {
 		e := buildEnvelope(i%2 == 0, r.GetFilter().GetSourceId())
@@ -44,26 +57,26 @@ func (s *logServer) Sender(r *loggregator.EgressRequest, server loggregator.Egre
 	return nil
 }
 
-func buildEnvelope(isLog bool, sourceId string) *loggregator.Envelope {
+func buildEnvelope(isLog bool, sourceId string) *loggregator_v2.Envelope {
 	if isLog {
-		return &loggregator.Envelope{
+		return &loggregator_v2.Envelope{
 			Timestamp: time.Now().UnixNano(),
 			SourceId:  sourceId,
-			Message: &loggregator.Envelope_Log{
-				Log: &loggregator.Log{
+			Message: &loggregator_v2.Envelope_Log{
+				Log: &loggregator_v2.Log{
 					Payload: []byte("Some happy log"),
-					Type:    loggregator.Log_OUT,
+					Type:    loggregator_v2.Log_OUT,
 				},
 			},
 		}
 	}
-	return &loggregator.Envelope{
+	return &loggregator_v2.Envelope{
 		Timestamp: time.Now().UnixNano(),
 		SourceId:  sourceId,
-		Message: &loggregator.Envelope_Counter{
-			Counter: &loggregator.Counter{
+		Message: &loggregator_v2.Envelope_Counter{
+			Counter: &loggregator_v2.Counter{
 				Name: "some-counter-name",
-				Value: &loggregator.Counter_Delta{
+				Value: &loggregator_v2.Counter_Delta{
 					Delta: 42,
 				},
 			},
