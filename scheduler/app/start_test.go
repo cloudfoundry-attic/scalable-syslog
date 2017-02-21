@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"testing"
 	"time"
 
 	"google.golang.org/grpc"
@@ -196,10 +195,4 @@ func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if f.withEmptyResult {
 		f.count++
 	}
-}
-
-func TestEndtoend(t *testing.T) {
-	log.SetOutput(GinkgoWriter)
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Scheduler Suite")
 }
