@@ -24,8 +24,8 @@ var _ = Describe("Consumer", func() {
 			}).Should(Equal(5))
 
 			Eventually(func() int {
-				return mockConnector.GetSuccessfulConnections()
-			}, time.Second, time.Millisecond).Should(BeNumerically("<", 5))
+				return mockConnector.GetCloseCalled()
+			}).Should(BeNumerically(">", 5))
 
 			Eventually(func() int {
 				return mockConnector.GetSuccessfulConnections()
@@ -36,6 +36,7 @@ var _ = Describe("Consumer", func() {
 
 type MockConnector struct {
 	connectCalled         int
+	closeCalled           int
 	successfulConnections int
 	mu                    sync.Mutex
 }
@@ -63,8 +64,8 @@ func (m *MockConnector) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	m.closeCalled++
 	m.successfulConnections--
-	time.Sleep(1 * time.Millisecond)
 
 	return nil
 }
@@ -74,4 +75,11 @@ func (m *MockConnector) GetSuccessfulConnections() int {
 	defer m.mu.Unlock()
 
 	return m.successfulConnections
+}
+
+func (m *MockConnector) GetCloseCalled() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.closeCalled
 }
