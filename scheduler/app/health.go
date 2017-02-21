@@ -14,15 +14,15 @@ type Counter interface {
 
 // The Health handler will report the number of drains back to user.
 type Health struct {
-	adapterCounter Counter
 	drainCounter   Counter
+	adapterCounter Counter
 }
 
 // NewHealth returns a new Health handler.
-func NewHealth(a Counter, b Counter) *Health {
+func NewHealth(d, a Counter) *Health {
 	return &Health{
+		drainCounter:   d,
 		adapterCounter: a,
-		drainCounter:   b,
 	}
 }
 

@@ -46,12 +46,13 @@ var _ = Describe("VersionFilter", func() {
 				Hostname: "we.dont.care",
 			},
 		}
-
 		mockBindingReader := newMockBindingReader()
 		mockBindingReader.FetchBindingsOutput.AppBindings <- input
 		mockBindingReader.FetchBindingsOutput.Err <- nil
 		filter := app.NewVersionFilter(mockBindingReader)
+
 		actual, err := filter.FetchBindings()
+
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actual).To(Equal(expected))
 	})
@@ -85,7 +86,9 @@ var _ = Describe("VersionFilter", func() {
 		mockBindingReader.FetchBindingsOutput.AppBindings <- input
 		mockBindingReader.FetchBindingsOutput.Err <- nil
 		filter := app.NewVersionFilter(mockBindingReader)
+
 		actual, err := filter.FetchBindings()
+
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actual).To(Equal(expected))
 	})
@@ -95,7 +98,43 @@ var _ = Describe("VersionFilter", func() {
 		mockBindingReader.FetchBindingsOutput.AppBindings <- nil
 		mockBindingReader.FetchBindingsOutput.Err <- errors.New("some-error")
 		filter := app.NewVersionFilter(mockBindingReader)
+
 		_, err := filter.FetchBindings()
+
 		Expect(err).To(HaveOccurred())
+	})
+
+	It("returns the drain count for drain-version=2.0", func() {
+		input := app.AppBindings{
+			"app-id-with-multiple-drains": app.Binding{
+				Drains: []string{
+					"syslog://example.com:1234/?drain-version=2.0",
+					"syslog://example.net:4321/",
+				},
+				Hostname: "we.dont.care",
+			},
+			"app-id-with-good-drain": app.Binding{
+				Drains: []string{
+					"syslog://example.com:1234/?drain-version=2.0",
+				},
+				Hostname: "we.dont.care",
+			},
+			"app-id-with-bad-drain": app.Binding{
+				Drains: []string{
+					"syslog://example.net:4321/",
+				},
+				Hostname: "we.dont.care",
+			},
+		}
+		mockBindingReader := newMockBindingReader()
+		mockBindingReader.FetchBindingsOutput.AppBindings <- input
+		mockBindingReader.FetchBindingsOutput.Err <- nil
+		filter := app.NewVersionFilter(mockBindingReader)
+
+		Expect(filter.Count()).To(Equal(0))
+
+		_, err := filter.FetchBindings()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(filter.Count()).To(Equal(2))
 	})
 })

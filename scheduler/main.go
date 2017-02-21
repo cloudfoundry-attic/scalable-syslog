@@ -50,11 +50,11 @@ func main() {
 	}
 
 	app.Start(
+		*cupsProvider,
+		adapterAddrs,
+		adapterTLSConfig,
 		app.WithHealthAddr(*healthHostport),
-		app.WithCUPSUrl(*cupsProvider),
 		app.WithHTTPClient(api.NewHTTPSClient(cupsTLSConfig, 5*time.Second)),
-		app.WithAdapterAddrs(adapterAddrs),
-		app.WithAdapterTLSConfig(adapterTLSConfig),
 	)
 
 	log.Println(http.ListenAndServe(*pprofHostport, nil))

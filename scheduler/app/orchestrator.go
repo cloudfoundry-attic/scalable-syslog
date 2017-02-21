@@ -55,6 +55,7 @@ func (o *Orchestrator) Run(interval time.Duration) {
 }
 
 func (o *Orchestrator) createBindings(expectedBindings AppBindings) {
+	// TODO: this needs to diff against o.pool.List()
 	for appID, cupsBinding := range expectedBindings {
 		for _, drain := range cupsBinding.Drains {
 			err := o.pool.Create(&v1.Binding{

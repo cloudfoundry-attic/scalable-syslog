@@ -14,19 +14,20 @@ import (
 
 // Start starts polling the CUPS provider and serves the HTTP
 // health endpoint.
-func Start(opts ...AppOption) (actualHealth string) {
+func Start(cupsURL string, adapterAddrs []string, adapterTLSConfig *tls.Config, opts ...AppOption) (actualHealth string) {
 	log.Print("Starting scheduler...")
 
 	conf := setupConfig(opts)
 
 	client := cupsHTTPClient{
 		client: conf.client,
-		addr:   conf.cupsURL,
+		addr:   cupsURL,
 	}
-	fetcher := NewBindingFetcher(client)
+	fetcher := NewVersionFilter(NewBindingFetcher(client))
 
-	creds := credentials.NewTLS(conf.adapterTLSConfig)
-	pool := NewAdapterWriterPool(conf.adapterAddrs,
+	creds := credentials.NewTLS(adapterTLSConfig)
+	pool := NewAdapterWriterPool(
+		adapterAddrs,
 		grpc.WithTransportCredentials(creds),
 	)
 	orchestrator := NewOrchestrator(fetcher, pool)
@@ -65,13 +66,6 @@ func WithHealthAddr(addr string) func(*config) {
 	}
 }
 
-// WithCUPSUrl is the endpoint of the CUPS provider
-func WithCUPSUrl(URL string) func(*config) {
-	return func(c *config) {
-		c.cupsURL = URL
-	}
-}
-
 // WithHTTPClient sets the http.Client to poll the CUPS provider
 func WithHTTPClient(client *http.Client) func(*config) {
 	return func(c *config) {
@@ -86,27 +80,10 @@ func WithPollingInterval(interval time.Duration) func(*config) {
 	}
 }
 
-// WithAdapterAddrs sets the list of adapter addresses
-func WithAdapterAddrs(addrs []string) func(*config) {
-	return func(c *config) {
-		c.adapterAddrs = addrs
-	}
-}
-
-// WithAdapterTLSConfig sets the TLS mutual auth config for communication with adapter.
-func WithAdapterTLSConfig(cfg *tls.Config) func(*config) {
-	return func(c *config) {
-		c.adapterTLSConfig = cfg
-	}
-}
-
 type config struct {
-	healthAddr       string
-	cupsURL          string
-	client           *http.Client
-	interval         time.Duration
-	adapterAddrs     []string
-	adapterTLSConfig *tls.Config
+	healthAddr string
+	client     *http.Client
+	interval   time.Duration
 }
 
 func setupConfig(opts []AppOption) *config {

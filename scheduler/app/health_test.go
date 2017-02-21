@@ -17,7 +17,7 @@ var _ = Describe("Health", func() {
 
 	BeforeEach(func() {
 		recorder = httptest.NewRecorder()
-		health = app.NewHealth(newSpyCounter(1), newSpyCounter(5))
+		health = app.NewHealth(newSpyCounter(5), newSpyCounter(1))
 	})
 
 	It("returns JSON body with drain count", func() {

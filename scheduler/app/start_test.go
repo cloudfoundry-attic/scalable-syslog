@@ -25,41 +25,25 @@ var _ = Describe("Scheduler - End to End", func() {
 		schedulerAddr string
 		dataSource    *httptest.Server
 		testServer    *testAdapterServer
-		binding       *v1.Binding
+		bindings      []*v1.Binding
 	)
 
 	BeforeEach(func() {
-		binding = &v1.Binding{
-			AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
-			Drain:    "syslog://some.other.url",
-			Hostname: "org.space.logspinner",
+		bindings = []*v1.Binding{
+			{
+				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+				Drain:    "syslog://new.drain.url/?drain-version=2.0",
+				Hostname: "org.space.logspinner",
+			},
+			{
+				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+				Drain:    "syslog://another.new.drain.url/?drain-version=2.0",
+				Hostname: "org.space.logspinner",
+			},
 		}
+	})
 
-		count := 0
-		dataSource = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if count == 0 {
-				w.Write([]byte(`
-					{
-					  "results": {
-						"9be15160-4845-4f05-b089-40e827ba61f1": {
-						  "drains": [
-							"syslog://some.other.url"
-						  ],
-						  "hostname": "org.space.logspinner"
-						}
-					  }
-					}
-				`))
-			} else {
-				w.Write([]byte(`
-					{
-					  "results": {}
-					}
-				`))
-			}
-			count++
-		}))
-
+	JustBeforeEach(func() {
 		lis, err := net.Listen("tcp", "localhost:0")
 		Expect(err).ToNot(HaveOccurred())
 
@@ -87,52 +71,132 @@ var _ = Describe("Scheduler - End to End", func() {
 			Cert("scalable-syslog-ca.crt"),
 			"adapter",
 		)
-		if err != nil {
-			log.Fatalf("Invalid TLS config: %s", err)
-		}
+		Expect(err).ToNot(HaveOccurred())
 
 		schedulerAddr = app.Start(
+			dataSource.URL,
+			[]string{lis.Addr().String()},
+			tlsConfig,
 			app.WithHealthAddr("localhost:0"),
-			app.WithCUPSUrl(dataSource.URL),
 			app.WithPollingInterval(time.Millisecond),
-			app.WithAdapterAddrs([]string{lis.Addr().String()}),
-			app.WithAdapterTLSConfig(tlsConfig),
 		)
 	})
 
-	It("reports health info", func() {
-		f := func() []byte {
-			resp, err := http.Get(fmt.Sprintf("http://%s/health", schedulerAddr))
-			Expect(err).ToNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+	Context("when CC continuously returns data", func() {
+		BeforeEach(func() {
+			dataSource = httptest.NewServer(&fakeCC{})
+		})
 
-			body, err := ioutil.ReadAll(resp.Body)
-			Expect(err).ToNot(HaveOccurred())
-			return body
-		}
-		Eventually(f).Should(MatchJSON(`{"drainCount": 1, "adapterCount": 1}`))
+		It("reports health info", func() {
+			f := func() []byte {
+				resp, err := http.Get(fmt.Sprintf("http://%s/health", schedulerAddr))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+				body, err := ioutil.ReadAll(resp.Body)
+				Expect(err).ToNot(HaveOccurred())
+				return body
+			}
+			Eventually(f, 3*time.Second, 500*time.Millisecond).Should(MatchJSON(`{"drainCount": 2, "adapterCount": 1}`))
+		})
+
+		It("writes drain-version=2.0 bindings to the adapter", func() {
+			expectedRequests := []*v1.CreateBindingRequest{
+				{
+					Binding: bindings[0],
+				},
+				{
+					Binding: bindings[1],
+				},
+			}
+			// TODO: when we implement diffing in the scheduler this will need
+			// to change to HaveLen(2)
+			lenCheck := func() int {
+				return len(testServer.ActualCreateBindingRequest)
+			}
+			Eventually(lenCheck).Should(BeNumerically(">=", 2))
+			var actualRequests []*v1.CreateBindingRequest
+			f := func() []*v1.CreateBindingRequest {
+				select {
+				case req := <-testServer.ActualCreateBindingRequest:
+					actualRequests = append(actualRequests, req)
+				default:
+				}
+				return actualRequests
+			}
+			Eventually(f).Should(ConsistOf(expectedRequests))
+		})
 	})
 
-	It("writes bindings to the adapter", func() {
-		expectedRequest := &v1.CreateBindingRequest{
-			Binding: binding,
-		}
+	Context("with a CC that starts returning an empty result", func() {
+		BeforeEach(func() {
+			dataSource = httptest.NewServer(&fakeCC{
+				withEmptyResult: true,
+			})
+		})
 
-		Eventually(testServer.ActualCreateBindingRequest).Should(
-			Receive(Equal(expectedRequest)),
-		)
-	})
-
-	It("tells the adapters to delete the removed binding", func() {
-		expectedRequest := &v1.DeleteBindingRequest{
-			Binding: binding,
-		}
-
-		Eventually(testServer.ActualDeleteBindingRequest).Should(
-			Receive(Equal(expectedRequest)),
-		)
+		It("tells the adapters to delete the removed binding", func() {
+			expectedRequests := []*v1.DeleteBindingRequest{
+				{
+					Binding: bindings[0],
+				},
+				{
+					Binding: bindings[1],
+				},
+			}
+			Eventually(testServer.ActualDeleteBindingRequest).Should(HaveLen(2))
+			var actualRequests []*v1.DeleteBindingRequest
+			f := func() []*v1.DeleteBindingRequest {
+				select {
+				case req := <-testServer.ActualDeleteBindingRequest:
+					actualRequests = append(actualRequests, req)
+				default:
+				}
+				return actualRequests
+			}
+			Eventually(f).Should(ConsistOf(expectedRequests))
+		})
 	})
 })
+
+type fakeCC struct {
+	count           int
+	withEmptyResult bool
+}
+
+func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if f.count > 0 {
+		w.Write([]byte(`
+			{
+			  "results": {}
+			}
+		`))
+		return
+	}
+	w.Write([]byte(`
+		{
+		  "results": {
+			"9be15160-4845-4f05-b089-40e827ba61f1": {
+			  "drains": [
+				"syslog://new.drain.url/?drain-version=2.0",
+				"syslog://another.new.drain.url/?drain-version=2.0",
+				"syslog://legacy.drain.url"
+			  ],
+			  "hostname": "org.space.logspinner"
+			},
+			"ed150c22-f866-11e6-bc64-92361f002671": {
+			  "drains": [
+				"syslog://legacy.drain.url"
+			  ],
+			  "hostname": "org.space.logspinner"
+			}
+		  }
+		}
+	`))
+	if f.withEmptyResult {
+		f.count++
+	}
+}
 
 func TestEndtoend(t *testing.T) {
 	log.SetOutput(GinkgoWriter)

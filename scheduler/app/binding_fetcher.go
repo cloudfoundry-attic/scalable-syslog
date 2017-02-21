@@ -16,8 +16,8 @@ type Getter interface {
 // BindingFetcher uses a Getter to fetch and decode Bindings
 type BindingFetcher struct {
 	getter     Getter
-	drainCount int
 	mu         sync.RWMutex
+	drainCount int
 }
 
 // Binding reflects the JSON encoded output from the CUPS provider
