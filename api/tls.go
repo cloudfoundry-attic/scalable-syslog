@@ -52,19 +52,6 @@ func NewMutualTLSConfig(certFile, keyFile, caCertFile, serverName string) (*tls.
 	return tlsConfig, err
 }
 
-func NewHTTPSClient(tlsConfig *tls.Config, timeout time.Duration) *http.Client {
-	tr := &http.Transport{
-		TLSClientConfig:   tlsConfig,
-		DisableKeepAlives: true,
-	}
-	client := &http.Client{
-		Timeout:   timeout,
-		Transport: tr,
-	}
-
-	return client
-}
-
 func addCA(tlsConfig *tls.Config, tlsCert tls.Certificate, caCertFile string) error {
 	certBytes, err := ioutil.ReadFile(caCertFile)
 	if err != nil {
@@ -94,4 +81,17 @@ func addCA(tlsConfig *tls.Config, tlsCert tls.Certificate, caCertFile string) er
 		return CASignatureError(err.Error())
 	}
 	return nil
+}
+
+func NewHTTPSClient(tlsConfig *tls.Config, timeout time.Duration) *http.Client {
+	tr := &http.Transport{
+		TLSClientConfig:   tlsConfig,
+		DisableKeepAlives: true,
+	}
+	client := &http.Client{
+		Timeout:   timeout,
+		Transport: tr,
+	}
+
+	return client
 }

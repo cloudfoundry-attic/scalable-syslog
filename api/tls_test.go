@@ -6,9 +6,10 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/cloudfoundry-incubator/scalable-syslog/api"
 )
 
 var _ = Describe("TLS", func() {
@@ -55,8 +56,8 @@ var _ = Describe("TLS", func() {
 				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			))
 
-			Expect(string(conf.RootCAs.Subjects()[0])).To(ContainSubstring("syslogCA"))
-			Expect(string(conf.ClientCAs.Subjects()[0])).To(ContainSubstring("syslogCA"))
+			Expect(string(conf.RootCAs.Subjects()[0])).To(ContainSubstring("loggregatorCA"))
+			Expect(string(conf.ClientCAs.Subjects()[0])).To(ContainSubstring("loggregatorCA"))
 
 			Expect(conf.ServerName).To(Equal("test-server-name"))
 		})
