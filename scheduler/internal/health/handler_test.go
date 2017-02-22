@@ -1,27 +1,27 @@
-package app_test
+package health_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/health"
 )
 
 var _ = Describe("Health", func() {
 	var (
 		recorder *httptest.ResponseRecorder
-		health   *app.Health
+		handler   *health.Health
 	)
 
 	BeforeEach(func() {
 		recorder = httptest.NewRecorder()
-		health = app.NewHealth(newSpyCounter(5), newSpyCounter(1))
+		handler = health.NewHealth(newSpyCounter(5), newSpyCounter(1))
 	})
 
 	It("returns JSON body with drain count", func() {
-		health.ServeHTTP(recorder, new(http.Request))
+		handler.ServeHTTP(recorder, new(http.Request))
 		Expect(recorder.Code).To(Equal(http.StatusOK))
 		Expect(recorder.Header().Get("Content-Type")).To(
 			Equal("application/json; charset=utf-8"),

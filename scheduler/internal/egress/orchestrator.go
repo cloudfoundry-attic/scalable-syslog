@@ -1,5 +1,5 @@
 // Package orchestrator orchestrates CUPS bindings to adapters.
-package app
+package egress
 
 import (
 	"log"
@@ -7,10 +7,11 @@ import (
 	"time"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
 type BindingReader interface {
-	FetchBindings() (appBindings AppBindings, err error)
+	FetchBindings() (appBindings ingress.AppBindings, err error)
 }
 
 type AdapterPool interface {
@@ -54,7 +55,7 @@ func (o *Orchestrator) Run(interval time.Duration) {
 	}
 }
 
-func (o *Orchestrator) createBindings(expectedBindings AppBindings) {
+func (o *Orchestrator) createBindings(expectedBindings ingress.AppBindings) {
 	// TODO: this needs to diff against o.pool.List()
 	for appID, cupsBinding := range expectedBindings {
 		for _, drain := range cupsBinding.Drains {
@@ -71,7 +72,7 @@ func (o *Orchestrator) createBindings(expectedBindings AppBindings) {
 	}
 }
 
-func (o *Orchestrator) cleanupBindings(expectedBindings AppBindings) {
+func (o *Orchestrator) cleanupBindings(expectedBindings ingress.AppBindings) {
 	actualBindings, err := o.pool.List()
 	if err != nil {
 		log.Printf("Failed to get actual bindings: %s", err)
@@ -92,7 +93,7 @@ func (o *Orchestrator) cleanupBindings(expectedBindings AppBindings) {
 	}
 }
 
-func exists(actualBindings AppBindings, ab *v1.Binding) bool {
+func exists(actualBindings ingress.AppBindings, ab *v1.Binding) bool {
 	b, ok := actualBindings[ab.AppId]
 	if !ok {
 		return false

@@ -1,3 +1,3 @@
-package app
+package ingress
 
 //go:generate hel

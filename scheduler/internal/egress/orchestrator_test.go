@@ -1,20 +1,21 @@
-package app_test
+package egress_test
 
 import (
 	"errors"
 	"time"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 )
 
 var _ = Describe("Orchestrator", func() {
 	It("writes syslog bindings to the writer", func() {
 		mockReader := newMockBindingReader()
-		mockReader.FetchBindingsOutput.AppBindings <- app.AppBindings{
-			"app-id": app.Binding{
+		mockReader.FetchBindingsOutput.AppBindings <- ingress.AppBindings{
+			"app-id": ingress.Binding{
 				Hostname: "org.space.app",
 				Drains:   []string{"syslog://my-app-drain", "syslog://other-drain"},
 			},
@@ -27,7 +28,7 @@ var _ = Describe("Orchestrator", func() {
 		close(mockPool.CreateOutput.Err)
 		close(mockPool.DeleteOutput.Err)
 
-		o := app.NewOrchestrator(mockReader, mockPool)
+		o := egress.NewOrchestrator(mockReader, mockPool)
 		go o.Run(1 * time.Millisecond)
 		defer o.Stop()
 
@@ -59,7 +60,7 @@ var _ = Describe("Orchestrator", func() {
 		close(mockPool.CreateOutput.Err)
 		close(mockPool.DeleteOutput.Err)
 
-		o := app.NewOrchestrator(mockReader, mockPool)
+		o := egress.NewOrchestrator(mockReader, mockPool)
 		go o.Run(1 * time.Millisecond)
 		defer o.Stop()
 
@@ -68,8 +69,8 @@ var _ = Describe("Orchestrator", func() {
 
 	It("deletes bindings that are no longer present", func() {
 		mockReader := newMockBindingReader()
-		mockReader.FetchBindingsOutput.AppBindings <- app.AppBindings{
-			"app-id": app.Binding{
+		mockReader.FetchBindingsOutput.AppBindings <- ingress.AppBindings{
+			"app-id": ingress.Binding{
 				Hostname: "org.space.app",
 				Drains:   []string{"syslog://my-app-drain"},
 			},
@@ -94,7 +95,7 @@ var _ = Describe("Orchestrator", func() {
 		close(mockPool.CreateOutput.Err)
 		close(mockPool.DeleteOutput.Err)
 
-		o := app.NewOrchestrator(mockReader, mockPool)
+		o := egress.NewOrchestrator(mockReader, mockPool)
 		go o.Run(1 * time.Millisecond)
 		defer o.Stop()
 

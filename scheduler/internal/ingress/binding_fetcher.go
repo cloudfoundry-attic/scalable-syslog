@@ -1,4 +1,4 @@
-package app
+package ingress
 
 import (
 	"encoding/json"

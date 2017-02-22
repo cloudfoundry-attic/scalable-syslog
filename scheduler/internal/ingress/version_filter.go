@@ -1,9 +1,13 @@
-package app
+package ingress
 
 import (
 	"net/url"
 	"sync"
 )
+
+type BindingReader interface {
+	FetchBindings() (appBindings AppBindings, err error)
+}
 
 // VersionFilter wraps a BindingReader and filters out versions that do not
 // contain a drain-version query argument that matches.

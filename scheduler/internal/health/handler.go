@@ -1,6 +1,6 @@
 // Package handlers contains the HTTP handlers that are used
 // for easy debugging and health checks for operators.
-package app
+package health
 
 import (
 	"fmt"

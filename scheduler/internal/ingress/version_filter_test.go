@@ -1,45 +1,44 @@
-package app_test
+package ingress_test
 
 import (
 	"errors"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
 var _ = Describe("VersionFilter", func() {
 	It("filters out bindings with drain URL with drain-version != 2.0", func() {
-		input := app.AppBindings{
-			"app-id-with-multiple-drains": app.Binding{
+		input := ingress.AppBindings{
+			"app-id-with-multiple-drains": ingress.Binding{
 				Drains: []string{
 					"syslog://example.com:1234/?drain-version=2.0",
 					"syslog://example.net:4321/",
 				},
 				Hostname: "we.dont.care",
 			},
-			"app-id-with-good-drain": app.Binding{
+			"app-id-with-good-drain": ingress.Binding{
 				Drains: []string{
 					"syslog://example.com:1234/?drain-version=2.0",
 				},
 				Hostname: "we.dont.care",
 			},
-			"app-id-with-bad-drain": app.Binding{
+			"app-id-with-bad-drain": ingress.Binding{
 				Drains: []string{
 					"syslog://example.net:4321/",
 				},
 				Hostname: "we.dont.care",
 			},
 		}
-		expected := app.AppBindings{
-			"app-id-with-multiple-drains": app.Binding{
+		expected := ingress.AppBindings{
+			"app-id-with-multiple-drains": ingress.Binding{
 				Drains: []string{
 					"syslog://example.com:1234/?drain-version=2.0",
 				},
 				Hostname: "we.dont.care",
 			},
-			"app-id-with-good-drain": app.Binding{
+			"app-id-with-good-drain": ingress.Binding{
 				Drains: []string{
 					"syslog://example.com:1234/?drain-version=2.0",
 				},
@@ -49,7 +48,7 @@ var _ = Describe("VersionFilter", func() {
 		mockBindingReader := newMockBindingReader()
 		mockBindingReader.FetchBindingsOutput.AppBindings <- input
 		mockBindingReader.FetchBindingsOutput.Err <- nil
-		filter := app.NewVersionFilter(mockBindingReader)
+		filter := ingress.NewVersionFilter(mockBindingReader)
 
 		actual, err := filter.FetchBindings()
 
@@ -58,8 +57,8 @@ var _ = Describe("VersionFilter", func() {
 	})
 
 	It("ignores malformed drain URLs", func() {
-		input := app.AppBindings{
-			"app-id-with-malformed-drains": app.Binding{
+		input := ingress.AppBindings{
+			"app-id-with-malformed-drains": ingress.Binding{
 				Drains: []string{
 					"://some-bad-url/?drain-version=2.0",
 					"syslog://example.com:1234/?drain-version=2.0",
@@ -67,15 +66,15 @@ var _ = Describe("VersionFilter", func() {
 				},
 				Hostname: "we.dont.care",
 			},
-			"app-id-with-single-malformed-drain": app.Binding{
+			"app-id-with-single-malformed-drain": ingress.Binding{
 				Drains: []string{
 					"://another-bad-url/?drain-version=2.0",
 				},
 				Hostname: "we.dont.care",
 			},
 		}
-		expected := app.AppBindings{
-			"app-id-with-malformed-drains": app.Binding{
+		expected := ingress.AppBindings{
+			"app-id-with-malformed-drains": ingress.Binding{
 				Drains: []string{
 					"syslog://example.com:1234/?drain-version=2.0",
 				},
@@ -85,7 +84,7 @@ var _ = Describe("VersionFilter", func() {
 		mockBindingReader := newMockBindingReader()
 		mockBindingReader.FetchBindingsOutput.AppBindings <- input
 		mockBindingReader.FetchBindingsOutput.Err <- nil
-		filter := app.NewVersionFilter(mockBindingReader)
+		filter := ingress.NewVersionFilter(mockBindingReader)
 
 		actual, err := filter.FetchBindings()
 
@@ -97,7 +96,7 @@ var _ = Describe("VersionFilter", func() {
 		mockBindingReader := newMockBindingReader()
 		mockBindingReader.FetchBindingsOutput.AppBindings <- nil
 		mockBindingReader.FetchBindingsOutput.Err <- errors.New("some-error")
-		filter := app.NewVersionFilter(mockBindingReader)
+		filter := ingress.NewVersionFilter(mockBindingReader)
 
 		_, err := filter.FetchBindings()
 
@@ -105,21 +104,21 @@ var _ = Describe("VersionFilter", func() {
 	})
 
 	It("returns the drain count for drain-version=2.0", func() {
-		input := app.AppBindings{
-			"app-id-with-multiple-drains": app.Binding{
+		input := ingress.AppBindings{
+			"app-id-with-multiple-drains": ingress.Binding{
 				Drains: []string{
 					"syslog://example.com:1234/?drain-version=2.0",
 					"syslog://example.net:4321/",
 				},
 				Hostname: "we.dont.care",
 			},
-			"app-id-with-good-drain": app.Binding{
+			"app-id-with-good-drain": ingress.Binding{
 				Drains: []string{
 					"syslog://example.com:1234/?drain-version=2.0",
 				},
 				Hostname: "we.dont.care",
 			},
-			"app-id-with-bad-drain": app.Binding{
+			"app-id-with-bad-drain": ingress.Binding{
 				Drains: []string{
 					"syslog://example.net:4321/",
 				},
@@ -129,7 +128,7 @@ var _ = Describe("VersionFilter", func() {
 		mockBindingReader := newMockBindingReader()
 		mockBindingReader.FetchBindingsOutput.AppBindings <- input
 		mockBindingReader.FetchBindingsOutput.Err <- nil
-		filter := app.NewVersionFilter(mockBindingReader)
+		filter := ingress.NewVersionFilter(mockBindingReader)
 
 		Expect(filter.Count()).To(Equal(0))
 

@@ -3,13 +3,13 @@
 // doing.  Expect any changes made manually to be overwritten
 // the next time hel regenerates this file.
 
-package app_test
+package egress_test
 
 import (
 	"net/http"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
 type mockCounter struct {
@@ -33,7 +33,7 @@ func (m *mockCounter) Count() int {
 type mockBindingReader struct {
 	FetchBindingsCalled chan bool
 	FetchBindingsOutput struct {
-		AppBindings chan app.AppBindings
+		AppBindings chan ingress.AppBindings
 		Err         chan error
 	}
 }
@@ -41,11 +41,11 @@ type mockBindingReader struct {
 func newMockBindingReader() *mockBindingReader {
 	m := &mockBindingReader{}
 	m.FetchBindingsCalled = make(chan bool, 100)
-	m.FetchBindingsOutput.AppBindings = make(chan app.AppBindings, 100)
+	m.FetchBindingsOutput.AppBindings = make(chan ingress.AppBindings, 100)
 	m.FetchBindingsOutput.Err = make(chan error, 100)
 	return m
 }
-func (m *mockBindingReader) FetchBindings() (appBindings app.AppBindings, err error) {
+func (m *mockBindingReader) FetchBindings() (appBindings ingress.AppBindings, err error) {
 	m.FetchBindingsCalled <- true
 	return <-m.FetchBindingsOutput.AppBindings, <-m.FetchBindingsOutput.Err
 }

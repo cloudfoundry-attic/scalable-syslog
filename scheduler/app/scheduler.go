@@ -10,6 +10,9 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/health"
 )
 
 // Start starts polling the CUPS provider and serves the HTTP
@@ -23,18 +26,18 @@ func Start(cupsURL string, adapterAddrs []string, adapterTLSConfig *tls.Config, 
 		client: conf.client,
 		addr:   cupsURL,
 	}
-	fetcher := NewVersionFilter(NewBindingFetcher(client))
+	fetcher := ingress.NewVersionFilter(ingress.NewBindingFetcher(client))
 
 	creds := credentials.NewTLS(adapterTLSConfig)
-	pool := NewAdapterWriterPool(
+	pool := egress.NewAdapterWriterPool(
 		adapterAddrs,
 		grpc.WithTransportCredentials(creds),
 	)
-	orchestrator := NewOrchestrator(fetcher, pool)
+	orchestrator := egress.NewOrchestrator(fetcher, pool)
 	go orchestrator.Run(conf.interval)
 
 	router := http.NewServeMux()
-	router.Handle("/health", NewHealth(fetcher, pool))
+	router.Handle("/health", health.NewHealth(fetcher, pool))
 
 	server := http.Server{
 		Addr:         conf.healthAddr,

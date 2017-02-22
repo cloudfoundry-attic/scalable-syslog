@@ -1,4 +1,4 @@
-package app_test
+package ingress_test
 
 import (
 	"errors"
@@ -6,20 +6,20 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
 var _ = Describe("BindingFetcher", func() {
 	var (
 		mockGetter *mockGetter
-		fetcher    *app.BindingFetcher
+		fetcher    *ingress.BindingFetcher
 	)
 
 	BeforeEach(func() {
 		mockGetter = newMockGetter()
-		fetcher = app.NewBindingFetcher(mockGetter)
+		fetcher = ingress.NewBindingFetcher(mockGetter)
 	})
 
 	Context("when the getter does not return an error", func() {
