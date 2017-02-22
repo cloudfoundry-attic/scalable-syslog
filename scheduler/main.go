@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 	"time"
 
 	"net/http"
@@ -57,5 +58,11 @@ func main() {
 		app.WithHTTPClient(api.NewHTTPSClient(cupsTLSConfig, 5*time.Second)),
 	)
 
-	log.Println(http.ListenAndServe(*pprofHostport, nil))
+	lis, err := net.Listen("tcp", *pprofHostport)
+	if err != nil {
+		log.Printf("Error creating pprof listener: %s", err)
+	}
+
+	log.Printf("Starting pprof server on: %s", lis.Addr().String())
+	log.Println(http.Serve(lis, nil))
 }
