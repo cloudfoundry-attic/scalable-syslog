@@ -10,9 +10,8 @@ import (
 )
 
 //go:generate hel
-
 func TestHandlers(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Adapter - Handlers Suite")
+	RunSpecs(t, "Health - Handlers Suite")
 }
