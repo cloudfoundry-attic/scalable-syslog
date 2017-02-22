@@ -1,10 +1,10 @@
-package handlers_test
+package health_test
 
 import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/handlers"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/health"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	. "github.com/onsi/ginkgo"
@@ -14,13 +14,13 @@ import (
 var _ = Describe("Health", func() {
 	var (
 		mockStore *mockBindingStore
-		handler   *handlers.Health
+		handler   *health.Health
 		recorder  *httptest.ResponseRecorder
 	)
 
 	BeforeEach(func() {
 		mockStore = newMockBindingStore()
-		handler = handlers.NewHealth(mockStore)
+		handler = health.NewHealth(mockStore)
 		recorder = httptest.NewRecorder()
 	})
 

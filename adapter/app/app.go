@@ -9,7 +9,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/controller"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/drainstore"
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/handlers"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/health"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
@@ -49,7 +49,7 @@ func startHealthServer(hostport string, cache *drainstore.Cache) string {
 	}
 
 	router := http.NewServeMux()
-	router.Handle("/health", handlers.NewHealth(cache))
+	router.Handle("/health", health.NewHealth(cache))
 	server.Handler = router
 
 	go func() {

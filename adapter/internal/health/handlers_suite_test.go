@@ -1,4 +1,4 @@
-package handlers_test
+package health_test
 
 import (
 	"log"

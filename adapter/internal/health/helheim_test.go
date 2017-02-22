@@ -3,7 +3,7 @@
 // doing.  Expect any changes made manually to be overwritten
 // the next time hel regenerates this file.
 
-package handlers_test
+package health_test
 
 import v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
