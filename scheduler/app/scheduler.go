@@ -8,99 +8,123 @@ import (
 	"net/http"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/health"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
-// Start starts polling the CUPS provider and serves the HTTP
-// health endpoint.
-func Start(cupsURL string, adapterAddrs []string, adapterTLSConfig *tls.Config, opts ...AppOption) (actualHealth string) {
-	log.Print("Starting scheduler...")
+// Scheduler represents the scheduler component. It is responsible for polling
+// and/or streaming events from the cloud controller about syslog drains and
+// updating a pool of adapters to service those drains.
+type Scheduler struct {
+	cupsURL          string
+	adapterAddrs     []string
+	adapterTLSConfig *tls.Config
 
-	conf := setupConfig(opts)
+	healthAddr string
+	client     *http.Client
+	interval   time.Duration
 
-	client := cupsHTTPClient{
-		client: conf.client,
-		addr:   cupsURL,
+	pool    *egress.Pool
+	fetcher *ingress.VersionFilter
+}
+
+// NewScheduler returns a new unstarted scheduler.
+func NewScheduler(
+	cupsURL string,
+	adapterAddrs []string,
+	adapterTLSConfig *tls.Config,
+	opts ...SchedulerOption,
+) *Scheduler {
+	s := &Scheduler{
+		cupsURL:          cupsURL,
+		adapterAddrs:     adapterAddrs,
+		adapterTLSConfig: adapterTLSConfig,
+		healthAddr:       ":8080",
+		client:           http.DefaultClient,
+		interval:         15 * time.Second,
 	}
-	fetcher := ingress.NewVersionFilter(ingress.NewBindingFetcher(client))
+	for _, o := range opts {
+		o(s)
+	}
+	return s
+}
 
-	creds := credentials.NewTLS(adapterTLSConfig)
-	pool := egress.NewAdapterWriterPool(
-		adapterAddrs,
+// SchedulerOption represents a function that can configure a scheduler.
+type SchedulerOption func(c *Scheduler)
+
+// WithHealthAddr sets the address for the health endpoint to bind to.
+func WithHealthAddr(addr string) func(*Scheduler) {
+	return func(s *Scheduler) {
+		s.healthAddr = addr
+	}
+}
+
+// WithHTTPClient sets the http.Client to poll the CUPS provider.
+func WithHTTPClient(client *http.Client) func(*Scheduler) {
+	return func(s *Scheduler) {
+		s.client = client
+	}
+}
+
+// WithPollingInterval sets the interval to poll the CUPS provider.
+func WithPollingInterval(interval time.Duration) func(*Scheduler) {
+	return func(s *Scheduler) {
+		s.interval = interval
+	}
+}
+
+// Start starts polling the CUPS provider and serves the HTTP health endpoint.
+func (s *Scheduler) Start() string {
+	s.setupIngress()
+	s.setupEgress()
+	s.startEgress()
+	return s.serveHealth()
+}
+
+func (s *Scheduler) setupIngress() {
+	s.fetcher = ingress.NewVersionFilter(ingress.NewBindingFetcher(cupsHTTPClient{
+		client: s.client,
+		addr:   s.cupsURL,
+	}))
+}
+
+func (s *Scheduler) setupEgress() {
+	creds := credentials.NewTLS(s.adapterTLSConfig)
+	s.pool = egress.NewAdapterWriterPool(
+		s.adapterAddrs,
 		grpc.WithTransportCredentials(creds),
 	)
-	orchestrator := egress.NewOrchestrator(fetcher, pool)
-	go orchestrator.Run(conf.interval)
+}
 
+func (s *Scheduler) startEgress() {
+	orchestrator := egress.NewOrchestrator(s.fetcher, s.pool)
+	go orchestrator.Run(s.interval)
+}
+
+func (s *Scheduler) serveHealth() string {
 	router := http.NewServeMux()
-	router.Handle("/health", health.NewHealth(fetcher, pool))
+	router.Handle("/health", health.NewHealth(s.fetcher, s.pool))
 
 	server := http.Server{
-		Addr:         conf.healthAddr,
+		Addr:         s.healthAddr,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
 	server.Handler = router
 
-	l, err := net.Listen("tcp", conf.healthAddr)
+	lis, err := net.Listen("tcp", s.healthAddr)
 	if err != nil {
-		log.Fatalf("Unable to setup Health endpoint (%s): %s", conf.healthAddr, err)
+		log.Fatalf("Unable to setup Health endpoint (%s): %s", s.healthAddr, err)
 	}
 
 	go func() {
-		log.Printf("Health endpoint is listening on %s", l.Addr().String())
-		log.Fatalf("Health server closing: %s", server.Serve(l))
+		log.Printf("Health endpoint is listening on %s", lis.Addr().String())
+		log.Fatalf("Health server closing: %s", server.Serve(lis))
 	}()
-
-	return l.Addr().String()
-}
-
-// AppOption is a type that will manipulate a config
-type AppOption func(c *config)
-
-// WithHealthAddr sets the address for the health endpoint to bind to.
-func WithHealthAddr(addr string) func(*config) {
-	return func(c *config) {
-		c.healthAddr = addr
-	}
-}
-
-// WithHTTPClient sets the http.Client to poll the CUPS provider
-func WithHTTPClient(client *http.Client) func(*config) {
-	return func(c *config) {
-		c.client = client
-	}
-}
-
-// WithPollingInterval sets the interval to poll the CUPS provider
-func WithPollingInterval(interval time.Duration) func(*config) {
-	return func(c *config) {
-		c.interval = interval
-	}
-}
-
-type config struct {
-	healthAddr string
-	client     *http.Client
-	interval   time.Duration
-}
-
-func setupConfig(opts []AppOption) *config {
-	conf := config{
-		healthAddr: ":8080",
-		client:     http.DefaultClient,
-		interval:   15 * time.Second,
-	}
-
-	for _, o := range opts {
-		o(&conf)
-	}
-
-	return &conf
+	return lis.Addr().String()
 }
 
 type cupsHTTPClient struct {

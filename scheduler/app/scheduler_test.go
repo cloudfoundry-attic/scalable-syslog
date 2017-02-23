@@ -21,10 +21,11 @@ import (
 
 var _ = Describe("Scheduler - End to End", func() {
 	var (
-		schedulerAddr string
-		dataSource    *httptest.Server
-		testServer    *testAdapterServer
-		bindings      []*v1.Binding
+		scheduler  *app.Scheduler
+		dataSource *httptest.Server
+		testServer *testAdapterServer
+		bindings   []*v1.Binding
+		healthAddr string
 	)
 
 	BeforeEach(func() {
@@ -72,13 +73,14 @@ var _ = Describe("Scheduler - End to End", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		schedulerAddr = app.Start(
+		scheduler = app.NewScheduler(
 			dataSource.URL,
 			[]string{lis.Addr().String()},
 			tlsConfig,
 			app.WithHealthAddr("localhost:0"),
 			app.WithPollingInterval(time.Millisecond),
 		)
+		healthAddr = scheduler.Start()
 	})
 
 	Context("when CC continuously returns data", func() {
@@ -88,7 +90,7 @@ var _ = Describe("Scheduler - End to End", func() {
 
 		It("reports health info", func() {
 			f := func() []byte {
-				resp, err := http.Get(fmt.Sprintf("http://%s/health", schedulerAddr))
+				resp, err := http.Get(fmt.Sprintf("http://%s/health", healthAddr))
 				Expect(err).ToNot(HaveOccurred())
 				Expect(resp.StatusCode).To(Equal(http.StatusOK))
 

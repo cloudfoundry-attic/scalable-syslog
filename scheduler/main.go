@@ -50,13 +50,14 @@ func main() {
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
 
-	app.Start(
+	scheduler := app.NewScheduler(
 		*cupsProvider,
 		adapterAddrs,
 		adapterTLSConfig,
 		app.WithHealthAddr(*healthHostport),
 		app.WithHTTPClient(api.NewHTTPSClient(cupsTLSConfig, 5*time.Second)),
 	)
+	scheduler.Start()
 
 	lis, err := net.Listen("tcp", *pprofHostport)
 	if err != nil {
