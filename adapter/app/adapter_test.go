@@ -19,7 +19,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("App", func() {
+var _ = Describe("Adapter", func() {
 	var (
 		adapterServiceHost string
 		adapterHealthAddr  string
@@ -32,7 +32,7 @@ var _ = Describe("App", func() {
 		var logsAPIAddr string
 		egressServer, logsAPIAddr = startLogsAPIServer()
 
-		tlsConfig, err := api.NewMutualTLSConfig(
+		rlpTLSConfig, err := api.NewMutualTLSConfig(
 			Cert("adapter-rlp.crt"),
 			Cert("adapter-rlp.key"),
 			Cert("loggregator-ca.crt"),
@@ -40,13 +40,23 @@ var _ = Describe("App", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		adapterHealthAddr, adapterServiceHost = app.StartAdapter(
+		tlsConfig, err := api.NewMutualTLSConfig(
+			Cert("adapter.crt"),
+			Cert("adapter.key"),
+			Cert("scalable-syslog-ca.crt"),
+			"fake-log-provider",
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		adapter := app.NewAdapter(
+			logsAPIAddr,
+			rlpTLSConfig,
+			tlsConfig,
 			app.WithHealthAddr("localhost:0"),
 			app.WithControllerAddr("localhost:0"),
-			app.WithLogsEgressAPIAddr(logsAPIAddr),
 			app.WithLogsEgressAPIConnCount(5),
-			app.WithLogsEgressAPITLSConfig(tlsConfig),
 		)
+		adapterHealthAddr, adapterServiceHost = adapter.Start()
 
 		client = startAdapterClient(adapterServiceHost)
 		binding = &v1.Binding{
@@ -106,7 +116,15 @@ var _ = Describe("App", func() {
 })
 
 func startAdapterClient(addr string) v1.AdapterClient {
-	conn, err := grpc.Dial(addr, grpc.WithInsecure())
+	tlsConfig, err := api.NewMutualTLSConfig(
+		Cert("adapter.crt"),
+		Cert("adapter.key"),
+		Cert("scalable-syslog-ca.crt"),
+		"adapter",
+	)
+	Expect(err).ToNot(HaveOccurred())
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	Expect(err).ToNot(HaveOccurred())
 
 	return v1.NewAdapterClient(conn)

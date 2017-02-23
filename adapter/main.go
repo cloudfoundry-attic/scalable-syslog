@@ -41,11 +41,11 @@ func main() {
 	}
 
 	app.StartAdapter(
+		*logsApiAddr,
+		rlpTlsConfig,
+		tlsConfig,
 		app.WithHealthAddr(*healthHostport),
 		app.WithControllerAddr(*adapterHostport),
-		app.WithControllerTLSConfig(tlsConfig),
-		app.WithLogsEgressAPIAddr(*logsApiAddr),
-		app.WithLogsEgressAPITLSConfig(rlpTlsConfig),
 	)
 
 	lis, err := net.Listen("tcp", *pprofHostport)
