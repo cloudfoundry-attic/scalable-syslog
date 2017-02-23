@@ -40,13 +40,14 @@ func main() {
 		log.Fatalf("Invalid RLP TLS config: %s", err)
 	}
 
-	app.StartAdapter(
+	adapter := app.NewAdapter(
 		*logsApiAddr,
 		rlpTlsConfig,
 		tlsConfig,
 		app.WithHealthAddr(*healthHostport),
 		app.WithControllerAddr(*adapterHostport),
 	)
+	adapter.Start()
 
 	lis, err := net.Listen("tcp", *pprofHostport)
 	if err != nil {
