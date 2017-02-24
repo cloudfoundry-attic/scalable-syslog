@@ -10,20 +10,28 @@ import (
 	"google.golang.org/grpc"
 )
 
+// Connector connects to loggregator egress API
 type Connector struct {
-	addr string
-	opts []grpc.DialOption
+	opts     []grpc.DialOption
+	balancer *Balancer
 }
 
-func NewConnector(addr string, opts ...grpc.DialOption) *Connector {
+// NewConnector returns a new Connector
+func NewConnector(balancer *Balancer, opts ...grpc.DialOption) *Connector {
 	return &Connector{
-		addr: addr,
-		opts: opts,
+		balancer: balancer,
+		opts:     opts,
 	}
 }
 
+// Connect connects to a loggregator egress API
 func (c *Connector) Connect() (io.Closer, v2.Egress_ReceiverClient, error) {
-	conn, err := grpc.Dial(c.addr, c.opts...)
+	hp, err := c.balancer.NextHostPort()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	conn, err := grpc.Dial(hp, c.opts...)
 	if err != nil {
 		return nil, nil, err
 	}

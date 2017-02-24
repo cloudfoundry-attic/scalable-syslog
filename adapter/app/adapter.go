@@ -60,7 +60,7 @@ func WithLogsEgressAPIConnTTL(d int) func(*Adapter) {
 	}
 }
 
-// StartAdapter starts the health endpoint and gRPC service.
+// NewAdapter returns an Adapter
 func NewAdapter(
 	logsEgressAPIAddr string,
 	logsEgressAPITLSConfig *tls.Config,
@@ -84,6 +84,7 @@ func NewAdapter(
 	return adapter
 }
 
+// Start starts the adapter health endpoint and gRPC service.
 func (a *Adapter) Start() (actualHealth, actualService string) {
 	log.Print("Starting adapter...")
 
@@ -93,8 +94,9 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 	creds := credentials.NewTLS(a.controllerTLSConfig)
 	actualService = startAdapterService(a.controllerAddr, creds, cache)
 
+	balancer := ingress.NewBalancer(a.logsEgressAPIAddr)
 	connector := ingress.NewConnector(
-		a.logsEgressAPIAddr,
+		balancer,
 		grpc.WithTransportCredentials(credentials.NewTLS(a.logsEgressAPITLSConfig)),
 	)
 	ingress.NewConsumer(connector, a.logsAPIConnCount, a.logsAPIConnTTL)
@@ -145,4 +147,3 @@ func startAdapterService(hostport string, creds credentials.TransportCredentials
 	log.Printf("Adapter controller is listening on %s", lis.Addr().String())
 	return lis.Addr().String()
 }
-
