@@ -1,0 +1,12 @@
+=== RUN   TestEgress
+Running Suite: Egress Suite
+===========================
+Random Seed: [1m1488323406[0m
+Will run [1m1[0m of [1m5[0m specs
+
+starting read
+[32m•[0m[36mS[0m[36mS[0m[36mS[0m[36mS[0m
+[1m[32mRan 1 of 5 Specs in 0.011 seconds[0m
+[1m[32mSUCCESS![0m -- [32m[1m1 Passed[0m | [91m[1m0 Failed[0m | [33m[1m0 Pending[0m | [36m[1m4 Skipped[0m PASS | FOCUSED
+exit status 197
+FAIL	github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress	0.021s
