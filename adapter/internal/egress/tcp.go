@@ -80,14 +80,19 @@ func WithRetryStrategy(r retrystrategy.RetryStrategy) TCPOption {
 }
 
 // Close tears down any active connections to the drain and prevents reconnect.
-func (*TCPWriter) Close() error {
+func (w *TCPWriter) Close() error {
+	if err := w.conn.Close(); err != nil {
+		return err
+	}
+	w.conn = nil
+
 	return nil
 }
 
 // Write writes an envelope to the syslog drain connection.
 func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 	if w.conn == nil {
-		w.connect()
+		return errors.New("connection does not exist")
 	}
 
 	if env.GetLog() == nil {
@@ -107,7 +112,7 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 	}
 	_, err := msg.WriteTo(w.conn)
 	if err != nil {
-		w.conn.Close()
+		w.Close()
 		w.connect()
 	}
 

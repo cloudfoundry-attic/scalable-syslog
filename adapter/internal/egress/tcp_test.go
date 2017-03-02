@@ -18,7 +18,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("TCP", func() {
+var _ = Describe("TCPWriter", func() {
 	Describe("connecting to drain", func() {
 		It("establishes connection to TCP drain", func() {
 			mockDrain := newMockTCPDrain()
@@ -152,6 +152,54 @@ var _ = Describe("TCP", func() {
 			Expect(mockDrain.RXData()).To(BeEmpty())
 			Expect(writer.Write(env)).To(Succeed())
 			Expect(mockDrain.RXData()).To(BeEmpty())
+		})
+	})
+
+	Describe("close", func() {
+		It("closes the writer connection", func() {
+			mockDialer := newMockDialer()
+			mockConn := newMockConn()
+
+			mockDialer.DialOutput.Conn <- mockConn
+			mockDialer.DialOutput.Err <- nil
+
+			writer, err := egress.NewTCP(url.URL{
+				Scheme: "syslog",
+				Host:   "example.com:1234",
+			}, "test-app-id", "test-hostname",
+				egress.WithTCPDialer(mockDialer),
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(mockDialer.DialCalled).To(Receive())
+
+			close(mockConn.CloseOutput.Ret0)
+			Expect(writer.Close()).To(Succeed())
+			Expect(mockConn.CloseCalled).To(Receive())
+		})
+
+		It("returns an error after writing to a closed connection", func() {
+			mockDialer := newMockDialer()
+			mockConn := newMockConn()
+
+			mockDialer.DialOutput.Conn <- mockConn
+			close(mockDialer.DialOutput.Err)
+			close(mockConn.CloseOutput.Ret0)
+			close(mockConn.WriteOutput.N)
+			close(mockConn.WriteOutput.Err)
+
+			writer, err := egress.NewTCP(url.URL{
+				Scheme: "syslog",
+				Host:   "example.com:1234",
+			}, "test-app-id", "test-hostname",
+				egress.WithTCPDialer(mockDialer),
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(mockDialer.DialCalled).To(Receive())
+
+			Expect(writer.Close()).To(Succeed())
+
+			env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
+			Expect(writer.Write(env)).To(MatchError("connection does not exist"))
 		})
 	})
 })
