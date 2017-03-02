@@ -1,4 +1,4 @@
-package egress_test
+package retrystrategy_test
 
 import (
 	"log"
@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-func TestEgress(t *testing.T) {
+func TestRetrystrategy(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Adapter - Egress Suite")
+	RunSpecs(t, "Adapter - Egress - Retrystrategy Suite")
 }

@@ -153,3 +153,148 @@ func (m *mockConn) SetWriteDeadline(t time.Time) error {
 	m.SetWriteDeadlineInput.T <- t
 	return <-m.SetWriteDeadlineOutput.Ret0
 }
+
+type mockNetConn struct {
+	ReadCalled chan bool
+	ReadInput  struct {
+		B chan []byte
+	}
+	ReadOutput struct {
+		N   chan int
+		Err chan error
+	}
+	WriteCalled chan bool
+	WriteInput  struct {
+		B chan []byte
+	}
+	WriteOutput struct {
+		N   chan int
+		Err chan error
+	}
+	CloseCalled chan bool
+	CloseOutput struct {
+		Ret0 chan error
+	}
+	LocalAddrCalled chan bool
+	LocalAddrOutput struct {
+		Ret0 chan net.Addr
+	}
+	RemoteAddrCalled chan bool
+	RemoteAddrOutput struct {
+		Ret0 chan net.Addr
+	}
+	SetDeadlineCalled chan bool
+	SetDeadlineInput  struct {
+		T chan time.Time
+	}
+	SetDeadlineOutput struct {
+		Ret0 chan error
+	}
+	SetReadDeadlineCalled chan bool
+	SetReadDeadlineInput  struct {
+		T chan time.Time
+	}
+	SetReadDeadlineOutput struct {
+		Ret0 chan error
+	}
+	SetWriteDeadlineCalled chan bool
+	SetWriteDeadlineInput  struct {
+		T chan time.Time
+	}
+	SetWriteDeadlineOutput struct {
+		Ret0 chan error
+	}
+}
+
+func newMockNetConn() *mockNetConn {
+	m := &mockNetConn{}
+	m.ReadCalled = make(chan bool, 100)
+	m.ReadInput.B = make(chan []byte, 100)
+	m.ReadOutput.N = make(chan int, 100)
+	m.ReadOutput.Err = make(chan error, 100)
+	m.WriteCalled = make(chan bool, 100)
+	m.WriteInput.B = make(chan []byte, 100)
+	m.WriteOutput.N = make(chan int, 100)
+	m.WriteOutput.Err = make(chan error, 100)
+	m.CloseCalled = make(chan bool, 100)
+	m.CloseOutput.Ret0 = make(chan error, 100)
+	m.LocalAddrCalled = make(chan bool, 100)
+	m.LocalAddrOutput.Ret0 = make(chan net.Addr, 100)
+	m.RemoteAddrCalled = make(chan bool, 100)
+	m.RemoteAddrOutput.Ret0 = make(chan net.Addr, 100)
+	m.SetDeadlineCalled = make(chan bool, 100)
+	m.SetDeadlineInput.T = make(chan time.Time, 100)
+	m.SetDeadlineOutput.Ret0 = make(chan error, 100)
+	m.SetReadDeadlineCalled = make(chan bool, 100)
+	m.SetReadDeadlineInput.T = make(chan time.Time, 100)
+	m.SetReadDeadlineOutput.Ret0 = make(chan error, 100)
+	m.SetWriteDeadlineCalled = make(chan bool, 100)
+	m.SetWriteDeadlineInput.T = make(chan time.Time, 100)
+	m.SetWriteDeadlineOutput.Ret0 = make(chan error, 100)
+	return m
+}
+func (m *mockNetConn) Read(b []byte) (n int, err error) {
+	m.ReadCalled <- true
+	m.ReadInput.B <- b
+	return <-m.ReadOutput.N, <-m.ReadOutput.Err
+}
+func (m *mockNetConn) Write(b []byte) (n int, err error) {
+	m.WriteCalled <- true
+	m.WriteInput.B <- b
+	return <-m.WriteOutput.N, <-m.WriteOutput.Err
+}
+func (m *mockNetConn) Close() error {
+	m.CloseCalled <- true
+	return <-m.CloseOutput.Ret0
+}
+func (m *mockNetConn) LocalAddr() net.Addr {
+	m.LocalAddrCalled <- true
+	return <-m.LocalAddrOutput.Ret0
+}
+func (m *mockNetConn) RemoteAddr() net.Addr {
+	m.RemoteAddrCalled <- true
+	return <-m.RemoteAddrOutput.Ret0
+}
+func (m *mockNetConn) SetDeadline(t time.Time) error {
+	m.SetDeadlineCalled <- true
+	m.SetDeadlineInput.T <- t
+	return <-m.SetDeadlineOutput.Ret0
+}
+func (m *mockNetConn) SetReadDeadline(t time.Time) error {
+	m.SetReadDeadlineCalled <- true
+	m.SetReadDeadlineInput.T <- t
+	return <-m.SetReadDeadlineOutput.Ret0
+}
+func (m *mockNetConn) SetWriteDeadline(t time.Time) error {
+	m.SetWriteDeadlineCalled <- true
+	m.SetWriteDeadlineInput.T <- t
+	return <-m.SetWriteDeadlineOutput.Ret0
+}
+
+type mockAddr struct {
+	NetworkCalled chan bool
+	NetworkOutput struct {
+		Ret0 chan string
+	}
+	StringCalled chan bool
+	StringOutput struct {
+		Ret0 chan string
+	}
+}
+
+func newMockAddr() *mockAddr {
+	m := &mockAddr{}
+	m.NetworkCalled = make(chan bool, 100)
+	m.NetworkOutput.Ret0 = make(chan string, 100)
+	m.StringCalled = make(chan bool, 100)
+	m.StringOutput.Ret0 = make(chan string, 100)
+	return m
+}
+func (m *mockAddr) Network() string {
+	m.NetworkCalled <- true
+	return <-m.NetworkOutput.Ret0
+}
+func (m *mockAddr) String() string {
+	m.StringCalled <- true
+	return <-m.StringOutput.Ret0
+}
