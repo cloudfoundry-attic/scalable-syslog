@@ -1,4 +1,4 @@
-package drainstore_test
+package bindingmanager_test
 
 import (
 	"log"
@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-func TestDrainstore(t *testing.T) {
+func TestBindingmanager(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Adapter - Drainstore Suite")
+	RunSpecs(t, "Adapter - Bindingmanager Suite")
 }

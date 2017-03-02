@@ -12,24 +12,25 @@ import (
 
 var _ = Describe("Controller", func() {
 	var (
-		mockStore *mockBindingStore
-		c         *controller.Controller
+		mockManager *mockBindingManager
+		c           *controller.Controller
 	)
 
 	BeforeEach(func() {
-		mockStore = newMockBindingStore()
-		c = controller.New(mockStore)
+		mockManager = newMockBindingManager()
+
+		c = controller.New(mockManager)
 	})
 
 	It("returns a list of known bindings", func() {
-		mockStore.ListOutput.Bindings <- []*v1.Binding{nil, nil}
+		mockManager.ListOutput.Bindings <- []*v1.Binding{nil, nil}
 		resp, err := c.ListBindings(context.Background(), new(v1.ListBindingsRequest))
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resp.Bindings).To(HaveLen(2))
 	})
 
-	It("adds new bindings to the store", func() {
+	It("adds new binding", func() {
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host",
@@ -40,10 +41,10 @@ var _ = Describe("Controller", func() {
 		})
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(mockStore.AddInput.Binding).To(Receive(Equal(binding)))
+		Expect(mockManager.AddInput.Binding).To(Receive(Equal(binding)))
 	})
 
-	It("deletes existing bindings to the store", func() {
+	It("deletes existing bindings", func() {
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host",
@@ -54,6 +55,6 @@ var _ = Describe("Controller", func() {
 		})
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(mockStore.DeleteInput.Binding).To(Receive(Equal(binding)))
+		Expect(mockManager.DeleteInput.Binding).To(Receive(Equal(binding)))
 	})
 })

@@ -6,8 +6,8 @@ import (
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 )
 
-// BindingsStore stores and lists bindings
-type BindingStore interface {
+// BindingManager manages the bindings and respective subscriptions
+type BindingManager interface {
 	Add(binding *v1.Binding)
 	Delete(binding *v1.Binding)
 	List() (bindings []*v1.Binding)
@@ -15,31 +15,31 @@ type BindingStore interface {
 
 // Controller implements the v1.AdapterServer interface.
 type Controller struct {
-	store BindingStore
+	manager BindingManager
 }
 
 // New returns a new Controller.
-func New(s BindingStore) *Controller {
+func New(m BindingManager) *Controller {
 	return &Controller{
-		store: s,
+		manager: m,
 	}
 }
 
-// ListBindings returns a list of bindings from the bindings store.
+// ListBindings returns a list of bindings from the binding manager
 func (c *Controller) ListBindings(ctx context.Context, req *v1.ListBindingsRequest) (*v1.ListBindingsResponse, error) {
-	return &v1.ListBindingsResponse{Bindings: c.store.List()}, nil
+	return &v1.ListBindingsResponse{Bindings: c.manager.List()}, nil
 }
 
-// CreateBinding adds a new binding to the bindings store.
+// CreateBinding adds a new binding to the binding manager.
 func (c *Controller) CreateBinding(ctx context.Context, req *v1.CreateBindingRequest) (*v1.CreateBindingResponse, error) {
-	c.store.Add(req.Binding)
+	c.manager.Add(req.Binding)
 
 	return new(v1.CreateBindingResponse), nil
 }
 
-// DeleteBinding removes a binding from the bindings store.
+// DeleteBinding removes a binding from the binding manager.
 func (c *Controller) DeleteBinding(ctx context.Context, req *v1.DeleteBindingRequest) (*v1.DeleteBindingResponse, error) {
-	c.store.Delete(req.Binding)
+	c.manager.Delete(req.Binding)
 
 	return new(v1.DeleteBindingResponse), nil
 }

@@ -1,30 +1,30 @@
-package drainstore_test
+package bindingmanager_test
 
 import (
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/drainstore"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/bindingmanager"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Cache", func() {
+var _ = Describe("BindingManager", func() {
 	var (
-		cache *drainstore.Cache
+		manager *bindingmanager.BindingManager
 	)
 
 	BeforeEach(func() {
-		cache = drainstore.NewCache()
+		manager = bindingmanager.New()
 	})
 
 	It("keeps track of the drains", func() {
-		cache.Add(&v1.Binding{
+		manager.Add(&v1.Binding{
 			AppId:    "some-id",
 			Hostname: "some-hostname",
 			Drain:    "some.url",
 		})
 
-		bindings := cache.List()
+		bindings := manager.List()
 
 		Expect(bindings).To(HaveLen(1))
 		Expect(bindings[0].AppId).To(Equal("some-id"))
@@ -34,14 +34,14 @@ var _ = Describe("Cache", func() {
 
 	It("does not add duplicate bindings", func() {
 		for i := 0; i < 2; i++ {
-			cache.Add(&v1.Binding{
+			manager.Add(&v1.Binding{
 				AppId:    "some-id",
 				Hostname: "some-hostname",
 				Drain:    "some.url",
 			})
 		}
 
-		bindings := cache.List()
+		bindings := manager.List()
 
 		Expect(bindings).To(HaveLen(1))
 	})
@@ -52,9 +52,9 @@ var _ = Describe("Cache", func() {
 			Hostname: "some-hostname",
 			Drain:    "some.url",
 		}
-		cache.Add(binding)
-		cache.Delete(binding)
+		manager.Add(binding)
+		manager.Delete(binding)
 
-		Expect(cache.List()).To(HaveLen(0))
+		Expect(manager.List()).To(HaveLen(0))
 	})
 })

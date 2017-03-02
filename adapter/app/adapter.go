@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/bindingmanager"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/controller"
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/drainstore"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/health"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
@@ -88,11 +88,11 @@ func NewAdapter(
 func (a *Adapter) Start() (actualHealth, actualService string) {
 	log.Print("Starting adapter...")
 
-	cache := drainstore.NewCache()
+	manager := bindingmanager.New()
 
-	actualHealth = startHealthServer(a.healthAddr, cache)
+	actualHealth = startHealthServer(a.healthAddr, manager)
 	creds := credentials.NewTLS(a.controllerTLSConfig)
-	actualService = startAdapterService(a.controllerAddr, creds, cache)
+	actualService = startAdapterService(a.controllerAddr, creds, manager)
 
 	balancer := ingress.NewBalancer(a.logsEgressAPIAddr)
 	connector := ingress.NewConnector(
@@ -104,7 +104,7 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 	return actualHealth, actualService
 }
 
-func startHealthServer(hostport string, cache *drainstore.Cache) string {
+func startHealthServer(hostport string, manager *bindingmanager.BindingManager) string {
 	l, err := net.Listen("tcp", hostport)
 	if err != nil {
 		log.Fatalf("Unable to setup Health endpoint (%s): %s", hostport, err)
@@ -117,7 +117,7 @@ func startHealthServer(hostport string, cache *drainstore.Cache) string {
 	}
 
 	router := http.NewServeMux()
-	router.Handle("/health", health.NewHealth(cache))
+	router.Handle("/health", health.NewHealth(manager))
 	server.Handler = router
 
 	go func() {
@@ -128,13 +128,13 @@ func startHealthServer(hostport string, cache *drainstore.Cache) string {
 	return l.Addr().String()
 }
 
-func startAdapterService(hostport string, creds credentials.TransportCredentials, cache *drainstore.Cache) string {
+func startAdapterService(hostport string, creds credentials.TransportCredentials, manager *bindingmanager.BindingManager) string {
 	lis, err := net.Listen("tcp", hostport)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	adapterService := controller.New(cache)
+	adapterService := controller.New(manager)
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
 	)

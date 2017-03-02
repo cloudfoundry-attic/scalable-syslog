@@ -7,7 +7,7 @@ package controller_test
 
 import v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
-type mockBindingStore struct {
+type mockBindingManager struct {
 	AddCalled chan bool
 	AddInput  struct {
 		Binding chan *v1.Binding
@@ -22,8 +22,8 @@ type mockBindingStore struct {
 	}
 }
 
-func newMockBindingStore() *mockBindingStore {
-	m := &mockBindingStore{}
+func newMockBindingManager() *mockBindingManager {
+	m := &mockBindingManager{}
 	m.AddCalled = make(chan bool, 100)
 	m.AddInput.Binding = make(chan *v1.Binding, 100)
 	m.DeleteCalled = make(chan bool, 100)
@@ -32,15 +32,15 @@ func newMockBindingStore() *mockBindingStore {
 	m.ListOutput.Bindings = make(chan []*v1.Binding, 100)
 	return m
 }
-func (m *mockBindingStore) Add(binding *v1.Binding) {
+func (m *mockBindingManager) Add(binding *v1.Binding) {
 	m.AddCalled <- true
 	m.AddInput.Binding <- binding
 }
-func (m *mockBindingStore) Delete(binding *v1.Binding) {
+func (m *mockBindingManager) Delete(binding *v1.Binding) {
 	m.DeleteCalled <- true
 	m.DeleteInput.Binding <- binding
 }
-func (m *mockBindingStore) List() (bindings []*v1.Binding) {
+func (m *mockBindingManager) List() (bindings []*v1.Binding) {
 	m.ListCalled <- true
 	return <-m.ListOutput.Bindings
 }
