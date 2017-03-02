@@ -90,6 +90,10 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 		w.connect()
 	}
 
+	if env.GetLog() == nil {
+		return nil
+	}
+
 	msg := rfc5424.Message{
 		Priority:  generatePriority(env.GetLog().Type),
 		Timestamp: time.Unix(0, env.GetTimestamp()),

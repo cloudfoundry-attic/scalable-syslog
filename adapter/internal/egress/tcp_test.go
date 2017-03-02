@@ -54,7 +54,7 @@ var _ = Describe("TCP", func() {
 		})
 
 		It("reconnects with a retry strategy", func() {
-			env := buildEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
+			env := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
 			mockDialer := newMockDialer()
 			mockConn := newMockConn()
 			mockRetry := newMockStrategy()
@@ -117,11 +117,9 @@ var _ = Describe("TCP", func() {
 		})
 
 		DescribeTable("envelopes are written out with proper priority", func(logType loggregator_v2.Log_Type, expectedPriority int) {
-			env := buildEnvelope("APP", "2", "just a test", logType)
-			f := func() error {
-				return writer.Write(env)
-			}
-			Eventually(f).Should(Succeed())
+			env := buildLogEnvelope("APP", "2", "just a test", logType)
+			Expect(writer.Write(env)).To(Succeed())
+
 			expectedOutput := fmt.Sprintf("92 <%d>1 1969-12-31T17:00:00.012345678-07:00 test-hostname test-app-id [APP/2] - - just a test\n", expectedPriority)
 			Eventually(mockDrain.RXData).Should(Equal(expectedOutput))
 		},
@@ -131,11 +129,9 @@ var _ = Describe("TCP", func() {
 		)
 
 		DescribeTable("envelopes are written out with proper process id", func(sourceType, sourceInstance, expectedProcessID string, expectedLength int) {
-			env := buildEnvelope(sourceType, sourceInstance, "just a test", loggregator_v2.Log_OUT)
-			f := func() error {
-				return writer.Write(env)
-			}
-			Eventually(f).Should(Succeed())
+			env := buildLogEnvelope(sourceType, sourceInstance, "just a test", loggregator_v2.Log_OUT)
+			Expect(writer.Write(env)).To(Succeed())
+
 			expectedOutput := fmt.Sprintf("%d <14>1 1969-12-31T17:00:00.012345678-07:00 test-hostname test-app-id [%s] - - just a test\n", expectedLength, expectedProcessID)
 			Eventually(mockDrain.RXData).Should(Equal(expectedOutput))
 		},
@@ -144,18 +140,23 @@ var _ = Describe("TCP", func() {
 		)
 
 		It("strips null termination char from message", func() {
-			env := buildEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
-			f := func() error {
-				return writer.Write(env)
-			}
-			Eventually(f).Should(Succeed())
+			env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
+			Expect(writer.Write(env)).To(Succeed())
+
 			expectedOutput := fmt.Sprintf("98 <14>1 1969-12-31T17:00:00.012345678-07:00 test-hostname test-app-id [OTHER] - - no null `` please\n")
 			Eventually(mockDrain.RXData).Should(Equal(expectedOutput))
+		})
+
+		It("ignores non-log envelopes", func() {
+			env := buildCounterEnvelope()
+			Expect(mockDrain.RXData()).To(BeEmpty())
+			Expect(writer.Write(env)).To(Succeed())
+			Expect(mockDrain.RXData()).To(BeEmpty())
 		})
 	})
 })
 
-func buildEnvelope(srcType, srcInstance, payload string, logType loggregator_v2.Log_Type) *loggregator_v2.Envelope {
+func buildLogEnvelope(srcType, srcInstance, payload string, logType loggregator_v2.Log_Type) *loggregator_v2.Envelope {
 	return &loggregator_v2.Envelope{
 		Tags: map[string]*loggregator_v2.Value{
 			"source_type":     {&loggregator_v2.Value_Text{srcType}},
@@ -167,6 +168,18 @@ func buildEnvelope(srcType, srcInstance, payload string, logType loggregator_v2.
 			Log: &loggregator_v2.Log{
 				Payload: []byte(payload),
 				Type:    logType,
+			},
+		},
+	}
+}
+
+func buildCounterEnvelope() *loggregator_v2.Envelope {
+	return &loggregator_v2.Envelope{
+		Timestamp: 12345678,
+		SourceId:  "source-id",
+		Message: &loggregator_v2.Envelope_Counter{
+			Counter: &loggregator_v2.Counter{
+				Name: "some-counter",
 			},
 		},
 	}
