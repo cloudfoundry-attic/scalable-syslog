@@ -94,6 +94,7 @@ func (s *Scheduler) setupIngress() {
 func (s *Scheduler) setupEgress() {
 	creds := credentials.NewTLS(s.adapterTLSConfig)
 	s.pool = egress.NewAdapterWriterPool(
+		&egress.ClientCreator{},
 		s.adapterAddrs,
 		grpc.WithTransportCredentials(creds),
 	)

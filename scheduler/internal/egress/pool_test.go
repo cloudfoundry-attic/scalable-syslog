@@ -4,10 +4,10 @@ import (
 	"net"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"google.golang.org/grpc"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 )
 
 var _ = Describe("Connection Pool", func() {
@@ -37,13 +37,13 @@ var _ = Describe("Connection Pool", func() {
 
 	It("returns the number of adapters", func() {
 		adapters := []string{"1.2.3.4:1234"}
-		p := egress.NewAdapterWriterPool(adapters, grpc.WithInsecure())
+		p := egress.NewAdapterWriterPool(&egress.ClientCreator{}, adapters, grpc.WithInsecure())
 
 		Expect(p.Count()).To(Equal(1))
 	})
 
 	It("writes to a gRPC server", func() {
-		p := egress.NewAdapterWriterPool([]string{serverAddr}, grpc.WithInsecure())
+		p := egress.NewAdapterWriterPool(&egress.ClientCreator{}, []string{serverAddr}, grpc.WithInsecure())
 
 		p.Create(binding)
 
@@ -55,7 +55,7 @@ var _ = Describe("Connection Pool", func() {
 	})
 
 	It("makes a call to remove drain", func() {
-		p := egress.NewAdapterWriterPool([]string{serverAddr}, grpc.WithInsecure())
+		p := egress.NewAdapterWriterPool(&egress.ClientCreator{}, []string{serverAddr}, grpc.WithInsecure())
 
 		p.Delete(binding)
 
@@ -67,7 +67,7 @@ var _ = Describe("Connection Pool", func() {
 	})
 
 	It("gets a list of bindings from all adapters", func() {
-		p := egress.NewAdapterWriterPool([]string{serverAddr}, grpc.WithInsecure())
+		p := egress.NewAdapterWriterPool(&egress.ClientCreator{}, []string{serverAddr}, grpc.WithInsecure())
 		p.Create(binding)
 
 		bindings, err := p.List()
