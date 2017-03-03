@@ -72,6 +72,7 @@ func (o *Orchestrator) createBindings(expectedBindings ingress.AppBindings) {
 	}
 }
 
+// cleanupBindings removes any stale syslog drain bindings
 func (o *Orchestrator) cleanupBindings(expectedBindings ingress.AppBindings) {
 	actualBindings, err := o.pool.List()
 	if err != nil {

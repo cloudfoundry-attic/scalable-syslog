@@ -16,14 +16,14 @@ type Pool struct {
 func NewAdapterWriterPool(addrs []string, dialOpts ...grpc.DialOption) *Pool {
 	var clients []v1.AdapterClient
 
-	for _, a := range addrs {
-		conn, err := grpc.Dial(a, dialOpts...)
+	creator := &ClientCreator{}
 
+	for _, a := range addrs {
+		client, err := creator.Create(a, dialOpts...)
 		if err != nil {
 			log.Print(err)
+			continue
 		}
-
-		client := v1.NewAdapterClient(conn)
 
 		clients = append(clients, client)
 	}
@@ -38,6 +38,7 @@ func (p *Pool) List() ([][]*v1.Binding, error) {
 
 	var bindings [][]*v1.Binding
 	for _, client := range p.clients {
+		// TODO handle error when ListBindings fails
 		resp, _ := client.ListBindings(context.Background(), request)
 
 		bindings = append(bindings, resp.Bindings)
@@ -52,6 +53,7 @@ func (p *Pool) Create(b *v1.Binding) error {
 	}
 
 	for _, client := range p.clients {
+		// TODO: handle error when CreateBinding fails
 		client.CreateBinding(context.Background(), request)
 	}
 	return nil
