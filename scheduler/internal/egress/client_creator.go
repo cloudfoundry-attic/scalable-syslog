@@ -6,9 +6,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-type ClientCreator struct{}
+type DefaultClientCreator struct{}
 
-func (*ClientCreator) Create(addr string, opts ...grpc.DialOption) (v1.AdapterClient, error) {
+func (*DefaultClientCreator) Create(addr string, opts ...grpc.DialOption) (v1.AdapterClient, error) {
 	conn, err := grpc.Dial(addr, opts...)
 	if err != nil {
 		return nil, err

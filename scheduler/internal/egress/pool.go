@@ -13,7 +13,11 @@ type Pool struct {
 	clients []v1.AdapterClient
 }
 
-func NewAdapterWriterPool(c *ClientCreator, addrs []string, dialOpts ...grpc.DialOption) *Pool {
+type ClientCreator interface {
+	Create(addr string, opts ...grpc.DialOption) (v1.AdapterClient, error)
+}
+
+func NewAdapterWriterPool(c ClientCreator, addrs []string, dialOpts ...grpc.DialOption) *Pool {
 	var clients []v1.AdapterClient
 
 	for _, a := range addrs {
