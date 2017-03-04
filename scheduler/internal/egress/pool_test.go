@@ -1,80 +1,155 @@
 package egress_test
 
 import (
-	"net"
-
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
+
+	context "golang.org/x/net/context"
+	"google.golang.org/grpc"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"google.golang.org/grpc"
 )
 
 var _ = Describe("Connection Pool", func() {
-	var (
-		testServer *testAdapterServer
-		serverAddr string
-		binding    *v1.Binding
-	)
-
-	BeforeEach(func() {
-		binding = &v1.Binding{
-			AppId:    "app-id",
-			Hostname: "org.space.app",
-			Drain:    "syslog://my-drain-url",
-		}
-
-		lis, err := net.Listen("tcp", "localhost:0")
-		Expect(err).ToNot(HaveOccurred())
-
-		testServer = NewTestAdapterServer()
-		grpcServer := grpc.NewServer()
-		v1.RegisterAdapterServer(grpcServer, testServer)
-		go grpcServer.Serve(lis)
-
-		serverAddr = lis.Addr().String()
-	})
+	serverAddr := "1.2.3.4:1234"
+	binding := &v1.Binding{
+		AppId:    "app-id",
+		Hostname: "org.space.app",
+		Drain:    "syslog://my-drain-url",
+	}
 
 	It("returns the number of adapters", func() {
-		adapters := []string{"1.2.3.4:1234"}
-		p := egress.NewAdapterWriterPool(&egress.DefaultClientCreator{}, adapters, grpc.WithInsecure())
+		adapters := []string{serverAddr}
+		p := egress.NewAdapterWriterPool(&SpyCreator{}, adapters)
 
 		Expect(p.Count()).To(Equal(1))
 	})
 
+	It("creates a client connection with the passed in addr", func() {
+		spyClient := &SpyAdapterClient{}
+		creator := &SpyCreator{client: spyClient}
+
+		egress.NewAdapterWriterPool(creator, []string{serverAddr})
+
+		Expect(creator.createAddr()).To(Equal(serverAddr))
+	})
+
 	It("writes to a gRPC server", func() {
-		p := egress.NewAdapterWriterPool(&egress.DefaultClientCreator{}, []string{serverAddr}, grpc.WithInsecure())
+		spyClient := &SpyAdapterClient{}
+		creator := &SpyCreator{client: spyClient}
+		p := egress.NewAdapterWriterPool(creator, []string{serverAddr})
 
 		p.Create(binding)
 
-		Eventually(testServer.ActualCreateBindingRequest).Should(Receive(Equal(
-			&v1.CreateBindingRequest{
-				Binding: binding,
-			},
-		)))
+		Expect(spyClient.createCalled()).To(Equal(true))
+		Expect(spyClient.createBindingRequest()).To(Equal(
+			&v1.CreateBindingRequest{Binding: binding},
+		))
 	})
 
 	It("makes a call to remove drain", func() {
-		p := egress.NewAdapterWriterPool(&egress.DefaultClientCreator{}, []string{serverAddr}, grpc.WithInsecure())
+		spyClient := &SpyAdapterClient{}
+		creator := &SpyCreator{client: spyClient}
+		p := egress.NewAdapterWriterPool(creator, []string{serverAddr})
 
 		p.Delete(binding)
 
-		Eventually(testServer.ActualDeleteBindingRequest).Should(Receive(Equal(
-			&v1.DeleteBindingRequest{
-				Binding: binding,
-			},
-		)))
+		Expect(spyClient.deleteCalled()).To(Equal(true))
+		Expect(spyClient.deleteBindingRequest()).To(Equal(
+			&v1.DeleteBindingRequest{Binding: binding},
+		))
 	})
 
 	It("gets a list of bindings from all adapters", func() {
-		p := egress.NewAdapterWriterPool(&egress.DefaultClientCreator{}, []string{serverAddr}, grpc.WithInsecure())
-		p.Create(binding)
+		spyClient := &SpyAdapterClient{}
+		spyClient.listBindingsResponse_ = &v1.ListBindingsResponse{
+			Bindings: []*v1.Binding{binding},
+		}
+		creator := &SpyCreator{client: spyClient}
+		p := egress.NewAdapterWriterPool(creator, []string{serverAddr})
 
 		bindings, err := p.List()
-		Expect(err).ToNot(HaveOccurred())
 
-		Expect(bindings).To(Equal([][]*v1.Binding{
-			{binding},
-		}))
+		Expect(spyClient.listCalled()).To(Equal(true))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(bindings)).To(Equal(1))
+		Expect(len(bindings[0])).To(Equal(1))
+		Expect(bindings[0][0]).To(Equal(binding))
 	})
 })
+
+type SpyCreator struct {
+	client *SpyAdapterClient
+
+	createAddr_ string
+}
+
+func (s *SpyCreator) createAddr() string {
+	return s.createAddr_
+}
+
+func (s *SpyCreator) Create(addr string, opts ...grpc.DialOption) (v1.AdapterClient, error) {
+	s.createAddr_ = addr
+	return s.client, nil
+}
+
+type SpyAdapterClient struct {
+	createCalled_         bool
+	createBindingRequest_ *v1.CreateBindingRequest
+
+	deleteCalled_         bool
+	deleteBindingRequest_ *v1.DeleteBindingRequest
+
+	listCalled_           bool
+	listBindingsResponse_ *v1.ListBindingsResponse
+}
+
+func (s *SpyAdapterClient) createCalled() bool {
+	return s.createCalled_
+}
+
+func (s *SpyAdapterClient) createBindingRequest() *v1.CreateBindingRequest {
+	return s.createBindingRequest_
+}
+
+func (s *SpyAdapterClient) deleteCalled() bool {
+	return s.deleteCalled_
+}
+
+func (s *SpyAdapterClient) deleteBindingRequest() *v1.DeleteBindingRequest {
+	return s.deleteBindingRequest_
+}
+
+func (s *SpyAdapterClient) listCalled() bool {
+	return s.listCalled_
+}
+
+func (s *SpyAdapterClient) CreateBinding(
+	ctx context.Context,
+	in *v1.CreateBindingRequest,
+	opts ...grpc.CallOption,
+) (*v1.CreateBindingResponse, error) {
+	s.createCalled_ = true
+	s.createBindingRequest_ = in
+	return nil, nil
+}
+
+func (s *SpyAdapterClient) DeleteBinding(
+	ctx context.Context,
+	in *v1.DeleteBindingRequest,
+	opts ...grpc.CallOption,
+) (*v1.DeleteBindingResponse, error) {
+	s.deleteCalled_ = true
+	s.deleteBindingRequest_ = in
+	return nil, nil
+}
+
+func (s *SpyAdapterClient) ListBindings(
+	ctx context.Context,
+	in *v1.ListBindingsRequest,
+	opts ...grpc.CallOption,
+) (*v1.ListBindingsResponse, error) {
+	s.listCalled_ = true
+	return s.listBindingsResponse_, nil
+}
