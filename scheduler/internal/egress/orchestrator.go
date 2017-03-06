@@ -3,7 +3,6 @@ package egress
 
 import (
 	"context"
-	"errors"
 	"log"
 	"math/rand"
 	"sync"
@@ -39,19 +38,19 @@ func (o *Orchestrator) Run(interval time.Duration) {
 	for {
 		select {
 		case <-time.Tick(interval):
-			expectedBindings, err := o.reader.FetchBindings()
+			expected, err := o.reader.FetchBindings()
 			if err != nil {
 				continue
 			}
 
-			actualBindings, err := o.List()
+			actual, err := o.List()
 			if err != nil {
 				log.Printf("Failed to get actual bindings: %s", err)
 				continue
 			}
 
-			o.DeleteAll(actualBindings, expectedBindings)
-			o.createBindings(expectedBindings)
+			o.DeleteAll(actual, expected)
+			o.Create(expected)
 		case <-o.done:
 			return
 		}
@@ -64,28 +63,45 @@ func (o *Orchestrator) Stop() {
 	})
 }
 
-func (o *Orchestrator) createBindings(expectedBindings ingress.AppBindings) {
-	// TODO: this needs to diff against o.pool.List()
-	for appID, cupsBinding := range expectedBindings {
+func (o *Orchestrator) Create(expected ingress.AppBindings) {
+	for appID, cupsBinding := range expected {
 		for _, drain := range cupsBinding.Drains {
-			err := o.Create(&v1.Binding{
+			b := &v1.Binding{
 				Hostname: cupsBinding.Hostname,
 				AppId:    appID,
 				Drain:    drain,
-			})
+			}
+			request := &v1.CreateBindingRequest{
+				Binding: b,
+			}
 
-			if err != nil {
-				log.Printf("orchestrator failed to write: %s", err)
+			clientLen := len(o.pool)
+			switch clientLen {
+			case 1:
+				client := o.pool[0]
+				client.CreateBinding(context.Background(), request)
+			case 2:
+				for _, client := range o.pool {
+					client.CreateBinding(context.Background(), request)
+				}
+			default:
+				c1Index := rand.Intn(clientLen)
+				c2Index := rand.Intn(clientLen)
+				c1 := o.pool[c1Index]
+				c2 := o.pool[c2Index]
+
+				c1.CreateBinding(context.Background(), request)
+				c2.CreateBinding(context.Background(), request)
 			}
 		}
 	}
 }
 
-func (o *Orchestrator) DeleteAll(actualBindings [][]*v1.Binding, expectedBindings ingress.AppBindings) {
+func (o *Orchestrator) DeleteAll(actual [][]*v1.Binding, expected ingress.AppBindings) {
 	var toDelete []*v1.Binding
-	for _, adapterBindings := range actualBindings {
+	for _, adapterBindings := range actual {
 		for _, ab := range adapterBindings {
-			if !exists(expectedBindings, ab) {
+			if !exists(expected, ab) {
 				toDelete = append(toDelete, ab)
 			}
 		}
@@ -102,8 +118,8 @@ func (o *Orchestrator) DeleteAll(actualBindings [][]*v1.Binding, expectedBinding
 	}
 }
 
-func exists(actualBindings ingress.AppBindings, ab *v1.Binding) bool {
-	b, ok := actualBindings[ab.AppId]
+func exists(actual ingress.AppBindings, ab *v1.Binding) bool {
+	b, ok := actual[ab.AppId]
 	if !ok {
 		return false
 	}
@@ -132,35 +148,6 @@ func (o *Orchestrator) List() ([][]*v1.Binding, error) {
 	}
 
 	return bindings, nil
-}
-
-func (o *Orchestrator) Create(b *v1.Binding) error {
-	request := &v1.CreateBindingRequest{
-		Binding: b,
-	}
-
-	clientLen := len(o.pool)
-	switch clientLen {
-	case 0:
-		return errors.New("No clients to create a binding against")
-	case 1:
-		client := o.pool[0]
-		client.CreateBinding(context.Background(), request)
-	case 2:
-		for _, client := range o.pool {
-			client.CreateBinding(context.Background(), request)
-		}
-	default:
-		c1Index := rand.Intn(clientLen)
-		c2Index := rand.Intn(clientLen)
-		c1 := o.pool[c1Index]
-		c2 := o.pool[c2Index]
-
-		c1.CreateBinding(context.Background(), request)
-		c2.CreateBinding(context.Background(), request)
-	}
-
-	return nil
 }
 
 func (o *Orchestrator) Count() int {
