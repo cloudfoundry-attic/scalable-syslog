@@ -9,12 +9,12 @@ import (
 )
 
 type BindingRepository struct {
-	clients []v1.AdapterClient
+	pool AdapterPool
 }
 
-func NewBindingRepository(clients []v1.AdapterClient) *BindingRepository {
+func NewBindingRepository(pool AdapterPool) *BindingRepository {
 	return &BindingRepository{
-		clients: clients,
+		pool: pool,
 	}
 }
 
@@ -22,7 +22,7 @@ func (p *BindingRepository) List() ([][]*v1.Binding, error) {
 	request := new(v1.ListBindingsRequest)
 
 	var bindings [][]*v1.Binding
-	for _, client := range p.clients {
+	for _, client := range p.pool {
 		resp, err := client.ListBindings(context.Background(), request)
 		if err != nil {
 			bindings = append(bindings, make([]*v1.Binding, 0))
@@ -40,22 +40,22 @@ func (p *BindingRepository) Create(b *v1.Binding) error {
 		Binding: b,
 	}
 
-	clientLen := len(p.clients)
+	clientLen := len(p.pool)
 	switch clientLen {
 	case 0:
 		return errors.New("No clients to create a binding against")
 	case 1:
-		client := p.clients[0]
+		client := p.pool[0]
 		client.CreateBinding(context.Background(), request)
 	case 2:
-		for _, client := range p.clients {
+		for _, client := range p.pool {
 			client.CreateBinding(context.Background(), request)
 		}
 	default:
 		c1Index := rand.Intn(clientLen)
 		c2Index := rand.Intn(clientLen)
-		c1 := p.clients[c1Index]
-		c2 := p.clients[c2Index]
+		c1 := p.pool[c1Index]
+		c2 := p.pool[c2Index]
 
 		c1.CreateBinding(context.Background(), request)
 		c2.CreateBinding(context.Background(), request)
@@ -69,12 +69,12 @@ func (p *BindingRepository) Delete(b *v1.Binding) error {
 		Binding: b,
 	}
 
-	for _, client := range p.clients {
+	for _, client := range p.pool {
 		client.DeleteBinding(context.Background(), request)
 	}
 	return nil
 }
 
 func (p *BindingRepository) Count() int {
-	return len(p.clients)
+	return len(p.pool)
 }
