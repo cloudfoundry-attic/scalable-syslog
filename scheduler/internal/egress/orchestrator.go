@@ -44,7 +44,13 @@ func (o *Orchestrator) Run(interval time.Duration) {
 				continue
 			}
 
-			o.removeStaleBindings(expectedBindings)
+			actualBindings, err := o.List()
+			if err != nil {
+				log.Printf("Failed to get actual bindings: %s", err)
+				continue
+			}
+
+			o.DeleteAll(actualBindings, expectedBindings)
 			o.createBindings(expectedBindings)
 		case <-o.done:
 			return
@@ -75,13 +81,7 @@ func (o *Orchestrator) createBindings(expectedBindings ingress.AppBindings) {
 	}
 }
 
-func (o *Orchestrator) removeStaleBindings(expectedBindings ingress.AppBindings) {
-	actualBindings, err := o.List()
-	if err != nil {
-		log.Printf("Failed to get actual bindings: %s", err)
-		return
-	}
-
+func (o *Orchestrator) DeleteAll(actualBindings [][]*v1.Binding, expectedBindings ingress.AppBindings) {
 	var toDelete []*v1.Binding
 	for _, adapterBindings := range actualBindings {
 		for _, ab := range adapterBindings {
@@ -92,7 +92,13 @@ func (o *Orchestrator) removeStaleBindings(expectedBindings ingress.AppBindings)
 	}
 
 	for _, ab := range toDelete {
-		o.DeleteAll(ab)
+		request := &v1.DeleteBindingRequest{
+			Binding: ab,
+		}
+
+		for _, client := range o.pool {
+			client.DeleteBinding(context.Background(), request)
+		}
 	}
 }
 
@@ -154,17 +160,6 @@ func (o *Orchestrator) Create(b *v1.Binding) error {
 		c2.CreateBinding(context.Background(), request)
 	}
 
-	return nil
-}
-
-func (o *Orchestrator) DeleteAll(b *v1.Binding) error {
-	request := &v1.DeleteBindingRequest{
-		Binding: b,
-	}
-
-	for _, client := range o.pool {
-		client.DeleteBinding(context.Background(), request)
-	}
 	return nil
 }
 

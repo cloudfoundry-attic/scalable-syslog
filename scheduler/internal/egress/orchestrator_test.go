@@ -119,13 +119,20 @@ var _ = Describe("Orchestrator", func() {
 		It("makes a call to remove drain", func() {
 			reader := &SpyReader{}
 			client := &SpyClient{}
+			toDelete := &v1.Binding{
+				AppId:    "app-id",
+				Hostname: "org.space.app",
+				Drain:    "syslog://my-drain-url",
+			}
+			actual := [][]*v1.Binding{{binding}}
+			expected := ingress.AppBindings{}
 
 			o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
 
-			o.DeleteAll(binding)
+			o.DeleteAll(actual, expected)
 
 			Expect(client.deleteBindingRequest()).To(Equal(
-				&v1.DeleteBindingRequest{Binding: binding},
+				&v1.DeleteBindingRequest{Binding: toDelete},
 			))
 		})
 
