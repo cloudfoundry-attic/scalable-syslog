@@ -22,18 +22,18 @@ type BindingWriter interface {
 
 // Orchestrator manages writes to a number of adapters.
 type Orchestrator struct {
-	reader BindingReader
-	pool   BindingWriter
-	once   sync.Once
-	done   chan bool
+	reader     BindingReader
+	repository BindingWriter
+	once       sync.Once
+	done       chan bool
 }
 
 // NewOrchestrator creates a new orchestrator.
 func NewOrchestrator(r BindingReader, w BindingWriter) *Orchestrator {
 	return &Orchestrator{
-		reader: r,
-		pool:   w,
-		done:   make(chan bool),
+		reader:     r,
+		repository: w,
+		done:       make(chan bool),
 	}
 }
 
@@ -47,7 +47,7 @@ func (o *Orchestrator) Run(interval time.Duration) {
 				continue
 			}
 
-			o.cleanupBindings(expectedBindings)
+			o.removeStaleBindings(expectedBindings)
 			o.createBindings(expectedBindings)
 		case <-o.done:
 			return
@@ -55,11 +55,17 @@ func (o *Orchestrator) Run(interval time.Duration) {
 	}
 }
 
+func (o *Orchestrator) Stop() {
+	o.once.Do(func() {
+		o.done <- true
+	})
+}
+
 func (o *Orchestrator) createBindings(expectedBindings ingress.AppBindings) {
 	// TODO: this needs to diff against o.pool.List()
 	for appID, cupsBinding := range expectedBindings {
 		for _, drain := range cupsBinding.Drains {
-			err := o.pool.Create(&v1.Binding{
+			err := o.repository.Create(&v1.Binding{
 				Hostname: cupsBinding.Hostname,
 				AppId:    appID,
 				Drain:    drain,
@@ -72,9 +78,8 @@ func (o *Orchestrator) createBindings(expectedBindings ingress.AppBindings) {
 	}
 }
 
-// cleanupBindings removes any stale syslog drain bindings
-func (o *Orchestrator) cleanupBindings(expectedBindings ingress.AppBindings) {
-	actualBindings, err := o.pool.List()
+func (o *Orchestrator) removeStaleBindings(expectedBindings ingress.AppBindings) {
+	actualBindings, err := o.repository.List()
 	if err != nil {
 		log.Printf("Failed to get actual bindings: %s", err)
 		return
@@ -90,7 +95,7 @@ func (o *Orchestrator) cleanupBindings(expectedBindings ingress.AppBindings) {
 	}
 
 	for _, ab := range toDelete {
-		o.pool.Delete(ab)
+		o.repository.Delete(ab)
 	}
 }
 
@@ -107,10 +112,4 @@ func exists(actualBindings ingress.AppBindings, ab *v1.Binding) bool {
 	}
 
 	return false
-}
-
-func (o *Orchestrator) Stop() {
-	o.once.Do(func() {
-		o.done <- true
-	})
 }
