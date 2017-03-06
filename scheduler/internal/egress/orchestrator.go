@@ -14,7 +14,7 @@ type BindingReader interface {
 	FetchBindings() (appBindings ingress.AppBindings, err error)
 }
 
-type AdapterPool interface {
+type BindingWriter interface {
 	List() (bindings [][]*v1.Binding, err error)
 	Create(binding *v1.Binding) (err error)
 	Delete(binding *v1.Binding) (err error)
@@ -23,13 +23,13 @@ type AdapterPool interface {
 // Orchestrator manages writes to a number of adapters.
 type Orchestrator struct {
 	reader BindingReader
-	pool   AdapterPool
+	pool   BindingWriter
 	once   sync.Once
 	done   chan bool
 }
 
 // NewOrchestrator creates a new orchestrator.
-func NewOrchestrator(r BindingReader, w AdapterPool) *Orchestrator {
+func NewOrchestrator(r BindingReader, w BindingWriter) *Orchestrator {
 	return &Orchestrator{
 		reader: r,
 		pool:   w,

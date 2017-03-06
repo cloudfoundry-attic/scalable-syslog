@@ -6,8 +6,6 @@ import (
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 )
 
-// type Pool []v1.AdapterClient
-
 type BindingRepository struct {
 	clients []v1.AdapterClient
 }

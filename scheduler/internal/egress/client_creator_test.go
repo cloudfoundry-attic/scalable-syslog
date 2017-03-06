@@ -13,22 +13,21 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("DefaultClientCreator", func() {
-	It("returns an adapter client", func() {
+var _ = Describe("AdapterPool", func() {
+	It("returns a list of adapter clients", func() {
 		addr, cleanup := startGRPCServer()
 		defer cleanup()
-		creator := &egress.DefaultClientCreator{}
 
-		client, _ := creator.Create(addr, grpc.WithInsecure())
+		pool := egress.NewAdapterPool([]string{addr}, grpc.WithInsecure())
+		client := pool[0]
 
 		_, err := client.ListBindings(context.Background(), &v1.ListBindingsRequest{})
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("returns an error when a server is not running", func() {
-		creator := &egress.DefaultClientCreator{}
-
-		client, _ := creator.Create("0.0.0.0:1234", grpc.WithInsecure())
+	It("returns a pool with a unconnected client", func() {
+		pool := egress.NewAdapterPool([]string{"0.0.0.0:1234"}, grpc.WithInsecure())
+		client := pool[0]
 
 		_, err := client.ListBindings(context.Background(), &v1.ListBindingsRequest{})
 		Expect(err).To(HaveOccurred())
