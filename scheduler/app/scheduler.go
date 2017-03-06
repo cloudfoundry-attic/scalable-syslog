@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"time"
 
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/health"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -93,11 +95,20 @@ func (s *Scheduler) setupIngress() {
 
 func (s *Scheduler) setupEgress() {
 	creds := credentials.NewTLS(s.adapterTLSConfig)
-	s.bindingRepo = egress.NewBindingRepository(
-		&egress.DefaultClientCreator{},
-		s.adapterAddrs,
-		grpc.WithTransportCredentials(creds),
-	)
+	creator := &egress.DefaultClientCreator{}
+	var clients []v1.AdapterClient
+
+	for _, a := range s.adapterAddrs {
+		client, err := creator.Create(a, grpc.WithTransportCredentials(creds))
+		if err != nil {
+			log.Print(err)
+			continue
+		}
+
+		clients = append(clients, client)
+	}
+
+	s.bindingRepo = egress.NewBindingRepository(clients)
 }
 
 func (s *Scheduler) startEgress() {

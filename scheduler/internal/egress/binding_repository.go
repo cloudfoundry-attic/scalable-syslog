@@ -2,34 +2,17 @@ package egress
 
 import (
 	"context"
-	"log"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
-
-	"google.golang.org/grpc"
 )
+
+// type Pool []v1.AdapterClient
 
 type BindingRepository struct {
 	clients []v1.AdapterClient
 }
 
-type ClientCreator interface {
-	Create(addr string, opts ...grpc.DialOption) (v1.AdapterClient, error)
-}
-
-func NewBindingRepository(c ClientCreator, addrs []string, dialOpts ...grpc.DialOption) *BindingRepository {
-	var clients []v1.AdapterClient
-
-	for _, a := range addrs {
-		client, err := c.Create(a, dialOpts...)
-		if err != nil {
-			log.Print(err)
-			continue
-		}
-
-		clients = append(clients, client)
-	}
-
+func NewBindingRepository(clients []v1.AdapterClient) *BindingRepository {
 	return &BindingRepository{
 		clients: clients,
 	}

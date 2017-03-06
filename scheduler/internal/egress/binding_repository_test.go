@@ -11,8 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Connection Pool", func() {
-	serverAddr := "1.2.3.4:1234"
+var _ = Describe("Binding Repository", func() {
 	binding := &v1.Binding{
 		AppId:    "app-id",
 		Hostname: "org.space.app",
@@ -20,25 +19,14 @@ var _ = Describe("Connection Pool", func() {
 	}
 
 	It("returns the number of adapters", func() {
-		adapters := []string{serverAddr}
-		p := egress.NewBindingRepository(&SpyCreator{}, adapters)
+		p := egress.NewBindingRepository([]v1.AdapterClient{&SpyClient{}})
 
 		Expect(p.Count()).To(Equal(1))
 	})
 
-	It("creates a client connection with the passed in addr", func() {
-		spyClient := &SpyAdapterClient{}
-		creator := &SpyCreator{client: spyClient}
-
-		egress.NewBindingRepository(creator, []string{serverAddr})
-
-		Expect(creator.createAddr()).To(Equal(serverAddr))
-	})
-
 	It("writes to a gRPC server", func() {
-		spyClient := &SpyAdapterClient{}
-		creator := &SpyCreator{client: spyClient}
-		p := egress.NewBindingRepository(creator, []string{serverAddr})
+		spyClient := &SpyClient{}
+		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
 
 		p.Create(binding)
 
@@ -49,9 +37,8 @@ var _ = Describe("Connection Pool", func() {
 	})
 
 	It("makes a call to remove drain", func() {
-		spyClient := &SpyAdapterClient{}
-		creator := &SpyCreator{client: spyClient}
-		p := egress.NewBindingRepository(creator, []string{serverAddr})
+		spyClient := &SpyClient{}
+		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
 
 		p.Delete(binding)
 
@@ -62,12 +49,11 @@ var _ = Describe("Connection Pool", func() {
 	})
 
 	It("gets a list of bindings from all adapters", func() {
-		spyClient := &SpyAdapterClient{}
+		spyClient := &SpyClient{}
 		spyClient.listBindingsResponse_ = &v1.ListBindingsResponse{
 			Bindings: []*v1.Binding{binding},
 		}
-		creator := &SpyCreator{client: spyClient}
-		p := egress.NewBindingRepository(creator, []string{serverAddr})
+		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
 
 		bindings, err := p.List()
 
@@ -79,22 +65,7 @@ var _ = Describe("Connection Pool", func() {
 	})
 })
 
-type SpyCreator struct {
-	client *SpyAdapterClient
-
-	createAddr_ string
-}
-
-func (s *SpyCreator) createAddr() string {
-	return s.createAddr_
-}
-
-func (s *SpyCreator) Create(addr string, opts ...grpc.DialOption) (v1.AdapterClient, error) {
-	s.createAddr_ = addr
-	return s.client, nil
-}
-
-type SpyAdapterClient struct {
+type SpyClient struct {
 	createCalled_         bool
 	createBindingRequest_ *v1.CreateBindingRequest
 
@@ -105,27 +76,27 @@ type SpyAdapterClient struct {
 	listBindingsResponse_ *v1.ListBindingsResponse
 }
 
-func (s *SpyAdapterClient) createCalled() bool {
+func (s *SpyClient) createCalled() bool {
 	return s.createCalled_
 }
 
-func (s *SpyAdapterClient) createBindingRequest() *v1.CreateBindingRequest {
+func (s *SpyClient) createBindingRequest() *v1.CreateBindingRequest {
 	return s.createBindingRequest_
 }
 
-func (s *SpyAdapterClient) deleteCalled() bool {
+func (s *SpyClient) deleteCalled() bool {
 	return s.deleteCalled_
 }
 
-func (s *SpyAdapterClient) deleteBindingRequest() *v1.DeleteBindingRequest {
+func (s *SpyClient) deleteBindingRequest() *v1.DeleteBindingRequest {
 	return s.deleteBindingRequest_
 }
 
-func (s *SpyAdapterClient) listCalled() bool {
+func (s *SpyClient) listCalled() bool {
 	return s.listCalled_
 }
 
-func (s *SpyAdapterClient) CreateBinding(
+func (s *SpyClient) CreateBinding(
 	ctx context.Context,
 	in *v1.CreateBindingRequest,
 	opts ...grpc.CallOption,
@@ -135,7 +106,7 @@ func (s *SpyAdapterClient) CreateBinding(
 	return nil, nil
 }
 
-func (s *SpyAdapterClient) DeleteBinding(
+func (s *SpyClient) DeleteBinding(
 	ctx context.Context,
 	in *v1.DeleteBindingRequest,
 	opts ...grpc.CallOption,
@@ -145,7 +116,7 @@ func (s *SpyAdapterClient) DeleteBinding(
 	return nil, nil
 }
 
-func (s *SpyAdapterClient) ListBindings(
+func (s *SpyClient) ListBindings(
 	ctx context.Context,
 	in *v1.ListBindingsRequest,
 	opts ...grpc.CallOption,
