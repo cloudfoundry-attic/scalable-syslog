@@ -179,7 +179,7 @@ var _ = Describe("Orchestrator", func() {
 				reader := &SpyReader{}
 				o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
 
-				o.Create(ingress.AppBindings{"app-id": appBinding})
+				o.Create([][]*v1.Binding{}, ingress.AppBindings{"app-id": appBinding})
 
 				Expect(client.createCalled()).To(Equal(true))
 				Expect(client.createBindingRequest()).To(Equal(
@@ -193,7 +193,7 @@ var _ = Describe("Orchestrator", func() {
 				secondClient := &SpyClient{}
 				o := egress.NewOrchestrator(reader, egress.AdapterPool{firstClient, secondClient})
 
-				o.Create(ingress.AppBindings{"app-id": appBinding})
+				o.Create([][]*v1.Binding{}, ingress.AppBindings{"app-id": appBinding})
 
 				Expect(firstClient.createCalled()).To(Equal(true))
 				Expect(secondClient.createCalled()).To(Equal(true))
@@ -204,7 +204,7 @@ var _ = Describe("Orchestrator", func() {
 				clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
 				o := egress.NewOrchestrator(reader, clients)
 
-				o.Create(ingress.AppBindings{"app-id": appBinding})
+				o.Create([][]*v1.Binding{}, ingress.AppBindings{"app-id": appBinding})
 
 				createCalled := 0
 				for _, client := range clients {
@@ -213,6 +213,24 @@ var _ = Describe("Orchestrator", func() {
 					}
 				}
 				Expect(createCalled).To(Equal(2))
+			})
+
+			It("writes to only one gRPC server when another already has the binding", func() {
+				reader := &SpyReader{}
+				clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
+				o := egress.NewOrchestrator(reader, clients)
+
+				o.Create([][]*v1.Binding{
+					{&v1.Binding{"app-id", "org.space.app", "syslog://my-drain-url"}},
+				}, ingress.AppBindings{"app-id": appBinding})
+
+				createCalled := 0
+				for _, client := range clients {
+					if (client.(*SpyClient)).createCalled() {
+						createCalled++
+					}
+				}
+				Expect(createCalled).To(Equal(1))
 			})
 		})
 	})

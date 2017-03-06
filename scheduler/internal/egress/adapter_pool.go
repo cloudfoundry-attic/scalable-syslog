@@ -27,3 +27,13 @@ func NewAdapterPool(addrs []string, opts ...grpc.DialOption) AdapterPool {
 
 	return pool
 }
+
+func (a *AdapterPool) Sub(index, count int) AdapterPool {
+	var pool AdapterPool
+
+	for i := index; i < index+count && i < len(*a); i++ {
+		pool = append(pool, (*a)[i])
+	}
+
+	return pool
+}
