@@ -64,7 +64,7 @@ func (p *BindingRepository) Create(b *v1.Binding) error {
 	return nil
 }
 
-func (p *BindingRepository) Delete(b *v1.Binding) error {
+func (p *BindingRepository) DeleteAll(b *v1.Binding) error {
 	request := &v1.DeleteBindingRequest{
 		Binding: b,
 	}

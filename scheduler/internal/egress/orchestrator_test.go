@@ -115,7 +115,7 @@ func (s *SpyWriter) createdBindings() []*v1.Binding {
 	return s.createdBindings_
 }
 
-func (s *SpyWriter) Delete(binding *v1.Binding) error {
+func (s *SpyWriter) DeleteAll(binding *v1.Binding) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.deletedBindings_ = append(s.deletedBindings_, binding)

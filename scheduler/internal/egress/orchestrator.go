@@ -17,7 +17,7 @@ type BindingReader interface {
 type BindingWriter interface {
 	List() (bindings [][]*v1.Binding, err error)
 	Create(binding *v1.Binding) (err error)
-	Delete(binding *v1.Binding) (err error)
+	DeleteAll(binding *v1.Binding) (err error)
 }
 
 // Orchestrator manages writes to a number of adapters.
@@ -95,7 +95,7 @@ func (o *Orchestrator) removeStaleBindings(expectedBindings ingress.AppBindings)
 	}
 
 	for _, ab := range toDelete {
-		o.repository.Delete(ab)
+		o.repository.DeleteAll(ab)
 	}
 }
 

@@ -30,7 +30,7 @@ var _ = Describe("Binding Repository", func() {
 		spyClient := &SpyClient{}
 		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
 
-		p.Delete(binding)
+		p.DeleteAll(binding)
 
 		Expect(spyClient.deleteCalled()).To(Equal(true))
 		Expect(spyClient.deleteBindingRequest()).To(Equal(
