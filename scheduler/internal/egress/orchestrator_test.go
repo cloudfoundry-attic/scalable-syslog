@@ -2,6 +2,7 @@ package egress_test
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"golang.org/x/net/context"
@@ -233,25 +234,36 @@ type SpyClient struct {
 	listCalled_           bool
 	listBindingsResponse_ *v1.ListBindingsResponse
 	listBindingsError_    error
+	mu                    sync.RWMutex
 }
 
 func (s *SpyClient) createCalled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.createCalled_
 }
 
 func (s *SpyClient) createBindingRequest() *v1.CreateBindingRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.createBindingRequest_
 }
 
 func (s *SpyClient) deleteCalled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.deleteCalled_
 }
 
 func (s *SpyClient) deleteBindingRequest() *v1.DeleteBindingRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.deleteBindingRequest_
 }
 
 func (s *SpyClient) listCalled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.listCalled_
 }
 
@@ -260,6 +272,8 @@ func (s *SpyClient) CreateBinding(
 	in *v1.CreateBindingRequest,
 	opts ...grpc.CallOption,
 ) (*v1.CreateBindingResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.createCalled_ = true
 	s.createBindingRequest_ = in
 	return nil, nil
@@ -270,6 +284,8 @@ func (s *SpyClient) DeleteBinding(
 	in *v1.DeleteBindingRequest,
 	opts ...grpc.CallOption,
 ) (*v1.DeleteBindingResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.deleteCalled_ = true
 	s.deleteBindingRequest_ = in
 	return nil, nil
@@ -280,6 +296,8 @@ func (s *SpyClient) ListBindings(
 	in *v1.ListBindingsRequest,
 	opts ...grpc.CallOption,
 ) (*v1.ListBindingsResponse, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.listCalled_ = true
 	return s.listBindingsResponse_, s.listBindingsError_
 }
