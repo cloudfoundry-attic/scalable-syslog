@@ -32,6 +32,24 @@ var _ = Describe("AdapterPool", func() {
 		_, err := client.ListBindings(context.Background(), &v1.ListBindingsRequest{})
 		Expect(err).To(HaveOccurred())
 	})
+
+	Context("Sub", func() {
+		addr := "1.1.1.1"
+
+		It("returns subset of the pool", func() {
+			pool := egress.NewAdapterPool([]string{addr, addr, addr}, grpc.WithInsecure())
+			subset := pool.Sub(1, 2)
+
+			Expect(len(subset)).To(Equal(2))
+		})
+
+		It("does not error on overflow", func() {
+			pool := egress.NewAdapterPool([]string{addr}, grpc.WithInsecure())
+			subset := pool.Sub(0, 2)
+
+			Expect(len(subset)).To(Equal(1))
+		})
+	})
 })
 
 func startGRPCServer() (string, func()) {
