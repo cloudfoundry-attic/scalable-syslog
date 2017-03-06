@@ -28,8 +28,8 @@ type Scheduler struct {
 	client     *http.Client
 	interval   time.Duration
 
-	bindingRepo *egress.BindingRepository
-	fetcher     *ingress.VersionFilter
+	orchestrator *egress.Orchestrator
+	fetcher      *ingress.VersionFilter
 }
 
 // NewScheduler returns a new unstarted scheduler.
@@ -80,7 +80,6 @@ func WithPollingInterval(interval time.Duration) func(*Scheduler) {
 // Start starts polling the CUPS provider and serves the HTTP health endpoint.
 func (s *Scheduler) Start() string {
 	s.setupIngress()
-	s.setupEgress()
 	s.startEgress()
 	return s.serveHealth()
 }
@@ -92,21 +91,17 @@ func (s *Scheduler) setupIngress() {
 	}))
 }
 
-func (s *Scheduler) setupEgress() {
+func (s *Scheduler) startEgress() {
 	creds := credentials.NewTLS(s.adapterTLSConfig)
 
 	pool := egress.NewAdapterPool(s.adapterAddrs, grpc.WithTransportCredentials(creds))
-	s.bindingRepo = egress.NewBindingRepository(pool)
-}
-
-func (s *Scheduler) startEgress() {
-	orchestrator := egress.NewOrchestrator(s.fetcher, s.bindingRepo)
-	go orchestrator.Run(s.interval)
+	s.orchestrator = egress.NewOrchestrator(s.fetcher, pool)
+	go s.orchestrator.Run(s.interval)
 }
 
 func (s *Scheduler) serveHealth() string {
 	router := http.NewServeMux()
-	router.Handle("/health", health.NewHealth(s.fetcher, s.bindingRepo))
+	router.Handle("/health", health.NewHealth(s.fetcher, s.orchestrator))
 
 	server := http.Server{
 		Addr:         s.healthAddr,

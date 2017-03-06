@@ -2,7 +2,10 @@
 package egress
 
 import (
+	"context"
+	"errors"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -14,26 +17,20 @@ type BindingReader interface {
 	FetchBindings() (appBindings ingress.AppBindings, err error)
 }
 
-type BindingWriter interface {
-	List() (bindings [][]*v1.Binding, err error)
-	Create(binding *v1.Binding) (err error)
-	DeleteAll(binding *v1.Binding) (err error)
-}
-
 // Orchestrator manages writes to a number of adapters.
 type Orchestrator struct {
-	reader     BindingReader
-	repository BindingWriter
-	once       sync.Once
-	done       chan bool
+	reader BindingReader
+	pool   AdapterPool
+	once   sync.Once
+	done   chan bool
 }
 
 // NewOrchestrator creates a new orchestrator.
-func NewOrchestrator(r BindingReader, w BindingWriter) *Orchestrator {
+func NewOrchestrator(r BindingReader, p AdapterPool) *Orchestrator {
 	return &Orchestrator{
-		reader:     r,
-		repository: w,
-		done:       make(chan bool),
+		reader: r,
+		pool:   p,
+		done:   make(chan bool),
 	}
 }
 
@@ -65,7 +62,7 @@ func (o *Orchestrator) createBindings(expectedBindings ingress.AppBindings) {
 	// TODO: this needs to diff against o.pool.List()
 	for appID, cupsBinding := range expectedBindings {
 		for _, drain := range cupsBinding.Drains {
-			err := o.repository.Create(&v1.Binding{
+			err := o.Create(&v1.Binding{
 				Hostname: cupsBinding.Hostname,
 				AppId:    appID,
 				Drain:    drain,
@@ -79,7 +76,7 @@ func (o *Orchestrator) createBindings(expectedBindings ingress.AppBindings) {
 }
 
 func (o *Orchestrator) removeStaleBindings(expectedBindings ingress.AppBindings) {
-	actualBindings, err := o.repository.List()
+	actualBindings, err := o.List()
 	if err != nil {
 		log.Printf("Failed to get actual bindings: %s", err)
 		return
@@ -95,7 +92,7 @@ func (o *Orchestrator) removeStaleBindings(expectedBindings ingress.AppBindings)
 	}
 
 	for _, ab := range toDelete {
-		o.repository.DeleteAll(ab)
+		o.DeleteAll(ab)
 	}
 }
 
@@ -112,4 +109,65 @@ func exists(actualBindings ingress.AppBindings, ab *v1.Binding) bool {
 	}
 
 	return false
+}
+
+func (o *Orchestrator) List() ([][]*v1.Binding, error) {
+	request := new(v1.ListBindingsRequest)
+
+	var bindings [][]*v1.Binding
+	for _, client := range o.pool {
+		resp, err := client.ListBindings(context.Background(), request)
+		if err != nil {
+			bindings = append(bindings, make([]*v1.Binding, 0))
+			continue
+		}
+
+		bindings = append(bindings, resp.Bindings)
+	}
+
+	return bindings, nil
+}
+
+func (o *Orchestrator) Create(b *v1.Binding) error {
+	request := &v1.CreateBindingRequest{
+		Binding: b,
+	}
+
+	clientLen := len(o.pool)
+	switch clientLen {
+	case 0:
+		return errors.New("No clients to create a binding against")
+	case 1:
+		client := o.pool[0]
+		client.CreateBinding(context.Background(), request)
+	case 2:
+		for _, client := range o.pool {
+			client.CreateBinding(context.Background(), request)
+		}
+	default:
+		c1Index := rand.Intn(clientLen)
+		c2Index := rand.Intn(clientLen)
+		c1 := o.pool[c1Index]
+		c2 := o.pool[c2Index]
+
+		c1.CreateBinding(context.Background(), request)
+		c2.CreateBinding(context.Background(), request)
+	}
+
+	return nil
+}
+
+func (o *Orchestrator) DeleteAll(b *v1.Binding) error {
+	request := &v1.DeleteBindingRequest{
+		Binding: b,
+	}
+
+	for _, client := range o.pool {
+		client.DeleteBinding(context.Background(), request)
+	}
+	return nil
+}
+
+func (o *Orchestrator) Count() int {
+	return len(o.pool)
 }

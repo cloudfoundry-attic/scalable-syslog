@@ -2,8 +2,10 @@ package egress_test
 
 import (
 	"errors"
-	"sync"
 	"time"
+
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
@@ -13,126 +15,204 @@ import (
 )
 
 var _ = Describe("Orchestrator", func() {
-	It("writes syslog bindings to the writer", func() {
-		reader := &SpyReader{
-			drains: ingress.AppBindings{
-				"app-id": ingress.Binding{
-					Hostname: "org.space.app",
-					Drains:   []string{"syslog://my-app-drain", "syslog://other-drain"},
+	Context("Run", func() {
+		It("writes syslog bindings to the writer", func() {
+			reader := &SpyReader{
+				drains: ingress.AppBindings{
+					"app-id": ingress.Binding{
+						Hostname: "org.space.app",
+						Drains:   []string{"syslog://my-app-drain"},
+					},
 				},
-			},
-		}
-		writer := &SpyWriter{}
+			}
+			client := &SpyClient{
+				listBindingsResponse_: &v1.ListBindingsResponse{},
+			}
 
-		o := egress.NewOrchestrator(reader, writer)
-		go o.Run(1 * time.Millisecond)
-		defer o.Stop()
+			o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
+			go o.Run(1 * time.Millisecond)
+			defer o.Stop()
 
-		Eventually(writer.createdBindings, 2).Should(ContainElement(
-			&v1.Binding{
-				AppId:    "app-id",
-				Hostname: "org.space.app",
-				Drain:    "syslog://my-app-drain",
-			},
-		))
-		Eventually(writer.createdBindings, 2).Should(ContainElement(
-			&v1.Binding{
-				AppId:    "app-id",
-				Hostname: "org.space.app",
-				Drain:    "syslog://other-drain",
-			},
-		))
+			Eventually(client.createBindingRequest, 2).Should(Equal(
+				&v1.CreateBindingRequest{
+					&v1.Binding{
+						AppId:    "app-id",
+						Hostname: "org.space.app",
+						Drain:    "syslog://my-app-drain",
+					},
+				},
+			))
+		})
+
+		It("does not write when the read fails", func() {
+			reader := &SpyReader{
+				err: errors.New("Nope!"),
+			}
+			client := &SpyClient{}
+
+			o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
+			go o.Run(1 * time.Millisecond)
+			defer o.Stop()
+
+			Consistently(client.createBindingRequest).Should(BeNil())
+		})
+
+		It("deletes bindings that are no longer present", func() {
+			reader := &SpyReader{
+				drains: ingress.AppBindings{
+					"app-id": ingress.Binding{
+						Hostname: "org.space.app",
+						Drains:   []string{"syslog://my-app-drain"},
+					},
+				},
+			}
+			client := &SpyClient{
+				listBindingsResponse_: &v1.ListBindingsResponse{
+					Bindings: []*v1.Binding{
+						&v1.Binding{
+							AppId:    "app-id",
+							Hostname: "org.space.app",
+							Drain:    "syslog://my-app-drain",
+						},
+						&v1.Binding{
+							AppId:    "app-id",
+							Hostname: "org.space.app",
+							Drain:    "syslog://other-drain",
+						},
+					},
+				},
+			}
+
+			o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
+			go o.Run(1 * time.Millisecond)
+			defer o.Stop()
+
+			Eventually(client.deleteBindingRequest, 2).Should(Equal(
+				&v1.DeleteBindingRequest{
+					&v1.Binding{
+						AppId:    "app-id",
+						Hostname: "org.space.app",
+						Drain:    "syslog://other-drain",
+					},
+				},
+			))
+		})
 	})
 
-	It("does not write when the read fails", func() {
-		reader := &SpyReader{
-			err: errors.New("Nope!"),
-		}
-		writer := &SpyWriter{}
-
-		o := egress.NewOrchestrator(reader, writer)
-		go o.Run(1 * time.Millisecond)
-		defer o.Stop()
-
-		Consistently(writer.createdBindings).Should(HaveLen(0))
-	})
-
-	It("deletes bindings that are no longer present", func() {
-		reader := &SpyReader{
-			drains: ingress.AppBindings{
-				"app-id": ingress.Binding{
-					Hostname: "org.space.app",
-					Drains:   []string{"syslog://my-app-drain"},
-				},
-			},
-		}
-		writer := &SpyWriter{
-			listedBindings: [][]*v1.Binding{{
-				&v1.Binding{
-					AppId:    "app-id",
-					Hostname: "org.space.app",
-					Drain:    "syslog://my-app-drain",
-				},
-				&v1.Binding{
-					AppId:    "app-id",
-					Hostname: "org.space.app",
-					Drain:    "syslog://other-drain",
-				},
-			}},
+	Context("Bindings", func() {
+		binding := &v1.Binding{
+			AppId:    "app-id",
+			Hostname: "org.space.app",
+			Drain:    "syslog://my-drain-url",
 		}
 
-		o := egress.NewOrchestrator(reader, writer)
-		go o.Run(1 * time.Millisecond)
-		defer o.Stop()
+		It("returns the number of adapters", func() {
+			reader := &SpyReader{}
+			client := &SpyClient{}
 
-		Eventually(writer.deletedBindings, 2).Should(ContainElement(
-			&v1.Binding{
-				AppId:    "app-id",
-				Hostname: "org.space.app",
-				Drain:    "syslog://other-drain",
-			},
-		))
+			o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
+
+			Expect(o.Count()).To(Equal(1))
+		})
+
+		It("makes a call to remove drain", func() {
+			reader := &SpyReader{}
+			client := &SpyClient{}
+
+			o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
+
+			o.DeleteAll(binding)
+
+			Expect(client.deleteBindingRequest()).To(Equal(
+				&v1.DeleteBindingRequest{Binding: binding},
+			))
+		})
+
+		Context("List", func() {
+			It("gets a list of bindings from all adapters", func() {
+				client := &SpyClient{}
+				client.listBindingsResponse_ = &v1.ListBindingsResponse{
+					Bindings: []*v1.Binding{binding},
+				}
+				reader := &SpyReader{}
+
+				o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
+
+				bindings, err := o.List()
+
+				Expect(client.listCalled()).To(Equal(true))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(len(bindings)).To(Equal(1))
+				Expect(len(bindings[0])).To(Equal(1))
+				Expect(bindings[0][0]).To(Equal(binding))
+			})
+
+			It("adds an empty slice when list fails", func() {
+				client := &SpyClient{}
+				client.listBindingsError_ = errors.New("list failed")
+				reader := &SpyReader{}
+
+				o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
+
+				bindings, _ := o.List()
+				Expect(len(bindings)).To(Equal(1))
+				Expect(len(bindings[0])).To(Equal(0))
+			})
+		})
+
+		Context("Create", func() {
+			It("returns an error when there are no clients", func() {
+				reader := &SpyReader{}
+				o := egress.NewOrchestrator(reader, egress.AdapterPool{})
+
+				err := o.Create(binding)
+
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("writes to a gRPC server with a single client", func() {
+				client := &SpyClient{}
+				reader := &SpyReader{}
+				o := egress.NewOrchestrator(reader, egress.AdapterPool{client})
+
+				o.Create(binding)
+
+				Expect(client.createCalled()).To(Equal(true))
+				Expect(client.createBindingRequest()).To(Equal(
+					&v1.CreateBindingRequest{Binding: binding},
+				))
+			})
+
+			It("writes both gRPC servers with two clients", func() {
+				reader := &SpyReader{}
+				firstClient := &SpyClient{}
+				secondClient := &SpyClient{}
+				o := egress.NewOrchestrator(reader, egress.AdapterPool{firstClient, secondClient})
+
+				o.Create(binding)
+
+				Expect(firstClient.createCalled()).To(Equal(true))
+				Expect(secondClient.createCalled()).To(Equal(true))
+			})
+
+			It("writes only to two gRPC servers with many clients", func() {
+				reader := &SpyReader{}
+				clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
+				o := egress.NewOrchestrator(reader, clients)
+
+				o.Create(binding)
+
+				createCalled := 0
+				for _, client := range clients {
+					if (client.(*SpyClient)).createCalled() {
+						createCalled++
+					}
+				}
+				Expect(createCalled).To(Equal(2))
+			})
+		})
 	})
 })
-
-type SpyWriter struct {
-	createdBindings_ []*v1.Binding
-	deletedBindings_ []*v1.Binding
-	listedBindings   [][]*v1.Binding
-	mu               sync.Mutex
-}
-
-func (s *SpyWriter) Create(binding *v1.Binding) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.createdBindings_ = append(s.createdBindings_, binding)
-	return nil
-}
-
-func (s *SpyWriter) createdBindings() []*v1.Binding {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.createdBindings_
-}
-
-func (s *SpyWriter) DeleteAll(binding *v1.Binding) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.deletedBindings_ = append(s.deletedBindings_, binding)
-	return nil
-}
-
-func (s *SpyWriter) deletedBindings() []*v1.Binding {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.deletedBindings_
-}
-
-func (s *SpyWriter) List() (bindings [][]*v1.Binding, err error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.listedBindings, nil
-}
 
 type SpyReader struct {
 	drains ingress.AppBindings
@@ -141,4 +221,65 @@ type SpyReader struct {
 
 func (s *SpyReader) FetchBindings() (appBindings ingress.AppBindings, err error) {
 	return s.drains, s.err
+}
+
+type SpyClient struct {
+	createCalled_         bool
+	createBindingRequest_ *v1.CreateBindingRequest
+
+	deleteCalled_         bool
+	deleteBindingRequest_ *v1.DeleteBindingRequest
+
+	listCalled_           bool
+	listBindingsResponse_ *v1.ListBindingsResponse
+	listBindingsError_    error
+}
+
+func (s *SpyClient) createCalled() bool {
+	return s.createCalled_
+}
+
+func (s *SpyClient) createBindingRequest() *v1.CreateBindingRequest {
+	return s.createBindingRequest_
+}
+
+func (s *SpyClient) deleteCalled() bool {
+	return s.deleteCalled_
+}
+
+func (s *SpyClient) deleteBindingRequest() *v1.DeleteBindingRequest {
+	return s.deleteBindingRequest_
+}
+
+func (s *SpyClient) listCalled() bool {
+	return s.listCalled_
+}
+
+func (s *SpyClient) CreateBinding(
+	ctx context.Context,
+	in *v1.CreateBindingRequest,
+	opts ...grpc.CallOption,
+) (*v1.CreateBindingResponse, error) {
+	s.createCalled_ = true
+	s.createBindingRequest_ = in
+	return nil, nil
+}
+
+func (s *SpyClient) DeleteBinding(
+	ctx context.Context,
+	in *v1.DeleteBindingRequest,
+	opts ...grpc.CallOption,
+) (*v1.DeleteBindingResponse, error) {
+	s.deleteCalled_ = true
+	s.deleteBindingRequest_ = in
+	return nil, nil
+}
+
+func (s *SpyClient) ListBindings(
+	ctx context.Context,
+	in *v1.ListBindingsRequest,
+	opts ...grpc.CallOption,
+) (*v1.ListBindingsResponse, error) {
+	s.listCalled_ = true
+	return s.listBindingsResponse_, s.listBindingsError_
 }
