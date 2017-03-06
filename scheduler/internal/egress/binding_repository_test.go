@@ -24,16 +24,52 @@ var _ = Describe("Binding Repository", func() {
 		Expect(p.Count()).To(Equal(1))
 	})
 
-	It("writes to a gRPC server", func() {
-		spyClient := &SpyClient{}
-		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
+	Context("Create", func() {
+		It("returns an error when there are no clients", func() {
+			p := egress.NewBindingRepository([]v1.AdapterClient{})
 
-		p.Create(binding)
+			err := p.Create(binding)
 
-		Expect(spyClient.createCalled()).To(Equal(true))
-		Expect(spyClient.createBindingRequest()).To(Equal(
-			&v1.CreateBindingRequest{Binding: binding},
-		))
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("writes to a gRPC server with a single client", func() {
+			spyClient := &SpyClient{}
+			p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
+
+			p.Create(binding)
+
+			Expect(spyClient.createCalled()).To(Equal(true))
+			Expect(spyClient.createBindingRequest()).To(Equal(
+				&v1.CreateBindingRequest{Binding: binding},
+			))
+		})
+
+		It("writes both gRPC servers with two clients", func() {
+			firstClient := &SpyClient{}
+			secondClient := &SpyClient{}
+			p := egress.NewBindingRepository([]v1.AdapterClient{firstClient, secondClient})
+
+			p.Create(binding)
+
+			Expect(firstClient.createCalled()).To(Equal(true))
+			Expect(secondClient.createCalled()).To(Equal(true))
+		})
+
+		It("writes only to two gRPC servers with many clients", func() {
+			clients := []v1.AdapterClient{&SpyClient{}, &SpyClient{}, &SpyClient{}}
+			p := egress.NewBindingRepository(clients)
+
+			p.Create(binding)
+
+			createCalled := 0
+			for _, client := range clients {
+				if (client.(*SpyClient)).createCalled() {
+					createCalled++
+				}
+			}
+			Expect(createCalled).To(Equal(2))
+		})
 	})
 
 	It("makes a call to remove drain", func() {

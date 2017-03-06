@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"math/rand"
 	"net"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 )
 
 func main() {
+	rand.Seed(time.Now().Unix())
+
 	healthHostport := flag.String("health", ":8080", "The hostport to listen for health requests")
 	pprofHostport := flag.String("pprof", ":6060", "The hostport to listen for pprof")
 

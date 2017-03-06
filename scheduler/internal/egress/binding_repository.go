@@ -2,6 +2,8 @@ package egress
 
 import (
 	"context"
+	"errors"
+	"math/rand"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 )
@@ -35,10 +37,27 @@ func (p *BindingRepository) Create(b *v1.Binding) error {
 		Binding: b,
 	}
 
-	for _, client := range p.clients {
-		// TODO: handle error when CreateBinding fails
+	clientLen := len(p.clients)
+	switch clientLen {
+	case 0:
+		return errors.New("No clients to create a binding against")
+	case 1:
+		client := p.clients[0]
 		client.CreateBinding(context.Background(), request)
+	case 2:
+		for _, client := range p.clients {
+			client.CreateBinding(context.Background(), request)
+		}
+	default:
+		c1Index := rand.Intn(clientLen)
+		c2Index := rand.Intn(clientLen)
+		c1 := p.clients[c1Index]
+		c2 := p.clients[c2Index]
+
+		c1.CreateBinding(context.Background(), request)
+		c2.CreateBinding(context.Background(), request)
 	}
+
 	return nil
 }
 
