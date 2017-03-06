@@ -2,108 +2,90 @@ package egress_test
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 )
 
 var _ = Describe("Orchestrator", func() {
 	It("writes syslog bindings to the writer", func() {
-		mockReader := newMockBindingReader()
-		mockReader.FetchBindingsOutput.AppBindings <- ingress.AppBindings{
-			"app-id": ingress.Binding{
-				Hostname: "org.space.app",
-				Drains:   []string{"syslog://my-app-drain", "syslog://other-drain"},
+		reader := &SpyReader{
+			drains: ingress.AppBindings{
+				"app-id": ingress.Binding{
+					Hostname: "org.space.app",
+					Drains:   []string{"syslog://my-app-drain", "syslog://other-drain"},
+				},
 			},
 		}
-		close(mockReader.FetchBindingsOutput.Err)
-		close(mockReader.FetchBindingsOutput.AppBindings)
-		mockPool := newMockAdapterPool()
-		close(mockPool.ListOutput.Bindings)
-		close(mockPool.ListOutput.Err)
-		close(mockPool.CreateOutput.Err)
-		close(mockPool.DeleteOutput.Err)
+		writer := &SpyWriter{}
 
-		o := egress.NewOrchestrator(mockReader, mockPool)
+		o := egress.NewOrchestrator(reader, writer)
 		go o.Run(1 * time.Millisecond)
 		defer o.Stop()
 
-		Eventually(mockPool.CreateInput.Binding, 2).Should(Receive(Equal(
+		Eventually(writer.createdBindings, 2).Should(ContainElement(
 			&v1.Binding{
 				AppId:    "app-id",
 				Hostname: "org.space.app",
 				Drain:    "syslog://my-app-drain",
 			},
-		)))
-		Eventually(mockPool.CreateInput.Binding, 2).Should(Receive(Equal(
+		))
+		Eventually(writer.createdBindings, 2).Should(ContainElement(
 			&v1.Binding{
 				AppId:    "app-id",
 				Hostname: "org.space.app",
 				Drain:    "syslog://other-drain",
 			},
-		)))
+		))
 	})
 
 	It("does not write when the read fails", func() {
-		mockReader := newMockBindingReader()
-		mockReader.FetchBindingsOutput.Err <- errors.New("Nope!")
-		close(mockReader.FetchBindingsOutput.Err)
-		close(mockReader.FetchBindingsOutput.AppBindings)
+		reader := &SpyReader{
+			err: errors.New("Nope!"),
+		}
+		writer := &SpyWriter{}
 
-		mockPool := newMockAdapterPool()
-		close(mockPool.ListOutput.Bindings)
-		close(mockPool.ListOutput.Err)
-		close(mockPool.CreateOutput.Err)
-		close(mockPool.DeleteOutput.Err)
-
-		o := egress.NewOrchestrator(mockReader, mockPool)
+		o := egress.NewOrchestrator(reader, writer)
 		go o.Run(1 * time.Millisecond)
 		defer o.Stop()
 
-		Consistently(mockPool.CreateCalled).ShouldNot(Receive())
+		Consistently(writer.createdBindings).Should(HaveLen(0))
 	})
 
 	It("deletes bindings that are no longer present", func() {
-		mockReader := newMockBindingReader()
-		mockReader.FetchBindingsOutput.AppBindings <- ingress.AppBindings{
-			"app-id": ingress.Binding{
-				Hostname: "org.space.app",
-				Drains:   []string{"syslog://my-app-drain"},
+		reader := &SpyReader{
+			drains: ingress.AppBindings{
+				"app-id": ingress.Binding{
+					Hostname: "org.space.app",
+					Drains:   []string{"syslog://my-app-drain"},
+				},
 			},
 		}
-		close(mockReader.FetchBindingsOutput.AppBindings)
-		close(mockReader.FetchBindingsOutput.Err)
-		mockPool := newMockAdapterPool()
-		mockPool.ListOutput.Bindings <- [][]*v1.Binding{{
-			&v1.Binding{
-				AppId:    "app-id",
-				Hostname: "org.space.app",
-				Drain:    "syslog://my-app-drain",
-			},
-			&v1.Binding{
-				AppId:    "app-id",
-				Hostname: "org.space.app",
-				Drain:    "syslog://other-drain",
-			},
-		}}
-		close(mockPool.ListOutput.Bindings)
-		close(mockPool.ListOutput.Err)
-		close(mockPool.CreateOutput.Err)
-		close(mockPool.DeleteOutput.Err)
+		writer := &SpyWriter{
+			listedBindings: [][]*v1.Binding{{
+				&v1.Binding{
+					AppId:    "app-id",
+					Hostname: "org.space.app",
+					Drain:    "syslog://my-app-drain",
+				},
+				&v1.Binding{
+					AppId:    "app-id",
+					Hostname: "org.space.app",
+					Drain:    "syslog://other-drain",
+				},
+			}},
+		}
 
-		o := egress.NewOrchestrator(mockReader, mockPool)
+		o := egress.NewOrchestrator(reader, writer)
 		go o.Run(1 * time.Millisecond)
 		defer o.Stop()
 
-		Eventually(mockPool.DeleteInput.Binding).Should(HaveLen(1))
-
-		var binding *v1.Binding
-		Eventually(mockPool.DeleteInput.Binding).Should(Receive(&binding))
-		Expect(binding).To(Equal(
+		Eventually(writer.deletedBindings, 2).Should(ContainElement(
 			&v1.Binding{
 				AppId:    "app-id",
 				Hostname: "org.space.app",
@@ -112,3 +94,51 @@ var _ = Describe("Orchestrator", func() {
 		))
 	})
 })
+
+type SpyWriter struct {
+	createdBindings_ []*v1.Binding
+	deletedBindings_ []*v1.Binding
+	listedBindings   [][]*v1.Binding
+	mu               sync.Mutex
+}
+
+func (s *SpyWriter) Create(binding *v1.Binding) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.createdBindings_ = append(s.createdBindings_, binding)
+	return nil
+}
+
+func (s *SpyWriter) createdBindings() []*v1.Binding {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.createdBindings_
+}
+
+func (s *SpyWriter) Delete(binding *v1.Binding) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deletedBindings_ = append(s.deletedBindings_, binding)
+	return nil
+}
+
+func (s *SpyWriter) deletedBindings() []*v1.Binding {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.deletedBindings_
+}
+
+func (s *SpyWriter) List() (bindings [][]*v1.Binding, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.listedBindings, nil
+}
+
+type SpyReader struct {
+	drains ingress.AppBindings
+	err    error
+}
+
+func (s *SpyReader) FetchBindings() (appBindings ingress.AppBindings, err error) {
+	return s.drains, s.err
+}
