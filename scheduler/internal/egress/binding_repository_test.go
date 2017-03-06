@@ -21,7 +21,7 @@ var _ = Describe("Connection Pool", func() {
 
 	It("returns the number of adapters", func() {
 		adapters := []string{serverAddr}
-		p := egress.NewAdapterWriterPool(&SpyCreator{}, adapters)
+		p := egress.NewBindingRepository(&SpyCreator{}, adapters)
 
 		Expect(p.Count()).To(Equal(1))
 	})
@@ -30,7 +30,7 @@ var _ = Describe("Connection Pool", func() {
 		spyClient := &SpyAdapterClient{}
 		creator := &SpyCreator{client: spyClient}
 
-		egress.NewAdapterWriterPool(creator, []string{serverAddr})
+		egress.NewBindingRepository(creator, []string{serverAddr})
 
 		Expect(creator.createAddr()).To(Equal(serverAddr))
 	})
@@ -38,7 +38,7 @@ var _ = Describe("Connection Pool", func() {
 	It("writes to a gRPC server", func() {
 		spyClient := &SpyAdapterClient{}
 		creator := &SpyCreator{client: spyClient}
-		p := egress.NewAdapterWriterPool(creator, []string{serverAddr})
+		p := egress.NewBindingRepository(creator, []string{serverAddr})
 
 		p.Create(binding)
 
@@ -51,7 +51,7 @@ var _ = Describe("Connection Pool", func() {
 	It("makes a call to remove drain", func() {
 		spyClient := &SpyAdapterClient{}
 		creator := &SpyCreator{client: spyClient}
-		p := egress.NewAdapterWriterPool(creator, []string{serverAddr})
+		p := egress.NewBindingRepository(creator, []string{serverAddr})
 
 		p.Delete(binding)
 
@@ -67,7 +67,7 @@ var _ = Describe("Connection Pool", func() {
 			Bindings: []*v1.Binding{binding},
 		}
 		creator := &SpyCreator{client: spyClient}
-		p := egress.NewAdapterWriterPool(creator, []string{serverAddr})
+		p := egress.NewBindingRepository(creator, []string{serverAddr})
 
 		bindings, err := p.List()
 

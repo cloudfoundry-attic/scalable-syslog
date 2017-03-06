@@ -27,8 +27,8 @@ type Scheduler struct {
 	client     *http.Client
 	interval   time.Duration
 
-	pool    *egress.Pool
-	fetcher *ingress.VersionFilter
+	bindingRepo *egress.BindingRepository
+	fetcher     *ingress.VersionFilter
 }
 
 // NewScheduler returns a new unstarted scheduler.
@@ -93,7 +93,7 @@ func (s *Scheduler) setupIngress() {
 
 func (s *Scheduler) setupEgress() {
 	creds := credentials.NewTLS(s.adapterTLSConfig)
-	s.pool = egress.NewAdapterWriterPool(
+	s.bindingRepo = egress.NewBindingRepository(
 		&egress.DefaultClientCreator{},
 		s.adapterAddrs,
 		grpc.WithTransportCredentials(creds),
@@ -101,13 +101,13 @@ func (s *Scheduler) setupEgress() {
 }
 
 func (s *Scheduler) startEgress() {
-	orchestrator := egress.NewOrchestrator(s.fetcher, s.pool)
+	orchestrator := egress.NewOrchestrator(s.fetcher, s.bindingRepo)
 	go orchestrator.Run(s.interval)
 }
 
 func (s *Scheduler) serveHealth() string {
 	router := http.NewServeMux()
-	router.Handle("/health", health.NewHealth(s.fetcher, s.pool))
+	router.Handle("/health", health.NewHealth(s.fetcher, s.bindingRepo))
 
 	server := http.Server{
 		Addr:         s.healthAddr,

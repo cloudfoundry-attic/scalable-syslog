@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-type Pool struct {
+type BindingRepository struct {
 	clients []v1.AdapterClient
 }
 
@@ -17,7 +17,7 @@ type ClientCreator interface {
 	Create(addr string, opts ...grpc.DialOption) (v1.AdapterClient, error)
 }
 
-func NewAdapterWriterPool(c ClientCreator, addrs []string, dialOpts ...grpc.DialOption) *Pool {
+func NewBindingRepository(c ClientCreator, addrs []string, dialOpts ...grpc.DialOption) *BindingRepository {
 	var clients []v1.AdapterClient
 
 	for _, a := range addrs {
@@ -30,12 +30,12 @@ func NewAdapterWriterPool(c ClientCreator, addrs []string, dialOpts ...grpc.Dial
 		clients = append(clients, client)
 	}
 
-	return &Pool{
+	return &BindingRepository{
 		clients: clients,
 	}
 }
 
-func (p *Pool) List() ([][]*v1.Binding, error) {
+func (p *BindingRepository) List() ([][]*v1.Binding, error) {
 	request := new(v1.ListBindingsRequest)
 
 	var bindings [][]*v1.Binding
@@ -49,7 +49,7 @@ func (p *Pool) List() ([][]*v1.Binding, error) {
 	return bindings, nil
 }
 
-func (p *Pool) Create(b *v1.Binding) error {
+func (p *BindingRepository) Create(b *v1.Binding) error {
 	request := &v1.CreateBindingRequest{
 		Binding: b,
 	}
@@ -61,7 +61,7 @@ func (p *Pool) Create(b *v1.Binding) error {
 	return nil
 }
 
-func (p *Pool) Delete(b *v1.Binding) error {
+func (p *BindingRepository) Delete(b *v1.Binding) error {
 	request := &v1.DeleteBindingRequest{
 		Binding: b,
 	}
@@ -72,6 +72,6 @@ func (p *Pool) Delete(b *v1.Binding) error {
 	return nil
 }
 
-func (p *Pool) Count() int {
+func (p *BindingRepository) Count() int {
 	return len(p.clients)
 }
