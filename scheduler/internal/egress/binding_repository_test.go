@@ -1,6 +1,8 @@
 package egress_test
 
 import (
+	"errors"
+
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 
@@ -36,20 +38,32 @@ var _ = Describe("Binding Repository", func() {
 		))
 	})
 
-	It("gets a list of bindings from all adapters", func() {
-		spyClient := &SpyClient{}
-		spyClient.listBindingsResponse_ = &v1.ListBindingsResponse{
-			Bindings: []*v1.Binding{binding},
-		}
-		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
+	Context("List", func() {
+		It("gets a list of bindings from all adapters", func() {
+			spyClient := &SpyClient{}
+			spyClient.listBindingsResponse_ = &v1.ListBindingsResponse{
+				Bindings: []*v1.Binding{binding},
+			}
+			p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
 
-		bindings, err := p.List()
+			bindings, err := p.List()
 
-		Expect(spyClient.listCalled()).To(Equal(true))
-		Expect(err).ToNot(HaveOccurred())
-		Expect(len(bindings)).To(Equal(1))
-		Expect(len(bindings[0])).To(Equal(1))
-		Expect(bindings[0][0]).To(Equal(binding))
+			Expect(spyClient.listCalled()).To(Equal(true))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(len(bindings)).To(Equal(1))
+			Expect(len(bindings[0])).To(Equal(1))
+			Expect(bindings[0][0]).To(Equal(binding))
+		})
+
+		It("adds an empty slice when list fails", func() {
+			spyClient := &SpyClient{}
+			spyClient.listBindingsError_ = errors.New("list failed")
+			p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
+
+			bindings, _ := p.List()
+			Expect(len(bindings)).To(Equal(1))
+			Expect(len(bindings[0])).To(Equal(0))
+		})
 	})
 
 	Context("Create", func() {
@@ -110,6 +124,7 @@ type SpyClient struct {
 
 	listCalled_           bool
 	listBindingsResponse_ *v1.ListBindingsResponse
+	listBindingsError_    error
 }
 
 func (s *SpyClient) createCalled() bool {
@@ -158,5 +173,5 @@ func (s *SpyClient) ListBindings(
 	opts ...grpc.CallOption,
 ) (*v1.ListBindingsResponse, error) {
 	s.listCalled_ = true
-	return s.listBindingsResponse_, nil
+	return s.listBindingsResponse_, s.listBindingsError_
 }

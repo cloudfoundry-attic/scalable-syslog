@@ -23,8 +23,11 @@ func (p *BindingRepository) List() ([][]*v1.Binding, error) {
 
 	var bindings [][]*v1.Binding
 	for _, client := range p.clients {
-		// TODO handle error when ListBindings fails
-		resp, _ := client.ListBindings(context.Background(), request)
+		resp, err := client.ListBindings(context.Background(), request)
+		if err != nil {
+			bindings = append(bindings, make([]*v1.Binding, 0))
+			continue
+		}
 
 		bindings = append(bindings, resp.Bindings)
 	}
