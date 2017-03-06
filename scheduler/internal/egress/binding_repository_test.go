@@ -24,6 +24,34 @@ var _ = Describe("Binding Repository", func() {
 		Expect(p.Count()).To(Equal(1))
 	})
 
+	It("makes a call to remove drain", func() {
+		spyClient := &SpyClient{}
+		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
+
+		p.Delete(binding)
+
+		Expect(spyClient.deleteCalled()).To(Equal(true))
+		Expect(spyClient.deleteBindingRequest()).To(Equal(
+			&v1.DeleteBindingRequest{Binding: binding},
+		))
+	})
+
+	It("gets a list of bindings from all adapters", func() {
+		spyClient := &SpyClient{}
+		spyClient.listBindingsResponse_ = &v1.ListBindingsResponse{
+			Bindings: []*v1.Binding{binding},
+		}
+		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
+
+		bindings, err := p.List()
+
+		Expect(spyClient.listCalled()).To(Equal(true))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(len(bindings)).To(Equal(1))
+		Expect(len(bindings[0])).To(Equal(1))
+		Expect(bindings[0][0]).To(Equal(binding))
+	})
+
 	Context("Create", func() {
 		It("returns an error when there are no clients", func() {
 			p := egress.NewBindingRepository([]v1.AdapterClient{})
@@ -70,34 +98,6 @@ var _ = Describe("Binding Repository", func() {
 			}
 			Expect(createCalled).To(Equal(2))
 		})
-	})
-
-	It("makes a call to remove drain", func() {
-		spyClient := &SpyClient{}
-		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
-
-		p.Delete(binding)
-
-		Expect(spyClient.deleteCalled()).To(Equal(true))
-		Expect(spyClient.deleteBindingRequest()).To(Equal(
-			&v1.DeleteBindingRequest{Binding: binding},
-		))
-	})
-
-	It("gets a list of bindings from all adapters", func() {
-		spyClient := &SpyClient{}
-		spyClient.listBindingsResponse_ = &v1.ListBindingsResponse{
-			Bindings: []*v1.Binding{binding},
-		}
-		p := egress.NewBindingRepository([]v1.AdapterClient{spyClient})
-
-		bindings, err := p.List()
-
-		Expect(spyClient.listCalled()).To(Equal(true))
-		Expect(err).ToNot(HaveOccurred())
-		Expect(len(bindings)).To(Equal(1))
-		Expect(len(bindings[0])).To(Equal(1))
-		Expect(bindings[0][0]).To(Equal(binding))
 	})
 })
 
