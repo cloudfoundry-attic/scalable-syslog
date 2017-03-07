@@ -10,8 +10,12 @@ import (
 
 type DefaultAdapterService struct {
 	pool           AdapterPool
-	currentPoolPos int
+	currentPoolIdx int
 }
+
+// maxWriteCount defines the number of adapters to which to write
+// syslog drain bindings
+const maxWriteCount = 2
 
 func NewAdapterService(p AdapterPool) *DefaultAdapterService {
 	return &DefaultAdapterService{
@@ -21,33 +25,31 @@ func NewAdapterService(p AdapterPool) *DefaultAdapterService {
 
 func (d *DefaultAdapterService) Create(actual BindingList, expected ingress.AppBindings) {
 	for appID, drainBinding := range expected {
-		for _, drain := range drainBinding.Drains {
+		for _, drainURL := range drainBinding.Drains {
+			log.Printf("drain=%#v", drainURL)
 			b := &v1.Binding{
 				Hostname: drainBinding.Hostname,
 				AppId:    appID,
-				Drain:    drain,
+				Drain:    drainURL,
 			}
 			request := &v1.CreateBindingRequest{Binding: b}
 
-			alreadyExist := 0
-			for _, adapterBindings := range actual {
-				for _, ab := range adapterBindings {
-					if exists(expected, ab) {
-						alreadyExist++
-					}
-				}
-			}
+			alreadyExist := actual.DrainCount(appID, drainURL)
 
-			log.Printf("creating new binding on adapter pos=%d, num=%d", d.currentPoolPos, maxWriteCount-alreadyExist)
+			log.Printf(
+				"creating new binding on adapter index=%d, number of writes=%d",
+				d.currentPoolIdx,
+				maxWriteCount-alreadyExist,
+			)
 
-			pool := d.pool.Sub(d.currentPoolPos, maxWriteCount-alreadyExist)
+			pool := d.pool.Sub(d.currentPoolIdx, maxWriteCount-alreadyExist)
 			for _, client := range pool {
 				client.CreateBinding(context.Background(), request)
 			}
 
-			d.currentPoolPos += 2
-			if d.currentPoolPos > len(d.pool) {
-				d.currentPoolPos = 0
+			d.currentPoolIdx += 1
+			if d.currentPoolIdx >= len(d.pool) {
+				d.currentPoolIdx = 0
 			}
 		}
 	}
@@ -78,8 +80,8 @@ func (d *DefaultAdapterService) DeleteAll(actual BindingList, expected ingress.A
 	}
 }
 
-func exists(actual ingress.AppBindings, ab *v1.Binding) bool {
-	b, ok := actual[ab.AppId]
+func exists(expected ingress.AppBindings, ab *v1.Binding) bool {
+	b, ok := expected[ab.AppId]
 	if !ok {
 		return false
 	}

@@ -90,7 +90,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			s.Create(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
 
-			Expect(client.createCalled()).To(Equal(true))
+			Expect(client.createCalled()).To(Equal(1))
 			Expect(client.createBindingRequest()).To(Equal(
 				&v1.CreateBindingRequest{Binding: binding},
 			))
@@ -103,8 +103,8 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			s.Create(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
 
-			Expect(firstClient.createCalled()).To(Equal(true))
-			Expect(secondClient.createCalled()).To(Equal(true))
+			Expect(firstClient.createCalled()).To(Equal(1))
+			Expect(secondClient.createCalled()).To(Equal(1))
 		})
 
 		It("writes only to two gRPC servers with many clients", func() {
@@ -115,7 +115,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			createCalled := 0
 			for _, client := range clients {
-				if (client.(*SpyClient)).createCalled() {
+				if (client.(*SpyClient)).createCalled() > 0 {
 					createCalled++
 				}
 			}
@@ -132,17 +132,58 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			createCalled := 0
 			for _, client := range clients {
-				if (client.(*SpyClient)).createCalled() {
+				if (client.(*SpyClient)).createCalled() > 0 {
 					createCalled++
 				}
 			}
 			Expect(createCalled).To(Equal(1))
 		})
+
+		It("doesn't write to -1", func() {
+			appBinding := ingress.Binding{
+				Drains:   []string{"syslog://my-drain-url", "syslog://another-drain"},
+				Hostname: "org.space.app",
+			}
+
+			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}}
+			s := egress.NewAdapterService(clients)
+
+			s.Create(
+				egress.BindingList{},
+				ingress.AppBindings{"app-id": appBinding},
+			)
+
+			createCalled := 0
+			for _, client := range clients {
+				createCalled += (client.(*SpyClient)).createCalled()
+			}
+			Expect(createCalled).To(Equal(4))
+
+			s.Create(
+				egress.BindingList{
+					{
+						&v1.Binding{"app-id", "org.space.app", "syslog://my-drain-url"},
+						&v1.Binding{"app-id", "org.space.app", "syslog://another-drain"},
+					},
+					{
+						&v1.Binding{"app-id", "org.space.app", "syslog://my-drain-url"},
+						&v1.Binding{"app-id", "org.space.app", "syslog://another-drain"},
+					},
+				},
+				ingress.AppBindings{"app-id": appBinding},
+			)
+
+			createCalled = 0
+			for _, client := range clients {
+				createCalled += (client.(*SpyClient)).createCalled()
+			}
+			Expect(createCalled).To(Equal(4))
+		})
 	})
 })
 
 type SpyClient struct {
-	createCalled_         bool
+	createCalled_         int
 	createBindingRequest_ *v1.CreateBindingRequest
 
 	deleteCalled_         bool
@@ -154,7 +195,7 @@ type SpyClient struct {
 	mu                    sync.RWMutex
 }
 
-func (s *SpyClient) createCalled() bool {
+func (s *SpyClient) createCalled() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.createCalled_
@@ -191,7 +232,7 @@ func (s *SpyClient) CreateBinding(
 ) (*v1.CreateBindingResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.createCalled_ = true
+	s.createCalled_++
 	s.createBindingRequest_ = in
 	return nil, nil
 }

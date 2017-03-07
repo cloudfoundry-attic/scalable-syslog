@@ -37,17 +37,24 @@ var _ = Describe("AdapterPool", func() {
 		addr := "1.1.1.1"
 
 		It("returns subset of the pool", func() {
-			pool := egress.NewAdapterPool([]string{addr, addr, addr}, grpc.WithInsecure())
+			pool := egress.NewAdapterPool([]string{addr, addr, addr, addr}, grpc.WithInsecure())
 			subset := pool.Sub(1, 2)
 
 			Expect(len(subset)).To(Equal(2))
 		})
 
-		It("does not error on overflow", func() {
-			pool := egress.NewAdapterPool([]string{addr}, grpc.WithInsecure())
-			subset := pool.Sub(0, 2)
+		It("wraps back to the first index on overflow", func() {
+			pool := egress.NewAdapterPool([]string{addr, addr, addr}, grpc.WithInsecure())
+			subset := pool.Sub(1, 3)
 
-			Expect(len(subset)).To(Equal(1))
+			Expect(len(subset)).To(Equal(3))
+		})
+
+		It("returns all clients when more are requested than available", func() {
+			pool := egress.NewAdapterPool([]string{addr, addr}, grpc.WithInsecure())
+			subset := pool.Sub(0, 3)
+
+			Expect(len(subset)).To(Equal(2))
 		})
 	})
 })

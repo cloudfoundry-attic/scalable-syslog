@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
@@ -14,15 +13,11 @@ type BindingReader interface {
 	FetchBindings() (appBindings ingress.AppBindings, err error)
 }
 
-type BindingList [][]*v1.Binding
-
 type AdapterService interface {
 	Create(actual BindingList, expected ingress.AppBindings)
 	DeleteAll(actual BindingList, expected ingress.AppBindings)
 	List() (BindingList, error)
 }
-
-const maxWriteCount = 2
 
 // Orchestrator manages writes to a number of adapters.
 type Orchestrator struct {
