@@ -45,13 +45,18 @@ func NewClientManager(connector ConnectionBuilder, count int, ttl time.Duration)
 	return c
 }
 
-// Next round-robins and returns the next EgressClient.
+// Next returns the next available loggregator egress client. Next will block
+// until a healthy client is available.
 func (c *ClientManager) Next() v2.EgressClient {
-	idx := atomic.AddUint64(&c.nextIdx, 1)
+	for {
+		idx := atomic.AddUint64(&c.nextIdx, 1)
+		conn := atomic.LoadPointer(&c.connections[idx%uint64(len(c.connections))])
+		if conn != nil {
+			return (*connection)(conn).client
+		}
 
-	conn := atomic.LoadPointer(&c.connections[idx%uint64(len(c.connections))])
-
-	return (*connection)(conn).client
+		time.Sleep(2 * time.Second)
+	}
 }
 
 func (c *ClientManager) monitorConnectionsForRolling() {

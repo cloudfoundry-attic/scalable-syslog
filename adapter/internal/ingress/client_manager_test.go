@@ -51,6 +51,18 @@ var _ = Describe("Client Manager", func() {
 
 			Expect(r1).ToNot(BeIdenticalTo(r2))
 		})
+
+		It("does not return a nil client", func() {
+			mockConnector := NewMockConnector()
+
+			for i := 0; i < 15; i++ {
+				mockConnector.connectErrors <- errors.New("an-error")
+			}
+			cm := ingress.NewClientManager(mockConnector, 5, 10*time.Millisecond)
+
+			r1 := cm.Next()
+			Expect(r1).ToNot(BeNil())
+		})
 	})
 })
 
@@ -59,10 +71,13 @@ type MockConnector struct {
 	closeCalled           int
 	successfulConnections int
 	mu                    sync.Mutex
+	connectErrors         chan error
 }
 
 func NewMockConnector() *MockConnector {
-	return new(MockConnector)
+	return &MockConnector{
+		connectErrors: make(chan error, 100),
+	}
 }
 
 func (m *MockConnector) Connect() (io.Closer, v2.EgressClient, error) {
@@ -70,14 +85,14 @@ func (m *MockConnector) Connect() (io.Closer, v2.EgressClient, error) {
 	defer m.mu.Unlock()
 
 	m.connectCalled++
-
-	if m.connectCalled < 10 {
-		return nil, nil, errors.New("Getting client failed")
-	}
-
 	m.successfulConnections++
 
-	return m, new(MockReceiver), nil
+	var err error
+	if len(m.connectErrors) > 0 {
+		err = <-m.connectErrors
+	}
+
+	return m, new(MockReceiver), err
 }
 
 func (m *MockConnector) Close() error {
