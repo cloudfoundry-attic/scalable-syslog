@@ -8,7 +8,42 @@ package egress_test
 import (
 	"net"
 	"time"
+
+	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 )
+
+type mockWriteCloser struct {
+	WriteCalled chan bool
+	WriteInput  struct {
+		Arg0 chan *loggregator_v2.Envelope
+	}
+	WriteOutput struct {
+		Ret0 chan error
+	}
+	CloseCalled chan bool
+	CloseOutput struct {
+		Ret0 chan error
+	}
+}
+
+func newMockWriteCloser() *mockWriteCloser {
+	m := &mockWriteCloser{}
+	m.WriteCalled = make(chan bool, 100)
+	m.WriteInput.Arg0 = make(chan *loggregator_v2.Envelope, 100)
+	m.WriteOutput.Ret0 = make(chan error, 100)
+	m.CloseCalled = make(chan bool, 100)
+	m.CloseOutput.Ret0 = make(chan error, 100)
+	return m
+}
+func (m *mockWriteCloser) Write(arg0 *loggregator_v2.Envelope) error {
+	m.WriteCalled <- true
+	m.WriteInput.Arg0 <- arg0
+	return <-m.WriteOutput.Ret0
+}
+func (m *mockWriteCloser) Close() error {
+	m.CloseCalled <- true
+	return <-m.CloseOutput.Ret0
+}
 
 type mockDialer struct {
 	DialCalled chan bool

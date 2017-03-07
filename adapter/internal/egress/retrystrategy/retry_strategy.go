@@ -6,10 +6,12 @@ import (
 	"time"
 )
 
+// RetryStrategy returns a duration based on a counter.
 type RetryStrategy func(counter int) time.Duration
 
+// Exponential is a retry strategy that has a max of 1h9m54s retry duration.
 func Exponential() RetryStrategy {
-	exponential := func(counter int) time.Duration {
+	return func(counter int) time.Duration {
 		if counter == 0 {
 			return time.Millisecond
 		}
@@ -21,5 +23,4 @@ func Exponential() RetryStrategy {
 		randomOffset := rand.Intn(tenthDuration*2) - tenthDuration
 		return (time.Duration(duration) * time.Microsecond) + (time.Duration(randomOffset) * time.Microsecond)
 	}
-	return exponential
 }

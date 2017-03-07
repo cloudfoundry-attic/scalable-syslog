@@ -6,6 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/context"
+
+	"google.golang.org/grpc"
+
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
 	v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 
@@ -13,11 +17,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Consumer", func() {
+var _ = Describe("Client Manager", func() {
 	Context("After a period time", func() {
 		It("rolls the connections", func() {
 			mockConnector := NewMockConnector()
-			ingress.NewConsumer(mockConnector, 5, 10*time.Millisecond)
+			ingress.NewClientManager(mockConnector, 5, 10*time.Millisecond)
 
 			Eventually(func() int {
 				return mockConnector.GetSuccessfulConnections()
@@ -30,6 +34,22 @@ var _ = Describe("Consumer", func() {
 			Eventually(func() int {
 				return mockConnector.GetSuccessfulConnections()
 			}).Should(Equal(5))
+		})
+	})
+
+	Describe("Next()", func() {
+		It("returns a client", func() {
+			mockConnector := NewMockConnector()
+			cm := ingress.NewClientManager(mockConnector, 5, 10*time.Millisecond)
+
+			Eventually(func() int {
+				return mockConnector.GetSuccessfulConnections()
+			}).Should(Equal(5))
+
+			r1 := cm.Next()
+			r2 := cm.Next()
+
+			Expect(r1).ToNot(BeIdenticalTo(r2))
 		})
 	})
 })
@@ -45,7 +65,7 @@ func NewMockConnector() *MockConnector {
 	return new(MockConnector)
 }
 
-func (m *MockConnector) Connect() (io.Closer, v2.Egress_ReceiverClient, error) {
+func (m *MockConnector) Connect() (io.Closer, v2.EgressClient, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -57,7 +77,7 @@ func (m *MockConnector) Connect() (io.Closer, v2.Egress_ReceiverClient, error) {
 
 	m.successfulConnections++
 
-	return m, nil, nil
+	return m, new(MockReceiver), nil
 }
 
 func (m *MockConnector) Close() error {
@@ -82,4 +102,12 @@ func (m *MockConnector) GetCloseCalled() int {
 	defer m.mu.Unlock()
 
 	return m.closeCalled
+}
+
+type MockReceiver struct {
+	n int
+}
+
+func (m *MockReceiver) Receiver(ctx context.Context, in *v2.EgressRequest, opts ...grpc.CallOption) (v2.Egress_ReceiverClient, error) {
+	return nil, nil
 }

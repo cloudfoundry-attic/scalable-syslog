@@ -1,7 +1,6 @@
 package ingress
 
 import (
-	"context"
 	"io"
 	"log"
 
@@ -25,7 +24,7 @@ func NewConnector(balancer *Balancer, opts ...grpc.DialOption) *Connector {
 }
 
 // Connect connects to a loggregator egress API
-func (c *Connector) Connect() (io.Closer, v2.Egress_ReceiverClient, error) {
+func (c *Connector) Connect() (io.Closer, v2.EgressClient, error) {
 	hp, err := c.balancer.NextHostPort()
 	if err != nil {
 		return nil, nil, err
@@ -37,12 +36,7 @@ func (c *Connector) Connect() (io.Closer, v2.Egress_ReceiverClient, error) {
 	}
 
 	client := v2.NewEgressClient(conn)
-	receiver, err := client.Receiver(context.Background(), new(v2.EgressRequest))
-	if err != nil {
-		return nil, nil, err
-	}
-
 	log.Println("Created new connection to loggregator egress API")
 
-	return conn, receiver, nil
+	return conn, client, nil
 }

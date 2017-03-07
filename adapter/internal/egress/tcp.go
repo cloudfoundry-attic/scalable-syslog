@@ -116,7 +116,7 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 		w.connect()
 	}
 
-	return err
+	return nil
 }
 
 func removeNulls(msg []byte) []byte {
