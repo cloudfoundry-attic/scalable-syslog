@@ -38,6 +38,8 @@ func (d *DefaultAdapterService) Create(actual BindingList, expected ingress.AppB
 				}
 			}
 
+			log.Printf("creating new binding on adapter pos=%d, num=%d", d.currentPoolPos, maxWriteCount-alreadyExist)
+
 			pool := d.pool.Sub(d.currentPoolPos, maxWriteCount-alreadyExist)
 			for _, client := range pool {
 				client.CreateBinding(context.Background(), request)
@@ -60,6 +62,7 @@ func (d *DefaultAdapterService) DeleteAll(actual BindingList, expected ingress.A
 			}
 		}
 	}
+	log.Printf("deleting bindings count=%d", len(toDelete))
 
 	for _, ab := range toDelete {
 		request := &v1.DeleteBindingRequest{
@@ -69,7 +72,7 @@ func (d *DefaultAdapterService) DeleteAll(actual BindingList, expected ingress.A
 		for _, client := range d.pool {
 			_, err := client.DeleteBinding(context.Background(), request)
 			if err != nil {
-				log.Printf("delete binding failed: %v", err)
+				log.Printf("delete binding failed: %s", err)
 			}
 		}
 	}

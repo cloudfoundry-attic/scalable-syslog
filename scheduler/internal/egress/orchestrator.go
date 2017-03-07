@@ -48,12 +48,13 @@ func (o *Orchestrator) Run(interval time.Duration) {
 		case <-time.Tick(interval):
 			expected, err := o.reader.FetchBindings()
 			if err != nil {
+				log.Printf("fetch bindings failed with error: %s", err)
 				continue
 			}
 
 			actual, err := o.service.List()
 			if err != nil {
-				log.Printf("Failed to get actual bindings: %s", err)
+				log.Printf("failed to get actual bindings: %s", err)
 				continue
 			}
 
