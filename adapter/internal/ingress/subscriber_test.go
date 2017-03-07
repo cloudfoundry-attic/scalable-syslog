@@ -153,6 +153,36 @@ var _ = Describe("Subscriber", func() {
 
 		Consistently(mockClientPool.NextCalled).ShouldNot(Receive())
 	})
+
+	It("ignores non log messages", func() {
+		closeWriter := newSpyCloseWriter()
+		writerBuilder.BuildOutput.Cw <- closeWriter
+		writerBuilder.BuildOutput.Cw <- closeWriter
+		close(writerBuilder.BuildOutput.Err)
+
+		client := newMockEgressClient()
+		mockClientPool.NextOutput.Client <- client
+		mockClientPool.NextOutput.Client <- client
+
+		receiverClient := newMockReceiverClient()
+		client.ReceiverOutput.Ret0 <- receiverClient
+		client.ReceiverOutput.Ret0 <- receiverClient
+		close(client.ReceiverOutput.Ret1)
+		close(receiverClient.CloseSendOutput.Ret0)
+
+		subscriber.Start(binding)
+
+		By("receiving a log message")
+		close(receiverClient.RecvOutput.Ret1)
+		receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
+
+		By("receiving non log messages")
+		receiverClient.RecvOutput.Ret0 <- buildCounterEnvelope()
+		receiverClient.RecvOutput.Ret0 <- buildCounterEnvelope()
+
+		Eventually(closeWriter.writes).Should(HaveLen(1))
+		Consistently(closeWriter.writes).Should(HaveLen(1))
+	})
 })
 
 type spyCloseWriter struct {
@@ -190,6 +220,16 @@ func buildLogEnvelope() *v2.Envelope {
 				Payload: []byte("log"),
 				Type:    v2.Log_OUT,
 			},
+		},
+	}
+}
+
+func buildCounterEnvelope() *v2.Envelope {
+	return &v2.Envelope{
+		Timestamp: 12345678,
+		SourceId:  "source-id",
+		Message: &v2.Envelope_Counter{
+			Counter: &v2.Counter{},
 		},
 	}
 }

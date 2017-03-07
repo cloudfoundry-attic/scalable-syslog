@@ -84,6 +84,9 @@ func readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteCloser, u *int32) e
 		if err != nil {
 			return err
 		}
+		if env.GetLog() == nil {
+			continue
+		}
 
 		// TODO: Add buffering diode
 
