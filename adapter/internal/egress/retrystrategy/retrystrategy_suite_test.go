@@ -1,4 +1,4 @@
-package health_test
+package retrystrategy_test
 
 import (
 	"log"
@@ -9,9 +9,8 @@ import (
 	"testing"
 )
 
-//go:generate hel
-func TestHandlers(t *testing.T) {
+func TestRetrystrategy(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Adapter - Health - Handlers Suite")
+	RunSpecs(t, "Adapter - Egress - Retrystrategy Suite")
 }

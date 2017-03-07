@@ -54,6 +54,7 @@ func (s *logServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator
 			return err
 		}
 		i++
+		time.Sleep(time.Second)
 	}
 
 	return nil
@@ -62,6 +63,10 @@ func (s *logServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator
 func buildEnvelope(isLog bool, sourceId string) *loggregator_v2.Envelope {
 	if isLog {
 		return &loggregator_v2.Envelope{
+			Tags: map[string]*loggregator_v2.Value{
+				"source_type":     {&loggregator_v2.Value_Text{"APP"}},
+				"source_instance": {&loggregator_v2.Value_Text{"3"}},
+			},
 			Timestamp: time.Now().UnixNano(),
 			SourceId:  sourceId,
 			Message: &loggregator_v2.Envelope_Log{
@@ -73,6 +78,10 @@ func buildEnvelope(isLog bool, sourceId string) *loggregator_v2.Envelope {
 		}
 	}
 	return &loggregator_v2.Envelope{
+		Tags: map[string]*loggregator_v2.Value{
+			"source_type":     {&loggregator_v2.Value_Text{"APP"}},
+			"source_instance": {&loggregator_v2.Value_Text{"3"}},
+		},
 		Timestamp: time.Now().UnixNano(),
 		SourceId:  sourceId,
 		Message: &loggregator_v2.Envelope_Counter{

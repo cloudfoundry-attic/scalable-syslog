@@ -1,4 +1,4 @@
-package health_test
+package egress_test
 
 import (
 	"log"
@@ -9,9 +9,8 @@ import (
 	"testing"
 )
 
-//go:generate hel
-func TestHandlers(t *testing.T) {
+func TestEgress(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Adapter - Health - Handlers Suite")
+	RunSpecs(t, "Adapter - Egress Suite")
 }

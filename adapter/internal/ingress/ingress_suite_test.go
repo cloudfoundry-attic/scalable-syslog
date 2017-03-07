@@ -12,5 +12,5 @@ import (
 func TestIngress(t *testing.T) {
 	log.SetOutput(GinkgoWriter)
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Ingress Suite")
+	RunSpecs(t, "Adapter - Ingress Suite")
 }

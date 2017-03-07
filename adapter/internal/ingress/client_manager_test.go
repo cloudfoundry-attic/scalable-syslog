@@ -6,6 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/net/context"
+
+	"google.golang.org/grpc"
+
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
 	v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 
@@ -13,11 +17,11 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Consumer", func() {
+var _ = Describe("Client Manager", func() {
 	Context("After a period time", func() {
 		It("rolls the connections", func() {
 			mockConnector := NewMockConnector()
-			ingress.NewConsumer(mockConnector, 5, 10*time.Millisecond)
+			ingress.NewClientManager(mockConnector, 5, 10*time.Millisecond)
 
 			Eventually(func() int {
 				return mockConnector.GetSuccessfulConnections()
@@ -32,6 +36,34 @@ var _ = Describe("Consumer", func() {
 			}).Should(Equal(5))
 		})
 	})
+
+	Describe("Next()", func() {
+		It("returns a client", func() {
+			mockConnector := NewMockConnector()
+			cm := ingress.NewClientManager(mockConnector, 5, 10*time.Millisecond)
+
+			Eventually(func() int {
+				return mockConnector.GetSuccessfulConnections()
+			}).Should(Equal(5))
+
+			r1 := cm.Next()
+			r2 := cm.Next()
+
+			Expect(r1).ToNot(BeIdenticalTo(r2))
+		})
+
+		It("does not return a nil client", func() {
+			mockConnector := NewMockConnector()
+
+			for i := 0; i < 15; i++ {
+				mockConnector.connectErrors <- errors.New("an-error")
+			}
+			cm := ingress.NewClientManager(mockConnector, 5, 10*time.Millisecond)
+
+			r1 := cm.Next()
+			Expect(r1).ToNot(BeNil())
+		})
+	})
 })
 
 type MockConnector struct {
@@ -39,25 +71,28 @@ type MockConnector struct {
 	closeCalled           int
 	successfulConnections int
 	mu                    sync.Mutex
+	connectErrors         chan error
 }
 
 func NewMockConnector() *MockConnector {
-	return new(MockConnector)
+	return &MockConnector{
+		connectErrors: make(chan error, 100),
+	}
 }
 
-func (m *MockConnector) Connect() (io.Closer, v2.Egress_ReceiverClient, error) {
+func (m *MockConnector) Connect() (io.Closer, v2.EgressClient, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.connectCalled++
-
-	if m.connectCalled < 10 {
-		return nil, nil, errors.New("Getting client failed")
-	}
-
 	m.successfulConnections++
 
-	return m, nil, nil
+	var err error
+	if len(m.connectErrors) > 0 {
+		err = <-m.connectErrors
+	}
+
+	return m, new(MockReceiver), err
 }
 
 func (m *MockConnector) Close() error {
@@ -82,4 +117,12 @@ func (m *MockConnector) GetCloseCalled() int {
 	defer m.mu.Unlock()
 
 	return m.closeCalled
+}
+
+type MockReceiver struct {
+	n int
+}
+
+func (m *MockReceiver) Receiver(ctx context.Context, in *v2.EgressRequest, opts ...grpc.CallOption) (v2.Egress_ReceiverClient, error) {
+	return nil, nil
 }

@@ -7,6 +7,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/app"
 	"github.com/cloudfoundry-incubator/scalable-syslog/api"
@@ -26,6 +29,7 @@ var _ = Describe("Adapter", func() {
 		client             v1.AdapterClient
 		binding            *v1.Binding
 		egressServer       *MockEgressServer
+		syslogServer       *syslogTCPServer
 	)
 
 	BeforeEach(func() {
@@ -54,15 +58,17 @@ var _ = Describe("Adapter", func() {
 			tlsConfig,
 			app.WithHealthAddr("localhost:0"),
 			app.WithControllerAddr("localhost:0"),
-			app.WithLogsEgressAPIConnCount(5),
+			app.WithLogsEgressAPIConnCount(1),
 		)
 		adapterHealthAddr, adapterServiceHost = adapter.Start()
 
 		client = startAdapterClient(adapterServiceHost)
+		syslogServer = newSyslogTCPServer()
+
 		binding = &v1.Binding{
 			AppId:    "app-guid",
 			Hostname: "a-hostname",
-			Drain:    "a-drain",
+			Drain:    "syslog://" + syslogServer.Addr().String(),
 		}
 	})
 
@@ -111,7 +117,28 @@ var _ = Describe("Adapter", func() {
 		})
 		Expect(err).ToNot(HaveOccurred())
 
-		Eventually(egressServer.receiver).Should(HaveLen(5))
+		Eventually(egressServer.receiver).Should(HaveLen(1))
+	})
+
+	It("forwards logs from loggregator to a syslog drain", func() {
+		By("creating a binding", func() {
+			_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
+				Binding: binding,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(func() int { return syslogServer.msgCount }).Should(BeNumerically(">", 10))
+		})
+
+		By("deleting a binding", func() {
+			_, err := client.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
+				Binding: binding,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			currentCount := syslogServer.msgCount
+			Consistently(func() int { return syslogServer.msgCount }, "100ms").Should(BeNumerically("~", currentCount, 2))
+		})
 	})
 })
 
@@ -167,5 +194,85 @@ func NewMockEgressServer() *MockEgressServer {
 
 func (m *MockEgressServer) Receiver(req *v2.EgressRequest, receiver v2.Egress_ReceiverServer) error {
 	m.receiver <- receiver
+
+	for {
+		Expect(receiver.Send(buildLogEnvelope())).To(Succeed())
+		time.Sleep(time.Millisecond)
+	}
+
 	return nil
+}
+
+type syslogTCPServer struct {
+	lis       net.Listener
+	connCount uint64
+	mu        sync.Mutex
+	data      []byte
+	msgCount  int
+}
+
+func newSyslogTCPServer() *syslogTCPServer {
+	lis, err := net.Listen("tcp", ":0")
+	Expect(err).ToNot(HaveOccurred())
+	m := &syslogTCPServer{
+		lis: lis,
+	}
+	go m.accept()
+	return m
+}
+
+func (m *syslogTCPServer) accept() {
+	for {
+		conn, err := m.lis.Accept()
+		if err != nil {
+			return
+		}
+		atomic.AddUint64(&m.connCount, 1)
+		go m.handleConn(conn)
+	}
+}
+
+func (m *syslogTCPServer) handleConn(conn net.Conn) {
+	for {
+		buf := make([]byte, 1024)
+		_, err := conn.Read(buf)
+		if err != nil {
+			return
+		}
+		m.mu.Lock()
+		_ = buf
+		m.msgCount++
+		m.mu.Unlock()
+	}
+}
+
+func (m *syslogTCPServer) ConnCount() uint64 {
+	return atomic.LoadUint64(&m.connCount)
+}
+
+func (m *syslogTCPServer) RXData() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return string(m.data)
+}
+
+func (m *syslogTCPServer) Addr() net.Addr {
+	return m.lis.Addr()
+}
+
+func buildLogEnvelope() *v2.Envelope {
+	return &v2.Envelope{
+		Tags: map[string]*v2.Value{
+			"source_type":     {&v2.Value_Text{"APP"}},
+			"source_instance": {&v2.Value_Text{"2"}},
+		},
+		Timestamp: 12345678,
+		SourceId:  "app-guid",
+		Message: &v2.Envelope_Log{
+			Log: &v2.Log{
+				Payload: []byte("log"),
+				Type:    v2.Log_OUT,
+			},
+		},
+	}
 }
