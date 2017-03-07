@@ -127,7 +127,7 @@ var _ = Describe("Adapter", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func() int { return syslogServer.msgCount }).Should(BeNumerically(">", 10))
+			Eventually(syslogServer.MsgCount).Should(BeNumerically(">", 10))
 		})
 
 		By("deleting a binding", func() {
@@ -136,8 +136,8 @@ var _ = Describe("Adapter", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			currentCount := syslogServer.msgCount
-			Consistently(func() int { return syslogServer.msgCount }, "100ms").Should(BeNumerically("~", currentCount, 2))
+			currentCount := syslogServer.MsgCount()
+			Consistently(syslogServer.MsgCount, "100ms").Should(BeNumerically("~", currentCount, 2))
 		})
 	})
 })
@@ -208,7 +208,7 @@ type syslogTCPServer struct {
 	connCount uint64
 	mu        sync.Mutex
 	data      []byte
-	msgCount  int
+	msgCount  uint64
 }
 
 func newSyslogTCPServer() *syslogTCPServer {
@@ -241,13 +241,17 @@ func (m *syslogTCPServer) handleConn(conn net.Conn) {
 		}
 		m.mu.Lock()
 		_ = buf
-		m.msgCount++
+		atomic.AddUint64(&m.msgCount, 1)
 		m.mu.Unlock()
 	}
 }
 
 func (m *syslogTCPServer) ConnCount() uint64 {
 	return atomic.LoadUint64(&m.connCount)
+}
+
+func (m *syslogTCPServer) MsgCount() uint64 {
+	return atomic.LoadUint64(&m.msgCount)
 }
 
 func (m *syslogTCPServer) RXData() string {
