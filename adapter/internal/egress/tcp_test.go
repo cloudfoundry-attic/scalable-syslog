@@ -139,7 +139,7 @@ var _ = Describe("TCPWriter", func() {
 			env := buildLogEnvelope("APP", "2", "just a test", logType)
 			Expect(writer.Write(env)).To(Succeed())
 
-			expectedOutput := fmt.Sprintf("92 <%d>1 1969-12-31T17:00:00.012345678-07:00 test-hostname test-app-id [APP/2] - - just a test\n", expectedPriority)
+			expectedOutput := fmt.Sprintf("87 <%d>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [APP/2] - - just a test\n", expectedPriority)
 			Eventually(mockDrain.RXData).Should(Equal(expectedOutput))
 		},
 			Entry("stdout", loggregator_v2.Log_OUT, 14),
@@ -151,18 +151,18 @@ var _ = Describe("TCPWriter", func() {
 			env := buildLogEnvelope(sourceType, sourceInstance, "just a test", loggregator_v2.Log_OUT)
 			Expect(writer.Write(env)).To(Succeed())
 
-			expectedOutput := fmt.Sprintf("%d <14>1 1969-12-31T17:00:00.012345678-07:00 test-hostname test-app-id [%s] - - just a test\n", expectedLength, expectedProcessID)
+			expectedOutput := fmt.Sprintf("%d <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [%s] - - just a test\n", expectedLength, expectedProcessID)
 			Eventually(mockDrain.RXData).Should(Equal(expectedOutput))
 		},
-			Entry("app source type", "app/foo/bar", "26", "APP/FOO/BAR/26", 101),
-			Entry("other source type", "other", "1", "OTHER", 92),
+			Entry("app source type", "app/foo/bar", "26", "APP/FOO/BAR/26", 96),
+			Entry("other source type", "other", "1", "OTHER", 87),
 		)
 
 		It("strips null termination char from message", func() {
 			env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
 			Expect(writer.Write(env)).To(Succeed())
 
-			expectedOutput := fmt.Sprintf("98 <14>1 1969-12-31T17:00:00.012345678-07:00 test-hostname test-app-id [OTHER] - - no null `` please\n")
+			expectedOutput := fmt.Sprintf("93 <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [OTHER] - - no null `` please\n")
 			Eventually(mockDrain.RXData).Should(Equal(expectedOutput))
 		})
 

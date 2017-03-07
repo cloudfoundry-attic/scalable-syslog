@@ -104,7 +104,7 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 
 	msg := rfc5424.Message{
 		Priority:  generatePriority(env.GetLog().Type),
-		Timestamp: time.Unix(0, env.GetTimestamp()),
+		Timestamp: time.Unix(0, env.GetTimestamp()).UTC(),
 		Hostname:  w.hostname,
 		AppName:   w.appID,
 		ProcessID: generateProcessID(
