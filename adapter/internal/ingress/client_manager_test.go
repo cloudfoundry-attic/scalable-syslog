@@ -58,7 +58,7 @@ var _ = Describe("Client Manager", func() {
 			for i := 0; i < 15; i++ {
 				mockConnector.connectErrors <- errors.New("an-error")
 			}
-			cm := ingress.NewClientManager(mockConnector, 5, 10*time.Millisecond)
+			cm := ingress.NewClientManager(mockConnector, 5, 100*time.Millisecond)
 
 			r1 := cm.Next()
 			Expect(r1).ToNot(BeNil())
@@ -92,7 +92,7 @@ func (m *MockConnector) Connect() (io.Closer, v2.EgressClient, error) {
 		err = <-m.connectErrors
 	}
 
-	return m, new(MockReceiver), err
+	return m, &MockReceiver{}, err
 }
 
 func (m *MockConnector) Close() error {
