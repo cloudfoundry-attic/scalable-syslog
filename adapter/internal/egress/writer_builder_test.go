@@ -1,6 +1,8 @@
 package egress_test
 
 import (
+	"time"
+
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
@@ -25,6 +27,7 @@ var _ = Describe("WriterBuilder", func() {
 		close(mockDialer.DialOutput.Err)
 
 		builder = egress.NewWriterBuilder(
+			time.Second,
 			egress.WithTCPOptions(
 				egress.WithTCPDialer(mockDialer),
 			),

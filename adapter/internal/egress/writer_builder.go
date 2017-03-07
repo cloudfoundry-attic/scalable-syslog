@@ -3,6 +3,7 @@ package egress
 import (
 	"errors"
 	"net/url"
+	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
@@ -20,12 +21,15 @@ type WriteCloser interface {
 
 // WriterBuilder is builder for the various egress syslog writers.
 type WriterBuilder struct {
-	tcpOpts []TCPOption
+	ioTimeout time.Duration
+	tcpOpts   []TCPOption
 }
 
 // NewWriterBuilder returns a WriterBuilder configured with BuilderOpt(s).
-func NewWriterBuilder(opts ...BuilderOpt) *WriterBuilder {
-	w := new(WriterBuilder)
+func NewWriterBuilder(ioTimeout time.Duration, opts ...BuilderOpt) *WriterBuilder {
+	w := &WriterBuilder{
+		ioTimeout: ioTimeout,
+	}
 	for _, o := range opts {
 		o(w)
 	}
@@ -42,7 +46,7 @@ func (w *WriterBuilder) Build(b *v1.Binding) (WriteCloser, error) {
 
 	switch url.Scheme {
 	case "syslog":
-		return NewTCP(*url, b.AppId, b.Hostname, w.tcpOpts...)
+		return NewTCP(*url, b.AppId, b.Hostname, w.ioTimeout, w.tcpOpts...)
 	default:
 		return nil, errUnsupportedScheme
 	}

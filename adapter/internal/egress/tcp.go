@@ -23,10 +23,11 @@ type TCPWriter struct {
 	conn          net.Conn
 	dialer        Dialer
 	retryStrategy retrystrategy.RetryStrategy
+	ioTimeout     time.Duration
 }
 
 // NewTCP creates a new TCP syslog writer.
-func NewTCP(url url.URL, appID, hostname string, opts ...TCPOption) (*TCPWriter, error) {
+func NewTCP(url url.URL, appID, hostname string, ioTimeout time.Duration, opts ...TCPOption) (*TCPWriter, error) {
 	if url.Scheme != "syslog" {
 		return nil, errors.New("invalid scheme for syslog tcp writer")
 	}
@@ -37,6 +38,7 @@ func NewTCP(url url.URL, appID, hostname string, opts ...TCPOption) (*TCPWriter,
 		hostname:      hostname,
 		dialer:        &net.Dialer{},
 		retryStrategy: retrystrategy.Exponential(),
+		ioTimeout:     ioTimeout,
 	}
 	for _, o := range opts {
 		o(w)
@@ -112,6 +114,7 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 		Message: appendNewline(removeNulls(env.GetLog().Payload)),
 	}
 
+	w.conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
 	_, err := msg.WriteTo(w.conn)
 	if err != nil {
 		w.Close()

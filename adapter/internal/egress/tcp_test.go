@@ -24,7 +24,7 @@ var _ = Describe("TCPWriter", func() {
 			_, err := egress.NewTCP(url.URL{
 				Scheme: "https",
 				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname")
+			}, "test-app-id", "test-hostname", time.Second)
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -36,7 +36,9 @@ var _ = Describe("TCPWriter", func() {
 			_, err := egress.NewTCP(url.URL{
 				Scheme: "syslog",
 				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname", egress.WithTCPDialer(mockDialer))
+			}, "test-app-id", "test-hostname", time.Second,
+				egress.WithTCPDialer(mockDialer),
+			)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(mockDialer.DialInput.Network).To(Receive(Equal("tcp")))
@@ -48,6 +50,8 @@ var _ = Describe("TCPWriter", func() {
 			mockDialer := newMockDialer()
 			mockConn := newMockConn()
 			mockRetry := newMockStrategy()
+
+			close(mockConn.SetWriteDeadlineOutput.Ret0)
 
 			By("Inital dial succeeds")
 			mockDialer.DialOutput.Conn <- mockConn
@@ -71,7 +75,7 @@ var _ = Describe("TCPWriter", func() {
 			writer, err := egress.NewTCP(url.URL{
 				Scheme: "syslog",
 				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname",
+			}, "test-app-id", "test-hostname", time.Second,
 				egress.WithTCPDialer(mockDialer),
 				egress.WithRetryStrategy(mockRetry.retry),
 			)
@@ -88,6 +92,31 @@ var _ = Describe("TCPWriter", func() {
 			writer.Write(env)
 			Expect(mockConn.WriteCalled).To(Receive())
 		})
+
+		It("sets the write timeout", func() {
+			env := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
+			mockDialer := newMockDialer()
+			mockConn := newMockConn()
+
+			By("Inital dial succeeds")
+			mockDialer.DialOutput.Conn <- mockConn
+			close(mockDialer.DialOutput.Err)
+
+			close(mockConn.WriteOutput.N)
+			close(mockConn.WriteOutput.Err)
+			close(mockConn.SetWriteDeadlineOutput.Ret0)
+
+			writer, _ := egress.NewTCP(url.URL{
+				Scheme: "syslog",
+				Host:   "example.com:1234",
+			}, "test-app-id", "test-hostname", time.Second,
+				egress.WithTCPDialer(mockDialer),
+			)
+			writer.Write(env)
+			Expect(<-mockConn.SetWriteDeadlineInput.T).To(
+				BeTemporally("~", time.Now().Add(time.Second), time.Millisecond*100),
+			)
+		})
 	})
 
 	Describe("writing messages", func() {
@@ -102,7 +131,7 @@ var _ = Describe("TCPWriter", func() {
 			writer, err = egress.NewTCP(url.URL{
 				Scheme: "syslog",
 				Host:   mockDrain.Addr().String(),
-			}, "test-app-id", "test-hostname")
+			}, "test-app-id", "test-hostname", time.Second)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -150,13 +179,15 @@ var _ = Describe("TCPWriter", func() {
 			mockDialer := newMockDialer()
 			mockConn := newMockConn()
 
+			close(mockConn.SetWriteDeadlineOutput.Ret0)
+
 			mockDialer.DialOutput.Conn <- mockConn
 			mockDialer.DialOutput.Err <- nil
 
 			writer, err := egress.NewTCP(url.URL{
 				Scheme: "syslog",
 				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname",
+			}, "test-app-id", "test-hostname", time.Second,
 				egress.WithTCPDialer(mockDialer),
 			)
 			Expect(err).ToNot(HaveOccurred())
@@ -176,11 +207,12 @@ var _ = Describe("TCPWriter", func() {
 			close(mockConn.CloseOutput.Ret0)
 			close(mockConn.WriteOutput.N)
 			close(mockConn.WriteOutput.Err)
+			close(mockConn.SetWriteDeadlineOutput.Ret0)
 
 			writer, err := egress.NewTCP(url.URL{
 				Scheme: "syslog",
 				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname",
+			}, "test-app-id", "test-hostname", time.Second,
 				egress.WithTCPDialer(mockDialer),
 			)
 			Expect(err).ToNot(HaveOccurred())

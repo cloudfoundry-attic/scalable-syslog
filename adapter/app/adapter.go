@@ -26,6 +26,8 @@ type Adapter struct {
 	logsEgressAPIAddr      string
 	logsEgressAPITLSConfig *tls.Config
 	controllerTLSConfig    *tls.Config
+	syslogDialTimeout      time.Duration
+	syslogIOTimeout        time.Duration
 }
 
 // AdapterOption is a type that will manipulate a config
@@ -61,6 +63,22 @@ func WithLogsEgressAPIConnTTL(d int) func(*Adapter) {
 	}
 }
 
+// WithSyslogDialTimeout sets the TCP dial timeout for connecting to a syslog
+// drain
+func WithSyslogDialTimeout(d time.Duration) func(*Adapter) {
+	return func(a *Adapter) {
+		a.syslogDialTimeout = d
+	}
+}
+
+// WithSyslogIOTimeout sets the TCP IO timeout for writing to a syslog
+// drain
+func WithSyslogIOTimeout(d time.Duration) func(*Adapter) {
+	return func(a *Adapter) {
+		a.syslogIOTimeout = d
+	}
+}
+
 // NewAdapter returns an Adapter
 func NewAdapter(
 	logsEgressAPIAddr string,
@@ -76,6 +94,8 @@ func NewAdapter(
 		logsEgressAPIAddr:      logsEgressAPIAddr,
 		logsEgressAPITLSConfig: logsEgressAPITLSConfig,
 		controllerTLSConfig:    controllerTLSConfig,
+		syslogDialTimeout:      1 * time.Second,
+		syslogIOTimeout:        60 * time.Second,
 	}
 
 	for _, o := range opts {
@@ -96,8 +116,9 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 	)
 	clientManager := ingress.NewClientManager(connector, a.logsAPIConnCount, a.logsAPIConnTTL)
 	builder := egress.NewWriterBuilder(
+		a.syslogIOTimeout,
 		egress.WithTCPOptions(
-			egress.WithTCPDialer(&net.Dialer{Timeout: time.Second}),
+			egress.WithTCPDialer(&net.Dialer{Timeout: a.syslogDialTimeout}),
 		),
 	)
 	subscriber := ingress.NewSubscriber(clientManager, builder)
