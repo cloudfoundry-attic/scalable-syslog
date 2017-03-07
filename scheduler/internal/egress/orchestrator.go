@@ -14,10 +14,12 @@ type BindingReader interface {
 	FetchBindings() (appBindings ingress.AppBindings, err error)
 }
 
+type BindingList [][]*v1.Binding
+
 type AdapterService interface {
-	Create(actual [][]*v1.Binding, expected ingress.AppBindings)
-	DeleteAll(actual [][]*v1.Binding, expected ingress.AppBindings)
-	List() ([][]*v1.Binding, error)
+	Create(actual BindingList, expected ingress.AppBindings)
+	DeleteAll(actual BindingList, expected ingress.AppBindings)
+	List() (BindingList, error)
 }
 
 const maxWriteCount = 2

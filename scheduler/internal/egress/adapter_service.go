@@ -19,7 +19,7 @@ func NewAdapterService(p AdapterPool) *DefaultAdapterService {
 	}
 }
 
-func (d *DefaultAdapterService) Create(actual [][]*v1.Binding, expected ingress.AppBindings) {
+func (d *DefaultAdapterService) Create(actual BindingList, expected ingress.AppBindings) {
 	for appID, drainBinding := range expected {
 		for _, drain := range drainBinding.Drains {
 			b := &v1.Binding{
@@ -51,7 +51,7 @@ func (d *DefaultAdapterService) Create(actual [][]*v1.Binding, expected ingress.
 	}
 }
 
-func (d *DefaultAdapterService) DeleteAll(actual [][]*v1.Binding, expected ingress.AppBindings) {
+func (d *DefaultAdapterService) DeleteAll(actual BindingList, expected ingress.AppBindings) {
 	var toDelete []*v1.Binding
 	for _, adapterBindings := range actual {
 		for _, ab := range adapterBindings {
@@ -90,10 +90,10 @@ func exists(actual ingress.AppBindings, ab *v1.Binding) bool {
 	return false
 }
 
-func (d *DefaultAdapterService) List() ([][]*v1.Binding, error) {
+func (d *DefaultAdapterService) List() (BindingList, error) {
 	request := new(v1.ListBindingsRequest)
 
-	var bindings [][]*v1.Binding
+	var bindings BindingList
 	for _, client := range d.pool {
 		resp, err := client.ListBindings(context.Background(), request)
 		if err != nil {

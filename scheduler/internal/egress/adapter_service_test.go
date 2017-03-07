@@ -36,7 +36,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			Hostname: "org.space.app",
 			Drain:    "syslog://my-drain-url",
 		}
-		actual := [][]*v1.Binding{{binding}}
+		actual := egress.BindingList{{binding}}
 		expected := ingress.AppBindings{}
 
 		s := egress.NewAdapterService(egress.AdapterPool{client})
@@ -88,7 +88,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			client := &SpyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{client})
 
-			s.Create([][]*v1.Binding{}, ingress.AppBindings{"app-id": appBinding})
+			s.Create(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
 
 			Expect(client.createCalled()).To(Equal(true))
 			Expect(client.createBindingRequest()).To(Equal(
@@ -101,7 +101,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			secondClient := &SpyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{firstClient, secondClient})
 
-			s.Create([][]*v1.Binding{}, ingress.AppBindings{"app-id": appBinding})
+			s.Create(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
 
 			Expect(firstClient.createCalled()).To(Equal(true))
 			Expect(secondClient.createCalled()).To(Equal(true))
@@ -111,7 +111,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
 			s := egress.NewAdapterService(clients)
 
-			s.Create([][]*v1.Binding{}, ingress.AppBindings{"app-id": appBinding})
+			s.Create(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
 
 			createCalled := 0
 			for _, client := range clients {
@@ -126,7 +126,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
 			s := egress.NewAdapterService(clients)
 
-			s.Create([][]*v1.Binding{
+			s.Create(egress.BindingList{
 				{&v1.Binding{"app-id", "org.space.app", "syslog://my-drain-url"}},
 			}, ingress.AppBindings{"app-id": appBinding})
 
