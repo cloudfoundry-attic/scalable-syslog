@@ -20,12 +20,12 @@ func main() {
 	healthHostport := flag.String("health", ":8080", "The hostport to listen for health requests")
 	pprofHostport := flag.String("pprof", ":6060", "The hostport to listen for pprof")
 
-	apiURL := flag.String("cups-url", "", "The URL of the CUPS provider")
-	apiCAFile := flag.String("cups-ca", "", "The file path for the CA cert")
-	apiCertFile := flag.String("cups-cert", "", "The file path for the client cert")
-	apiKeyFile := flag.String("cups-key", "", "The file path for the client key")
-	apiCommonName := flag.String("cups-cn", "", "The common name used for the TLS config")
-	skipCertVerify := flag.Bool("cups-skip-cert-verify", false, "The option to allow insecure SSL connections")
+	apiURL := flag.String("api-url", "", "The URL of the CUPS provider")
+	apiCAFile := flag.String("api-ca", "", "The file path for the CA cert")
+	apiCertFile := flag.String("api-cert", "", "The file path for the client cert")
+	apiKeyFile := flag.String("api-key", "", "The file path for the client key")
+	apiCommonName := flag.String("api-cn", "", "The common name used for the TLS config")
+	skipCertVerify := flag.Bool("api-skip-cert-verify", false, "The option to allow insecure SSL connections")
 
 	caFile := flag.String("ca", "", "The file path for the CA cert")
 	certFile := flag.String("cert", "", "The file path for the adapter server cert")
