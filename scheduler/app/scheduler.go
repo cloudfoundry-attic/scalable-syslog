@@ -20,7 +20,7 @@ import (
 // and/or streaming events from the cloud controller about syslog drains and
 // updating a pool of adapters to service those drains.
 type Scheduler struct {
-	cupsURL          string
+	apiURL           string
 	adapterAddrs     []string
 	adapterTLSConfig *tls.Config
 
@@ -34,13 +34,13 @@ type Scheduler struct {
 
 // NewScheduler returns a new unstarted scheduler.
 func NewScheduler(
-	cupsURL string,
+	apiURL string,
 	adapterAddrs []string,
 	adapterTLSConfig *tls.Config,
 	opts ...SchedulerOption,
 ) *Scheduler {
 	s := &Scheduler{
-		cupsURL:          cupsURL,
+		apiURL:           apiURL,
 		adapterAddrs:     adapterAddrs,
 		adapterTLSConfig: adapterTLSConfig,
 		healthAddr:       ":8080",
@@ -63,21 +63,22 @@ func WithHealthAddr(addr string) func(*Scheduler) {
 	}
 }
 
-// WithHTTPClient sets the http.Client to poll the CUPS provider.
+// WithHTTPClient sets the http.Client to poll the syslog drain binding provider.
 func WithHTTPClient(client *http.Client) func(*Scheduler) {
 	return func(s *Scheduler) {
 		s.client = client
 	}
 }
 
-// WithPollingInterval sets the interval to poll the CUPS provider.
+// WithPollingInterval sets the interval to poll the syslog drain binding provider.
 func WithPollingInterval(interval time.Duration) func(*Scheduler) {
 	return func(s *Scheduler) {
 		s.interval = interval
 	}
 }
 
-// Start starts polling the CUPS provider and serves the HTTP health endpoint.
+// Start starts polling the syslog drain binding provider and serves the HTTP
+// health endpoint.
 func (s *Scheduler) Start() string {
 	s.setupIngress()
 	s.startEgress()
@@ -85,9 +86,9 @@ func (s *Scheduler) Start() string {
 }
 
 func (s *Scheduler) setupIngress() {
-	s.fetcher = ingress.NewVersionFilter(ingress.NewBindingFetcher(cupsHTTPClient{
+	s.fetcher = ingress.NewVersionFilter(ingress.NewBindingFetcher(APIClient{
 		client: s.client,
-		addr:   s.cupsURL,
+		addr:   s.apiURL,
 	}))
 }
 
@@ -123,11 +124,11 @@ func (s *Scheduler) serveHealth() string {
 	return lis.Addr().String()
 }
 
-type cupsHTTPClient struct {
+type APIClient struct {
 	client *http.Client
 	addr   string
 }
 
-func (w cupsHTTPClient) Get(nextID int) (*http.Response, error) {
+func (w APIClient) Get(nextID int) (*http.Response, error) {
 	return w.client.Get(fmt.Sprintf("%s?batch_size=50&next_id=%d", w.addr, nextID))
 }

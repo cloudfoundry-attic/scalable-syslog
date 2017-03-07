@@ -20,11 +20,11 @@ func main() {
 	healthHostport := flag.String("health", ":8080", "The hostport to listen for health requests")
 	pprofHostport := flag.String("pprof", ":6060", "The hostport to listen for pprof")
 
-	cupsProvider := flag.String("cups-url", "", "The URL of the CUPS provider")
-	cupsCAFile := flag.String("cups-ca", "", "The file path for the CA cert")
-	cupsCertFile := flag.String("cups-cert", "", "The file path for the client cert")
-	cupsKeyFile := flag.String("cups-key", "", "The file path for the client key")
-	cupsCommonName := flag.String("cups-cn", "", "The common name used for the TLS config")
+	apiURL := flag.String("cups-url", "", "The URL of the CUPS provider")
+	apiCAFile := flag.String("cups-ca", "", "The file path for the CA cert")
+	apiCertFile := flag.String("cups-cert", "", "The file path for the client cert")
+	apiKeyFile := flag.String("cups-key", "", "The file path for the client key")
+	apiCommonName := flag.String("cups-cn", "", "The common name used for the TLS config")
 	skipCertVerify := flag.Bool("cups-skip-cert-verify", false, "The option to allow insecure SSL connections")
 
 	caFile := flag.String("ca", "", "The file path for the CA cert")
@@ -42,11 +42,11 @@ func main() {
 		log.Fatalf("No adapter addresses: %s", err)
 	}
 
-	cupsTLSConfig, err := api.NewMutualTLSConfig(*cupsCertFile, *cupsKeyFile, *cupsCAFile, *cupsCommonName)
+	apiTLSConfig, err := api.NewMutualTLSConfig(*apiCertFile, *apiKeyFile, *apiCAFile, *apiCommonName)
 	if err != nil {
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
-	cupsTLSConfig.InsecureSkipVerify = *skipCertVerify
+	apiTLSConfig.InsecureSkipVerify = *skipCertVerify
 
 	adapterTLSConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *adapterCommonName)
 	if err != nil {
@@ -54,11 +54,11 @@ func main() {
 	}
 
 	scheduler := app.NewScheduler(
-		*cupsProvider,
+		*apiURL,
 		adapterAddrs,
 		adapterTLSConfig,
 		app.WithHealthAddr(*healthHostport),
-		app.WithHTTPClient(api.NewHTTPSClient(cupsTLSConfig, 5*time.Second)),
+		app.WithHTTPClient(api.NewHTTPSClient(apiTLSConfig, 5*time.Second)),
 	)
 	scheduler.Start()
 

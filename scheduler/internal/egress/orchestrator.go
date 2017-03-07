@@ -1,4 +1,4 @@
-// Package orchestrator orchestrates CUPS bindings to adapters.
+// Package orchestrator writes syslog drain bindings to adapters.
 package egress
 
 import (

@@ -20,7 +20,7 @@ type BindingFetcher struct {
 	drainCount int
 }
 
-// Binding reflects the JSON encoded output from the CUPS provider
+// Binding reflects the JSON encoded output from the syslog drain binding provider
 type Binding struct {
 	Drains   []string
 	Hostname string
@@ -28,7 +28,7 @@ type Binding struct {
 
 type AppBindings map[string]Binding
 
-type cupsResponse struct {
+type response struct {
 	Results AppBindings
 	NextID  int `json:"next_id"`
 }
@@ -40,7 +40,7 @@ func NewBindingFetcher(g Getter) *BindingFetcher {
 	}
 }
 
-// FetchBindings reaches out to the CUPS provider via the Getter and decodes
+// FetchBindings reaches out to the syslog drain binding provider via the Getter and decodes
 // the response. If it does not get a 200, it returns an error.
 func (f *BindingFetcher) FetchBindings() (AppBindings, error) {
 	drains := make(AppBindings)
@@ -54,7 +54,7 @@ func (f *BindingFetcher) FetchBindings() (AppBindings, error) {
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("received %d status code from CUPS provider", resp.StatusCode)
+			return nil, fmt.Errorf("received %d status code from syslog drain binding API", resp.StatusCode)
 		}
 
 		body, err := ioutil.ReadAll(resp.Body)
@@ -63,20 +63,20 @@ func (f *BindingFetcher) FetchBindings() (AppBindings, error) {
 		}
 		defer resp.Body.Close()
 
-		var cupsResp cupsResponse
-		if err = json.Unmarshal(body, &cupsResp); err != nil {
-			return nil, fmt.Errorf("invalid CUPS response body")
+		var r response
+		if err = json.Unmarshal(body, &r); err != nil {
+			return nil, fmt.Errorf("invalid API response body")
 		}
 
-		for appID, binding := range cupsResp.Results {
+		for appID, binding := range r.Results {
 			drains[appID] = binding
 			f.incrementDrainCount(len(binding.Drains))
 		}
 
-		if cupsResp.NextID == 0 {
+		if r.NextID == 0 {
 			return drains, nil
 		}
-		nextID = cupsResp.NextID
+		nextID = r.NextID
 	}
 }
 
