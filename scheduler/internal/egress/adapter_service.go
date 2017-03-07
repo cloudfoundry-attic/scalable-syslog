@@ -42,7 +42,7 @@ func (d *DefaultAdapterService) Create(actual BindingList, expected ingress.AppB
 				maxWriteCount-alreadyExist,
 			)
 
-			pool := d.pool.Sub(d.currentPoolIdx, maxWriteCount-alreadyExist)
+			pool := d.pool.Subset(d.currentPoolIdx, maxWriteCount-alreadyExist)
 			for _, client := range pool {
 				client.CreateBinding(context.Background(), request)
 			}

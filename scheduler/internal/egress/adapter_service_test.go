@@ -139,7 +139,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			Expect(createCalled).To(Equal(1))
 		})
 
-		It("doesn't write to -1", func() {
+		It("writes to two adapters for each drain binding only once", func() {
 			appBinding := ingress.Binding{
 				Drains:   []string{"syslog://my-drain-url", "syslog://another-drain"},
 				Hostname: "org.space.app",

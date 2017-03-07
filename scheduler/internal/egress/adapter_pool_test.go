@@ -33,26 +33,40 @@ var _ = Describe("AdapterPool", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
-	Context("Sub", func() {
+	Context("Subset", func() {
 		addr := "1.1.1.1"
 
-		It("returns subset of the pool", func() {
+		It("returns on client when one is in the pool", func() {
+			pool := egress.NewAdapterPool([]string{addr}, grpc.WithInsecure())
+			subset := pool.Subset(0, 1)
+
+			Expect(len(subset)).To(Equal(1))
+		})
+
+		It("returns two clients when two are in the pool", func() {
+			pool := egress.NewAdapterPool([]string{addr, addr}, grpc.WithInsecure())
+			subset := pool.Subset(0, 2)
+
+			Expect(len(subset)).To(Equal(2))
+		})
+
+		It("returns a subset of the pool when there are many", func() {
 			pool := egress.NewAdapterPool([]string{addr, addr, addr, addr}, grpc.WithInsecure())
-			subset := pool.Sub(1, 2)
+			subset := pool.Subset(1, 2)
 
 			Expect(len(subset)).To(Equal(2))
 		})
 
 		It("wraps back to the first index on overflow", func() {
 			pool := egress.NewAdapterPool([]string{addr, addr, addr}, grpc.WithInsecure())
-			subset := pool.Sub(1, 3)
+			subset := pool.Subset(1, 3)
 
 			Expect(len(subset)).To(Equal(3))
 		})
 
 		It("returns all clients when more are requested than available", func() {
 			pool := egress.NewAdapterPool([]string{addr, addr}, grpc.WithInsecure())
-			subset := pool.Sub(0, 3)
+			subset := pool.Subset(0, 3)
 
 			Expect(len(subset)).To(Equal(2))
 		})

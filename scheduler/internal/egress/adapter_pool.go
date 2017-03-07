@@ -28,7 +28,7 @@ func NewAdapterPool(addrs []string, opts ...grpc.DialOption) AdapterPool {
 	return pool
 }
 
-func (a AdapterPool) Sub(index, count int) AdapterPool {
+func (a AdapterPool) Subset(index, count int) AdapterPool {
 	var pool AdapterPool
 
 	if len(a) < count {
@@ -39,8 +39,7 @@ func (a AdapterPool) Sub(index, count int) AdapterPool {
 		missing := (index + count) - len(a)
 
 		pool = a[index:]
-		pool = append(pool, a[0:missing]...)
-		return pool
+		return append(pool, a[0:missing]...)
 	}
 
 	return a[index : index+count]
