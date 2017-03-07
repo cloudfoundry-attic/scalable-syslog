@@ -9,6 +9,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/bindingmanager"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/controller"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/health"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
@@ -88,18 +89,23 @@ func NewAdapter(
 func (a *Adapter) Start() (actualHealth, actualService string) {
 	log.Print("Starting adapter...")
 
-	manager := bindingmanager.New()
-
-	actualHealth = startHealthServer(a.healthAddr, manager)
-	creds := credentials.NewTLS(a.controllerTLSConfig)
-	actualService = startAdapterService(a.controllerAddr, creds, manager)
-
 	balancer := ingress.NewBalancer(a.logsEgressAPIAddr)
 	connector := ingress.NewConnector(
 		balancer,
 		grpc.WithTransportCredentials(credentials.NewTLS(a.logsEgressAPITLSConfig)),
 	)
-	ingress.NewConsumer(connector, a.logsAPIConnCount, a.logsAPIConnTTL)
+	clientManager := ingress.NewClientManager(connector, a.logsAPIConnCount, a.logsAPIConnTTL)
+	builder := egress.NewWriterBuilder(
+		egress.WithTCPOptions(
+			egress.WithTCPDialer(&net.Dialer{Timeout: time.Second}),
+		),
+	)
+	subscriber := ingress.NewSubscriber(clientManager, builder)
+	manager := bindingmanager.New(subscriber)
+
+	actualHealth = startHealthServer(a.healthAddr, manager)
+	creds := credentials.NewTLS(a.controllerTLSConfig)
+	actualService = startAdapterService(a.controllerAddr, creds, manager)
 
 	return actualHealth, actualService
 }

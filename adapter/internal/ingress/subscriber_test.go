@@ -118,6 +118,41 @@ var _ = Describe("Subscriber", func() {
 
 		Eventually(closeWriter.writes).Should(HaveLen(4))
 	})
+
+	It("closes all connections when the unsubscribe func is called", func() {
+		closeWriter := newSpyCloseWriter()
+		writerBuilder.BuildOutput.Cw <- closeWriter
+		writerBuilder.BuildOutput.Cw <- closeWriter
+		close(writerBuilder.BuildOutput.Err)
+
+		client := newMockEgressClient()
+		mockClientPool.NextOutput.Client <- client
+		mockClientPool.NextOutput.Client <- client
+
+		receiverClient := newMockReceiverClient()
+		client.ReceiverOutput.Ret0 <- receiverClient
+		client.ReceiverOutput.Ret0 <- receiverClient
+		close(client.ReceiverOutput.Ret1)
+		close(receiverClient.CloseSendOutput.Ret0)
+
+		unsubscribeFn := subscriber.Start(binding)
+
+		Eventually(mockClientPool.NextCalled).Should(Receive())
+
+		close(receiverClient.RecvOutput.Ret1)
+		go func() {
+			for {
+				receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
+			}
+		}()
+
+		unsubscribeFn()
+
+		Eventually(receiverClient.CloseSendCalled).Should(Receive())
+		Eventually(closeWriter.closes).Should(Receive())
+
+		Consistently(mockClientPool.NextCalled).ShouldNot(Receive())
+	})
 })
 
 type spyCloseWriter struct {

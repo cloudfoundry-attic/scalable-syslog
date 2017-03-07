@@ -20,16 +20,6 @@ import (
 
 var _ = Describe("TCPWriter", func() {
 	Describe("connecting to drain", func() {
-		It("establishes connection to TCP drain", func() {
-			mockDrain := newMockTCPDrain()
-			_, err := egress.NewTCP(url.URL{
-				Scheme: "syslog",
-				Host:   mockDrain.Addr().String(),
-			}, "test-app-id", "test-hostname")
-			Expect(err).ToNot(HaveOccurred())
-			Eventually(mockDrain.ConnCount).Should(Equal(uint64(1)))
-		})
-
 		It("does not accept schemes other than syslog", func() {
 			_, err := egress.NewTCP(url.URL{
 				Scheme: "https",

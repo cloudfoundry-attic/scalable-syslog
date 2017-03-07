@@ -57,6 +57,7 @@ func (w *TCPWriter) connect() {
 			retryCount++
 			continue
 		}
+		log.Printf("created conn to syslog drain: %s", w.url.Host)
 		w.conn = conn
 		return
 	}
@@ -110,6 +111,7 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 		),
 		Message: appendNewline(removeNulls(env.GetLog().Payload)),
 	}
+
 	_, err := msg.WriteTo(w.conn)
 	if err != nil {
 		w.Close()
