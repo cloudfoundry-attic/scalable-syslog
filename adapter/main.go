@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net"
+	"time"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -27,6 +28,9 @@ func main() {
 	rlpKeyFile := flag.String("rlp-key", "", "The file path for the adapter RLP client key")
 	rlpCommonName := flag.String("rlp-cn", "", "The common name for the Loggregator egress API")
 
+	syslogDialTimeout := flag.Duration("syslog-dial-timeout", time.Second, "The timeout for dialing to syslog drains")
+	syslogIOTimeout := flag.Duration("syslog-io-timeout", 60*time.Second, "The timeout for writing to syslog drains")
+
 	logsApiAddr := flag.String("logs-api-addr", "", "The address for the logs API")
 	flag.Parse()
 
@@ -46,6 +50,8 @@ func main() {
 		tlsConfig,
 		app.WithHealthAddr(*healthHostport),
 		app.WithControllerAddr(*adapterHostport),
+		app.WithSyslogDialTimeout(*syslogDialTimeout),
+		app.WithSyslogIOTimeout(*syslogIOTimeout),
 	)
 	adapter.Start()
 
