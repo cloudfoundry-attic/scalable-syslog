@@ -12,12 +12,13 @@ import (
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress/retrystrategy"
 	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/crewjam/rfc5424"
 )
 
 // TCPWriter represents a syslog writer that connects over unencrypted TCP.
 type TCPWriter struct {
-	url           url.URL
+	url           *url.URL
 	appID         string
 	hostname      string
 	conn          net.Conn
@@ -26,17 +27,23 @@ type TCPWriter struct {
 	ioTimeout     time.Duration
 }
 
-// NewTCP creates a new TCP syslog writer.
-func NewTCP(url url.URL, appID, hostname string, ioTimeout time.Duration, opts ...TCPOption) (*TCPWriter, error) {
-	if url.Scheme != "syslog" {
+// NewTCPWriter creates a new TCP syslog writer.
+func NewTCPWriter(binding *v1.Binding, ioTimeout time.Duration, opts ...TCPOption) (*TCPWriter, error) {
+	drainURL, err := url.Parse(binding.Drain)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: need to also support TLS
+	if drainURL.Scheme != "syslog" {
 		return nil, errors.New("invalid scheme for syslog tcp writer")
 	}
 
 	defaultDialer := net.Dialer{}
 	w := &TCPWriter{
-		url:      url,
-		appID:    appID,
-		hostname: hostname,
+		url:      drainURL,
+		appID:    binding.AppId,
+		hostname: binding.Hostname,
 		dialFunc: func(addr string) (net.Conn, error) {
 			return defaultDialer.Dial("tcp", addr)
 		},

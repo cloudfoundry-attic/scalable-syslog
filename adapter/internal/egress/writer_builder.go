@@ -48,7 +48,7 @@ func (w *WriterBuilder) Build(b *v1.Binding) (WriteCloser, error) {
 
 	switch url.Scheme {
 	case "syslog":
-		return NewTCP(*url, b.AppId, b.Hostname, w.ioTimeout, w.tcpOpts...)
+		return NewTCPWriter(b, w.ioTimeout, w.tcpOpts...)
 	case "https":
 		return NewHTTPS(b, w.skipCertVerify)
 	default:

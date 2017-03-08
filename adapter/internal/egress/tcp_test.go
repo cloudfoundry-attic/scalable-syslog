@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/url"
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
+
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -18,10 +19,14 @@ import (
 var _ = Describe("TCPWriter", func() {
 	Describe("NewTCPWriter()", func() {
 		It("does not accept schemes other than syslog", func() {
-			_, err := egress.NewTCP(url.URL{
-				Scheme: "https",
-				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname", time.Second)
+			_, err := egress.NewTCPWriter(
+				&v1.Binding{
+					AppId:    "test-app-id",
+					Hostname: "test-hostname",
+					Drain:    "https://example.com:1234",
+				},
+				time.Second,
+			)
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -32,10 +37,13 @@ var _ = Describe("TCPWriter", func() {
 				return &SpyConn{}, nil
 			}
 
-			_, err := egress.NewTCP(url.URL{
-				Scheme: "syslog",
-				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname", time.Second,
+			_, err := egress.NewTCPWriter(
+				&v1.Binding{
+					AppId:    "test-app-id",
+					Hostname: "test-hostname",
+					Drain:    "syslog://example.com:1234",
+				},
+				time.Second,
 				egress.WithDialFunc(dialFunc),
 			)
 			Expect(err).ToNot(HaveOccurred())
@@ -59,10 +67,13 @@ var _ = Describe("TCPWriter", func() {
 				return spyConn, nil
 			}
 
-			writer, err := egress.NewTCP(url.URL{
-				Scheme: "syslog",
-				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname", time.Second,
+			writer, err := egress.NewTCPWriter(
+				&v1.Binding{
+					AppId:    "test-app-id",
+					Hostname: "test-hostname",
+					Drain:    "syslog://example.com:1234",
+				},
+				time.Second,
 				egress.WithDialFunc(dialFunc),
 				egress.WithRetryStrategy(spyStrategy.retry),
 			)
@@ -89,10 +100,13 @@ var _ = Describe("TCPWriter", func() {
 				return spyConn, nil
 			}
 
-			writer, _ := egress.NewTCP(url.URL{
-				Scheme: "syslog",
-				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname", time.Second,
+			writer, _ := egress.NewTCPWriter(
+				&v1.Binding{
+					AppId:    "test-app-id",
+					Hostname: "test-hostname",
+					Drain:    "syslog://example.com:1234",
+				},
+				time.Second,
 				egress.WithDialFunc(dialFunc),
 			)
 			err := writer.Write(env)
@@ -116,10 +130,13 @@ var _ = Describe("TCPWriter", func() {
 			}
 
 			var err error
-			writer, err = egress.NewTCP(url.URL{
-				Scheme: "syslog",
-				Host:   "test-host",
-			}, "test-app-id", "test-hostname", time.Second,
+			writer, err = egress.NewTCPWriter(
+				&v1.Binding{
+					AppId:    "test-app-id",
+					Hostname: "test-hostname",
+					Drain:    "syslog://example.com:1234",
+				},
+				time.Second,
 				egress.WithDialFunc(dialFunc))
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -169,10 +186,13 @@ var _ = Describe("TCPWriter", func() {
 				return spyConn, nil
 			}
 
-			writer, err := egress.NewTCP(url.URL{
-				Scheme: "syslog",
-				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname", time.Second,
+			writer, err := egress.NewTCPWriter(
+				&v1.Binding{
+					AppId:    "test-app-id",
+					Hostname: "test-hostname",
+					Drain:    "syslog://example.com:1234",
+				},
+				time.Second,
 				egress.WithDialFunc(dialFunc),
 			)
 			Expect(err).ToNot(HaveOccurred())
@@ -187,10 +207,13 @@ var _ = Describe("TCPWriter", func() {
 				return spyConn, nil
 			}
 
-			writer, err := egress.NewTCP(url.URL{
-				Scheme: "syslog",
-				Host:   "example.com:1234",
-			}, "test-app-id", "test-hostname", time.Second,
+			writer, err := egress.NewTCPWriter(
+				&v1.Binding{
+					AppId:    "test-app-id",
+					Hostname: "test-hostname",
+					Drain:    "syslog://example.com:1234",
+				},
+				time.Second,
 				egress.WithDialFunc(dialFunc),
 			)
 			Expect(err).ToNot(HaveOccurred())
