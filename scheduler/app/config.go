@@ -1,4 +1,4 @@
-package config
+package app
 
 import (
 	"errors"
@@ -27,7 +27,7 @@ type Config struct {
 	AdapterAddrs      []string
 }
 
-func Load() *Config {
+func LoadConfig() *Config {
 	var cfg Config
 
 	flag.StringVar(&cfg.HealthHostport, "health", ":8080", "The hostport to listen for health requests")

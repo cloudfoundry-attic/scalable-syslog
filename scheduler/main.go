@@ -10,11 +10,10 @@ import (
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/api"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/config"
 )
 
 func main() {
-	cfg := config.Load()
+	cfg := app.LoadConfig()
 
 	apiTLSConfig, err := api.NewMutualTLSConfig(
 		cfg.APICertFile,
