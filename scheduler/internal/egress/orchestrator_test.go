@@ -27,7 +27,6 @@ var _ = Describe("Orchestrator", func() {
 
 		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}))
 		go o.Run(1 * time.Millisecond)
-		defer o.Stop()
 
 		Eventually(client.createBindingRequest, 2).Should(Equal(
 			&v1.CreateBindingRequest{
@@ -48,7 +47,6 @@ var _ = Describe("Orchestrator", func() {
 
 		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}))
 		go o.Run(1 * time.Millisecond)
-		defer o.Stop()
 
 		Consistently(client.createBindingRequest).Should(BeNil())
 	})
@@ -81,7 +79,6 @@ var _ = Describe("Orchestrator", func() {
 
 		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}))
 		go o.Run(1 * time.Millisecond)
-		defer o.Stop()
 
 		Eventually(client.deleteBindingRequest, 2).Should(Equal(
 			&v1.DeleteBindingRequest{

@@ -14,8 +14,8 @@ type BindingReader interface {
 }
 
 type AdapterService interface {
-	Create(actual BindingList, expected ingress.AppBindings)
-	DeleteAll(actual BindingList, expected ingress.AppBindings)
+	CreateDelta(actual BindingList, expected ingress.AppBindings)
+	DeleteDelta(actual BindingList, expected ingress.AppBindings)
 	List() (BindingList, error)
 }
 
@@ -24,7 +24,6 @@ type Orchestrator struct {
 	reader  BindingReader
 	service AdapterService
 	once    sync.Once
-	done    chan bool
 }
 
 // NewOrchestrator creates a new orchestrator.
@@ -32,37 +31,25 @@ func NewOrchestrator(r BindingReader, s AdapterService) *Orchestrator {
 	return &Orchestrator{
 		reader:  r,
 		service: s,
-		done:    make(chan bool),
 	}
 }
 
 // Run starts the orchestrator.
 func (o *Orchestrator) Run(interval time.Duration) {
-	for {
-		select {
-		case <-time.Tick(interval):
-			expected, err := o.reader.FetchBindings()
-			if err != nil {
-				log.Printf("fetch bindings failed with error: %s", err)
-				continue
-			}
-
-			actual, err := o.service.List()
-			if err != nil {
-				log.Printf("failed to get actual bindings: %s", err)
-				continue
-			}
-
-			o.service.DeleteAll(actual, expected)
-			o.service.Create(actual, expected)
-		case <-o.done:
-			return
+	for range time.Tick(interval) {
+		expected, err := o.reader.FetchBindings()
+		if err != nil {
+			log.Printf("fetch bindings failed with error: %s", err)
+			continue
 		}
-	}
-}
 
-func (o *Orchestrator) Stop() {
-	o.once.Do(func() {
-		o.done <- true
-	})
+		actual, err := o.service.List()
+		if err != nil {
+			log.Printf("failed to get actual bindings: %s", err)
+			continue
+		}
+
+		o.service.DeleteDelta(actual, expected)
+		o.service.CreateDelta(actual, expected)
+	}
 }

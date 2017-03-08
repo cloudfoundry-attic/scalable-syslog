@@ -41,7 +41,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 		s := egress.NewAdapterService(egress.AdapterPool{client})
 
-		s.DeleteAll(actual, expected)
+		s.DeleteDelta(actual, expected)
 
 		Expect(client.deleteBindingRequest()).To(Equal(
 			&v1.DeleteBindingRequest{Binding: toDelete},
@@ -88,7 +88,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			client := &SpyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{client})
 
-			s.Create(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
+			s.CreateDelta(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
 
 			Expect(client.createCalled()).To(Equal(1))
 			Expect(client.createBindingRequest()).To(Equal(
@@ -101,7 +101,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			secondClient := &SpyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{firstClient, secondClient})
 
-			s.Create(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
+			s.CreateDelta(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
 
 			Expect(firstClient.createCalled()).To(Equal(1))
 			Expect(secondClient.createCalled()).To(Equal(1))
@@ -111,7 +111,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
 			s := egress.NewAdapterService(clients)
 
-			s.Create(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
+			s.CreateDelta(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
 
 			createCalled := 0
 			for _, client := range clients {
@@ -126,7 +126,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
 			s := egress.NewAdapterService(clients)
 
-			s.Create(egress.BindingList{
+			s.CreateDelta(egress.BindingList{
 				{&v1.Binding{"app-id", "org.space.app", "syslog://my-drain-url"}},
 			}, ingress.AppBindings{"app-id": appBinding})
 
@@ -148,7 +148,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}}
 			s := egress.NewAdapterService(clients)
 
-			s.Create(
+			s.CreateDelta(
 				egress.BindingList{},
 				ingress.AppBindings{"app-id": appBinding},
 			)
@@ -159,7 +159,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			}
 			Expect(createCalled).To(Equal(4))
 
-			s.Create(
+			s.CreateDelta(
 				egress.BindingList{
 					{
 						&v1.Binding{"app-id", "org.space.app", "syslog://my-drain-url"},

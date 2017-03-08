@@ -23,7 +23,7 @@ func NewAdapterService(p AdapterPool) *DefaultAdapterService {
 	}
 }
 
-func (d *DefaultAdapterService) Create(actual BindingList, expected ingress.AppBindings) {
+func (d *DefaultAdapterService) CreateDelta(actual BindingList, expected ingress.AppBindings) {
 	for appID, drainBinding := range expected {
 		for _, drainURL := range drainBinding.Drains {
 			log.Printf("drain=%#v", drainURL)
@@ -55,7 +55,7 @@ func (d *DefaultAdapterService) Create(actual BindingList, expected ingress.AppB
 	}
 }
 
-func (d *DefaultAdapterService) DeleteAll(actual BindingList, expected ingress.AppBindings) {
+func (d *DefaultAdapterService) DeleteDelta(actual BindingList, expected ingress.AppBindings) {
 	var toDelete []*v1.Binding
 	for _, adapterBindings := range actual {
 		for _, ab := range adapterBindings {
