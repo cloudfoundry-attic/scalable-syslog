@@ -26,7 +26,7 @@ func main() {
 	}
 
 	rlpTlsConfig, err := api.NewMutualTLSConfig(
-		cfg.RLPCAFile,
+		cfg.RLPCertFile,
 		cfg.RLPKeyFile,
 		cfg.RLPCAFile,
 		cfg.RLPCommonName,
