@@ -1,9 +1,7 @@
 package main
 
 import (
-	"flag"
 	"log"
-	"math/rand"
 	"net"
 	"time"
 
@@ -12,57 +10,43 @@ import (
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/api"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/config"
 )
 
 func main() {
-	rand.Seed(time.Now().Unix())
+	cfg := config.Load()
 
-	healthHostport := flag.String("health", ":8080", "The hostport to listen for health requests")
-	pprofHostport := flag.String("pprof", ":6060", "The hostport to listen for pprof")
-
-	apiURL := flag.String("api-url", "", "The URL of the CUPS provider")
-	apiCAFile := flag.String("api-ca", "", "The file path for the CA cert")
-	apiCertFile := flag.String("api-cert", "", "The file path for the client cert")
-	apiKeyFile := flag.String("api-key", "", "The file path for the client key")
-	apiCommonName := flag.String("api-cn", "", "The common name used for the TLS config")
-	skipCertVerify := flag.Bool("api-skip-cert-verify", false, "The option to allow insecure SSL connections")
-
-	caFile := flag.String("ca", "", "The file path for the CA cert")
-	certFile := flag.String("cert", "", "The file path for the adapter server cert")
-	keyFile := flag.String("key", "", "The file path for the adapter server key")
-
-	adapterCommonName := flag.String("adapter-cn", "", "The common name used for the TLS config")
-	adapterIPs := flag.String("adapter-ips", "", "Comma separated list of adapter IP addresses")
-	adapterPort := flag.String("adapter-port", "", "The port of the adapter API")
-
-	flag.Parse()
-
-	adapterAddrs, err := app.ParseAddrs(*adapterIPs, *adapterPort)
-	if err != nil {
-		log.Fatalf("No adapter addresses: %s", err)
-	}
-
-	apiTLSConfig, err := api.NewMutualTLSConfig(*apiCertFile, *apiKeyFile, *apiCAFile, *apiCommonName)
+	apiTLSConfig, err := api.NewMutualTLSConfig(
+		cfg.APICertFile,
+		cfg.APIKeyFile,
+		cfg.APICAFile,
+		cfg.APICommonName,
+	)
 	if err != nil {
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
-	apiTLSConfig.InsecureSkipVerify = *skipCertVerify
+	apiTLSConfig.InsecureSkipVerify = cfg.APISkipCertVerify
 
-	adapterTLSConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *adapterCommonName)
+	adapterTLSConfig, err := api.NewMutualTLSConfig(
+		cfg.CertFile,
+		cfg.KeyFile,
+		cfg.CAFile,
+		cfg.AdapterCommonName,
+	)
 	if err != nil {
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
 
 	scheduler := app.NewScheduler(
-		*apiURL,
-		adapterAddrs,
+		cfg.APIURL,
+		cfg.AdapterAddrs,
 		adapterTLSConfig,
-		app.WithHealthAddr(*healthHostport),
+		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithHTTPClient(api.NewHTTPSClient(apiTLSConfig, 5*time.Second)),
 	)
 	scheduler.Start()
 
-	lis, err := net.Listen("tcp", *pprofHostport)
+	lis, err := net.Listen("tcp", cfg.PprofHostport)
 	if err != nil {
 		log.Printf("Error creating pprof listener: %s", err)
 	}
