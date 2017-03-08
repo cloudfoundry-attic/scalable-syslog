@@ -1,6 +1,7 @@
 package egress_test
 
 import (
+	"net"
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
@@ -13,9 +14,8 @@ import (
 
 var _ = Describe("WriterBuilder", func() {
 	var (
-		builder    *egress.WriterBuilder
-		binding    *v1.Binding
-		mockDialer *mockDialer
+		builder *egress.WriterBuilder
+		binding *v1.Binding
 	)
 
 	BeforeEach(func() {
@@ -23,15 +23,14 @@ var _ = Describe("WriterBuilder", func() {
 			AppId:    "app-id",
 			Hostname: "host-name",
 		}
-		mockDialer = newMockDialer()
-		close(mockDialer.DialOutput.Conn)
-		close(mockDialer.DialOutput.Err)
 
 		builder = egress.NewWriterBuilder(
 			time.Second,
 			true,
 			egress.WithTCPOptions(
-				egress.WithTCPDialer(mockDialer),
+				egress.WithDialFunc(func(a string) (net.Conn, error) {
+					return nil, nil
+				}),
 			),
 		)
 	})

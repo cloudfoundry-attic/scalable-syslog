@@ -125,11 +125,14 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 		grpc.WithTransportCredentials(credentials.NewTLS(a.logsEgressAPITLSConfig)),
 	)
 	clientManager := ingress.NewClientManager(connector, a.logsAPIConnCount, a.logsAPIConnTTL)
+	dialer := &net.Dialer{Timeout: a.syslogDialTimeout}
 	builder := egress.NewWriterBuilder(
 		a.syslogIOTimeout,
 		a.skipCertVerify,
 		egress.WithTCPOptions(
-			egress.WithTCPDialer(&net.Dialer{Timeout: a.syslogDialTimeout}),
+			egress.WithDialFunc(func(addr string) (net.Conn, error) {
+				return dialer.Dial("tcp", addr)
+			}),
 		),
 	)
 	subscriber := ingress.NewSubscriber(clientManager, builder)

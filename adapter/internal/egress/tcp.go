@@ -21,7 +21,7 @@ type TCPWriter struct {
 	appID         string
 	hostname      string
 	conn          net.Conn
-	dialer        Dialer
+	dialFunc      DialFunc
 	retryStrategy retrystrategy.RetryStrategy
 	ioTimeout     time.Duration
 }
@@ -32,11 +32,14 @@ func NewTCP(url url.URL, appID, hostname string, ioTimeout time.Duration, opts .
 		return nil, errors.New("invalid scheme for syslog tcp writer")
 	}
 
+	defaultDialer := net.Dialer{}
 	w := &TCPWriter{
-		url:           url,
-		appID:         appID,
-		hostname:      hostname,
-		dialer:        &net.Dialer{},
+		url:      url,
+		appID:    appID,
+		hostname: hostname,
+		dialFunc: func(addr string) (net.Conn, error) {
+			return defaultDialer.Dial("tcp", addr)
+		},
 		retryStrategy: retrystrategy.Exponential(),
 		ioTimeout:     ioTimeout,
 	}
@@ -51,7 +54,7 @@ func NewTCP(url url.URL, appID, hostname string, ioTimeout time.Duration, opts .
 func (w *TCPWriter) connect() {
 	var retryCount int
 	for {
-		conn, err := w.dialer.Dial("tcp", w.url.Host)
+		conn, err := w.dialFunc(w.url.Host)
 		if err != nil {
 			duration := w.retryStrategy(retryCount)
 			log.Printf("failed to connect to %s, retrying in %s: %s", w.url.Host, duration, err)
@@ -59,6 +62,7 @@ func (w *TCPWriter) connect() {
 			retryCount++
 			continue
 		}
+
 		log.Printf("created conn to syslog drain: %s", w.url.Host)
 		w.conn = conn
 		return
@@ -68,10 +72,13 @@ func (w *TCPWriter) connect() {
 // TCPOption configures a TCPWriter.
 type TCPOption func(*TCPWriter)
 
-// WithTCPDialer overrides the default net.Dialer used for establishing conns.
-func WithTCPDialer(d Dialer) TCPOption {
+// DialFunc dials up and returns a new connection.
+type DialFunc func(addr string) (net.Conn, error)
+
+// WithDialFunc overrides the default DialFunc used for establishing conns.
+func WithDialFunc(df DialFunc) TCPOption {
 	return func(w *TCPWriter) {
-		w.dialer = d
+		w.dialFunc = df
 	}
 }
 
@@ -118,9 +125,10 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 	_, err := msg.WriteTo(w.conn)
 	if err != nil {
 		w.Close()
+		// TODO: spawn this in a goroutine
 		w.connect()
+		return err
 	}
-
 	return nil
 }
 
