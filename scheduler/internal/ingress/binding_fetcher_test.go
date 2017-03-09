@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
 var _ = Describe("BindingFetcher", func() {

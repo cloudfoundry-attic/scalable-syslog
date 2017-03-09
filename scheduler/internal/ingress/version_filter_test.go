@@ -3,9 +3,9 @@ package ingress_test
 import (
 	"errors"
 
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
 var _ = Describe("VersionFilter", func() {
