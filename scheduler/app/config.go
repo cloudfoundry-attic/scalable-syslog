@@ -10,22 +10,21 @@ import (
 )
 
 type Config struct {
-	HealthHostport       string
-	PprofHostport        string
-	APIURL               string
-	APICAFile            string
-	APICertFile          string
-	APIKeyFile           string
-	APICommonName        string
-	APISkipCertVerify    bool
-	SyslogSkipCertVerify bool
-	CAFile               string
-	CertFile             string
-	KeyFile              string
-	AdapterCommonName    string
-	AdapterIPs           string
-	AdapterPort          string
-	AdapterAddrs         []string
+	HealthHostport    string
+	PprofHostport     string
+	APIURL            string
+	APICAFile         string
+	APICertFile       string
+	APIKeyFile        string
+	APICommonName     string
+	APISkipCertVerify bool
+	CAFile            string
+	CertFile          string
+	KeyFile           string
+	AdapterCommonName string
+	AdapterIPs        string
+	AdapterPort       string
+	AdapterAddrs      []string
 }
 
 func LoadConfig() *Config {
@@ -48,8 +47,6 @@ func LoadConfig() *Config {
 	flag.StringVar(&cfg.AdapterCommonName, "adapter-cn", "", "The common name used for the TLS config")
 	flag.StringVar(&cfg.AdapterPort, "adapter-port", "", "The port of the adapter API")
 	flag.StringVar(&cfg.AdapterIPs, "adapter-ips", "", "Comma separated list of adapter IP addresses")
-
-	flag.BoolVar(&cfg.SyslogSkipCertVerify, "syslog-skip-cert-verify", true, "The option to not verify syslog TLS certs")
 
 	flag.Parse()
 

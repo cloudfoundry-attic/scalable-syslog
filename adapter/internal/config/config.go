@@ -8,20 +8,21 @@ import (
 )
 
 type Config struct {
-	HealthHostport    string
-	AdapterHostport   string
-	PprofHostport     string
-	CAFile            string
-	CertFile          string
-	KeyFile           string
-	CommonName        string
-	RLPCAFile         string
-	RLPCertFile       string
-	RLPKeyFile        string
-	RLPCommonName     string
-	LogsAPIAddr       string
-	SyslogDialTimeout time.Duration
-	SyslogIOTimeout   time.Duration
+	HealthHostport       string
+	AdapterHostport      string
+	PprofHostport        string
+	CAFile               string
+	CertFile             string
+	KeyFile              string
+	CommonName           string
+	RLPCAFile            string
+	RLPCertFile          string
+	RLPKeyFile           string
+	RLPCommonName        string
+	LogsAPIAddr          string
+	SyslogDialTimeout    time.Duration
+	SyslogIOTimeout      time.Duration
+	SyslogSkipCertVerify bool
 }
 
 func Load() *Config {
@@ -43,6 +44,7 @@ func Load() *Config {
 
 	flag.DurationVar(&cfg.SyslogDialTimeout, "syslog-dial-timeout", time.Second, "The timeout for dialing to syslog drains")
 	flag.DurationVar(&cfg.SyslogIOTimeout, "syslog-io-timeout", 60*time.Second, "The timeout for writing to syslog drains")
+	flag.BoolVar(&cfg.SyslogSkipCertVerify, "syslog-skip-cert-verify", true, "The option to not verify syslog TLS certs")
 
 	flag.StringVar(&cfg.LogsAPIAddr, "logs-api-addr", "", "The address for the logs API")
 	flag.Parse()
