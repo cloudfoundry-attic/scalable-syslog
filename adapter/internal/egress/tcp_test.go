@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
@@ -18,74 +19,73 @@ import (
 
 var _ = Describe("TCPWriter", func() {
 	Describe("NewTCPWriter()", func() {
-		It("accepts a custom dialfunc", func() {
-			var receivedAddr string
-			dialFunc := func(addr string) (net.Conn, error) {
-				receivedAddr = addr
-				return &SpyConn{}, nil
+		It("dials up the drain", func() {
+			spyDialer := SpyDialer{
+				conn: &SpyConn{},
 			}
-
-			_, err := egress.NewTCPWriter(
-				&v1.Binding{
-					AppId:    "test-app-id",
-					Hostname: "test-hostname",
-					Drain:    "syslog://example.com:1234",
-				},
-				time.Second,
-				egress.WithDialFunc(dialFunc),
-			)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(receivedAddr).To(Equal("example.com:1234"))
-		})
-
-		It("reconnects with a retry strategy", func() {
-			env := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
-
-			spyConn := &SpyConn{}
 			spyStrategy := SpyStrategy{}
-
-			var callCount int
-			dialFunc := func(addr string) (net.Conn, error) {
-				callCount++
-
-				if callCount > 1 && callCount < 5 {
-					return nil, errors.New("dial err")
-				}
-
-				return spyConn, nil
+			binding := &v1.Binding{
+				AppId:    "test-app-id",
+				Hostname: "test-hostname",
+				Drain:    "syslog://example.com:1234",
 			}
 
 			writer, err := egress.NewTCPWriter(
-				&v1.Binding{
-					AppId:    "test-app-id",
-					Hostname: "test-hostname",
-					Drain:    "syslog://example.com:1234",
-				},
+				binding,
 				time.Second,
-				egress.WithDialFunc(dialFunc),
+				egress.WithDialFunc(spyDialer.dialFunc),
 				egress.WithRetryStrategy(spyStrategy.retry),
 			)
+			defer writer.Close()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(callCount).To(Equal(1))
+			Eventually(spyDialer.addr).Should(Equal("example.com:1234"))
+		})
 
-			By("Doing first write which fails and reconnects")
-			spyConn.writeErr = errors.New("write error")
+		It("reconnects with a retry strategy", func() {
+			spyConn := &SpyConn{}
+			spyDialer := SpyDialer{}
+			spyStrategy := SpyStrategy{}
+			binding := &v1.Binding{
+				AppId:    "test-app-id",
+				Hostname: "test-hostname",
+				Drain:    "syslog://example.com:1234",
+			}
+			env := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
+
+			By("connecting with a dialer that consistently returns an error")
+			spyDialer.err = errors.New("test-error")
+			writer, err := egress.NewTCPWriter(
+				binding,
+				time.Second,
+				egress.WithDialFunc(spyDialer.dialFunc),
+				egress.WithRetryStrategy(spyStrategy.retry),
+			)
+			defer writer.Close()
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(spyDialer.called).Should(BeNumerically(">", 1))
+			Eventually(spyStrategy.called).Should(BeNumerically(">", 1))
+
+			By("connecting with a dialer that succeeds")
+			spyDialer.setConn(spyConn)
+			spyDialer.setErr(nil)
+			Eventually(spyDialer.connected).Should(Equal(1))
+
+			By("doing first write which fails and reconnects")
+			spyConn.setWriteErr(errors.New("write error"))
 			err = writer.Write(env)
 			Expect(err).To(HaveOccurred())
-			Expect(callCount).To(Equal(5))
-			Expect(spyStrategy.callCount).To(Equal(uint64(3)))
+			Eventually(spyDialer.connected).Should(Equal(2))
 
-			By("Doing second write which succeeds")
-			spyConn.writeErr = nil
-			err = writer.Write(env)
-			Expect(err).ToNot(HaveOccurred())
+			By("doing second write which succeeds")
+			spyConn.setWriteErr(nil)
+			Eventually(func() error { return writer.Write(env) }).Should(Succeed())
 		})
 
 		It("sets the write timeout", func() {
 			env := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
 			spyConn := &SpyConn{}
-			dialFunc := func(addr string) (net.Conn, error) {
-				return spyConn, nil
+			spyDialer := &SpyDialer{
+				conn: spyConn,
 			}
 
 			writer, _ := egress.NewTCPWriter(
@@ -95,10 +95,11 @@ var _ = Describe("TCPWriter", func() {
 					Drain:    "syslog://example.com:1234",
 				},
 				time.Second,
-				egress.WithDialFunc(dialFunc),
+				egress.WithDialFunc(spyDialer.dialFunc),
 			)
-			err := writer.Write(env)
-			Expect(err).ToNot(HaveOccurred())
+			defer writer.Close()
+			Eventually(spyDialer.connected).Should(Equal(1))
+			Eventually(func() error { return writer.Write(env) }).Should(Succeed())
 			Expect(spyConn.setWriteDeadlineInput).To(
 				BeTemporally("~", time.Now().Add(time.Second), time.Millisecond*100),
 			)
@@ -113,8 +114,8 @@ var _ = Describe("TCPWriter", func() {
 
 		BeforeEach(func() {
 			spyConn = &SpyConn{}
-			dialFunc := func(addr string) (net.Conn, error) {
-				return spyConn, nil
+			spyDialer := &SpyDialer{
+				conn: spyConn,
 			}
 
 			var err error
@@ -125,16 +126,22 @@ var _ = Describe("TCPWriter", func() {
 					Drain:    "syslog://example.com:1234",
 				},
 				time.Second,
-				egress.WithDialFunc(dialFunc))
+				egress.WithDialFunc(spyDialer.dialFunc),
+			)
 			Expect(err).ToNot(HaveOccurred())
+			Eventually(spyDialer.connected).Should(Equal(1))
+		})
+
+		AfterEach(func() {
+			writer.Close()
 		})
 
 		DescribeTable("envelopes are written out with proper priority", func(logType loggregator_v2.Log_Type, expectedPriority int) {
 			env := buildLogEnvelope("APP", "2", "just a test", logType)
-			Expect(writer.Write(env)).To(Succeed())
+			Eventually(func() error { return writer.Write(env) }).Should(Succeed())
 
 			expectedOutput := fmt.Sprintf("87 <%d>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [APP/2] - - just a test\n", expectedPriority)
-			Eventually(string(spyConn.writeInput)).Should(Equal(expectedOutput))
+			Expect(string(spyConn.writeInput)).To(Equal(expectedOutput))
 		},
 			Entry("stdout", loggregator_v2.Log_OUT, 14),
 			Entry("stderr", loggregator_v2.Log_ERR, 11),
@@ -143,10 +150,10 @@ var _ = Describe("TCPWriter", func() {
 
 		DescribeTable("envelopes are written out with proper process id", func(sourceType, sourceInstance, expectedProcessID string, expectedLength int) {
 			env := buildLogEnvelope(sourceType, sourceInstance, "just a test", loggregator_v2.Log_OUT)
-			Expect(writer.Write(env)).To(Succeed())
+			Eventually(func() error { return writer.Write(env) }).Should(Succeed())
 
 			expectedOutput := fmt.Sprintf("%d <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [%s] - - just a test\n", expectedLength, expectedProcessID)
-			Eventually(string(spyConn.writeInput)).Should(Equal(expectedOutput))
+			Expect(string(spyConn.writeInput)).To(Equal(expectedOutput))
 		},
 			Entry("app source type", "app/foo/bar", "26", "APP/FOO/BAR/26", 96),
 			Entry("other source type", "other", "1", "OTHER", 87),
@@ -154,10 +161,10 @@ var _ = Describe("TCPWriter", func() {
 
 		It("strips null termination char from message", func() {
 			env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
-			Expect(writer.Write(env)).To(Succeed())
+			Eventually(func() error { return writer.Write(env) }).Should(Succeed())
 
 			expectedOutput := fmt.Sprintf("93 <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [OTHER] - - no null `` please\n")
-			Eventually(string(spyConn.writeInput)).Should(Equal(expectedOutput))
+			Expect(string(spyConn.writeInput)).To(Equal(expectedOutput))
 		})
 
 		It("ignores non-log envelopes", func() {
@@ -168,44 +175,44 @@ var _ = Describe("TCPWriter", func() {
 	})
 
 	Describe("Close()", func() {
-		It("closes the writer connection", func() {
-			spyConn := &SpyConn{}
-			dialFunc := func(addr string) (net.Conn, error) {
-				return spyConn, nil
+		var (
+			spyConn *SpyConn
+			writer  *egress.TCPWriter
+		)
+
+		BeforeEach(func() {
+			spyConn = &SpyConn{}
+			spyDialer := &SpyDialer{
+				conn: spyConn,
 			}
 
-			writer, err := egress.NewTCPWriter(
+			var err error
+			writer, err = egress.NewTCPWriter(
 				&v1.Binding{
 					AppId:    "test-app-id",
 					Hostname: "test-hostname",
 					Drain:    "syslog://example.com:1234",
 				},
 				time.Second,
-				egress.WithDialFunc(dialFunc),
+				egress.WithDialFunc(spyDialer.dialFunc),
 			)
 			Expect(err).ToNot(HaveOccurred())
+			Eventually(spyDialer.connected).Should(Equal(1))
 
+			env := buildLogEnvelope("", "", "just a test", loggregator_v2.Log_OUT)
+			Eventually(func() error { return writer.Write(env) }).Should(Succeed())
+		})
+
+		AfterEach(func() {
+			writer.Close()
+		})
+
+		It("closes the writer connection", func() {
 			Expect(writer.Close()).To(Succeed())
-			Expect(spyConn.closeCalled).To(Equal(1))
+			Expect(spyConn.closeCalled()).To(Equal(1))
 		})
 
 		It("returns an error after writing to a closed connection", func() {
-			spyConn := &SpyConn{}
-			dialFunc := func(addr string) (net.Conn, error) {
-				return spyConn, nil
-			}
-
-			writer, err := egress.NewTCPWriter(
-				&v1.Binding{
-					AppId:    "test-app-id",
-					Hostname: "test-hostname",
-					Drain:    "syslog://example.com:1234",
-				},
-				time.Second,
-				egress.WithDialFunc(dialFunc),
-			)
-			Expect(err).ToNot(HaveOccurred())
-
 			Expect(writer.Close()).To(Succeed())
 
 			env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -244,35 +251,120 @@ func buildCounterEnvelope() *loggregator_v2.Envelope {
 }
 
 type SpyStrategy struct {
-	callCount uint64
+	mu      sync.Mutex
+	called_ uint64
 }
 
 func (m *SpyStrategy) retry(c int) time.Duration {
-	m.callCount++
-	return time.Nanosecond
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.called_++
+	return time.Millisecond
+}
+
+func (m *SpyStrategy) called() uint64 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.called_
 }
 
 type SpyConn struct {
 	net.Conn
+	mu                    sync.Mutex
 	writeErr              error
 	writeCalled           int
 	writeInput            []byte
 	setWriteDeadlineInput time.Time
-	closeCalled           int
+	closeCalled_          int
 }
 
 func (s *SpyConn) Write(b []byte) (n int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.writeCalled++
 	s.writeInput = b
 	return 0, s.writeErr
 }
 
 func (s *SpyConn) Close() error {
-	s.closeCalled++
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.closeCalled_++
 	return nil
 }
 
 func (s *SpyConn) SetWriteDeadline(t time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	s.setWriteDeadlineInput = t
 	return nil
+}
+
+func (s *SpyConn) closeCalled() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.closeCalled_
+}
+
+func (s *SpyConn) setWriteErr(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.writeErr = err
+}
+
+type SpyDialer struct {
+	mu         sync.Mutex
+	conn       net.Conn
+	err        error
+	addr_      string
+	called_    int
+	connected_ int
+}
+
+func (s *SpyDialer) dialFunc(addr string) (net.Conn, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.called_++
+	s.addr_ = addr
+	if s.err == nil {
+		s.connected_++
+	}
+	return s.conn, s.err
+}
+
+func (s *SpyDialer) called() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.called_
+}
+
+func (s *SpyDialer) connected() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.connected_
+}
+
+func (s *SpyDialer) setConn(conn net.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.conn = conn
+}
+
+func (s *SpyDialer) setErr(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.err = err
+}
+
+func (s *SpyDialer) addr() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.addr_
 }

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress/retrystrategy"
@@ -21,10 +22,12 @@ type TCPWriter struct {
 	url           *url.URL
 	appID         string
 	hostname      string
-	conn          net.Conn
 	dialFunc      DialFunc
 	retryStrategy retrystrategy.RetryStrategy
 	ioTimeout     time.Duration
+
+	mu   sync.Mutex
+	conn net.Conn
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
@@ -48,7 +51,7 @@ var NewTCPWriter = func(binding *v1.Binding, ioTimeout time.Duration, opts ...TC
 	for _, o := range opts {
 		o(w)
 	}
-	w.connect()
+	go w.connect()
 
 	return w, nil
 }
@@ -66,7 +69,10 @@ func (w *TCPWriter) connect() {
 		}
 
 		log.Printf("created conn to syslog drain: %s", w.url.Host)
+
+		w.mu.Lock()
 		w.conn = conn
+		w.mu.Unlock()
 		return
 	}
 }
@@ -93,19 +99,21 @@ func WithRetryStrategy(r retrystrategy.RetryStrategy) TCPOption {
 
 // Close tears down any active connections to the drain and prevents reconnect.
 func (w *TCPWriter) Close() error {
-	if err := w.conn.Close(); err != nil {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.conn != nil {
+		err := w.conn.Close()
+		w.conn = nil
+
 		return err
 	}
-	w.conn = nil
 
 	return nil
 }
 
 // Write writes an envelope to the syslog drain connection.
 func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
-	if w.conn == nil {
-		return errors.New("connection does not exist")
-	}
 
 	if env.GetLog() == nil {
 		return nil
@@ -123,12 +131,20 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 		Message: appendNewline(removeNulls(env.GetLog().Payload)),
 	}
 
-	w.conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
-	_, err := msg.WriteTo(w.conn)
+	w.mu.Lock()
+	conn := w.conn
+	w.mu.Unlock()
+
+	if conn == nil {
+		return errors.New("connection does not exist")
+	}
+
+	conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
+	_, err := msg.WriteTo(conn)
 	if err != nil {
 		w.Close()
-		// TODO: spawn this in a goroutine
-		w.connect()
+		go w.connect()
+
 		return err
 	}
 	return nil
