@@ -1,7 +1,9 @@
 package egress
 
 import (
+	"crypto/tls"
 	"errors"
+	"net"
 	"net/url"
 	"time"
 
@@ -21,25 +23,23 @@ type WriteCloser interface {
 
 // WriterBuilder is builder for the various egress syslog writers.
 type WriterBuilder struct {
-	ioTimeout      time.Duration
 	skipCertVerify bool
-	tcpOpts        []TCPOption
+	ioTimeout      time.Duration
+	dialer         *net.Dialer
 }
 
-// NewWriterBuilder returns a WriterBuilder configured with BuilderOpt(s).
-func NewWriterBuilder(ioTimeout time.Duration, skipCertVerify bool, opts ...BuilderOpt) *WriterBuilder {
-	w := &WriterBuilder{
-		ioTimeout:      ioTimeout,
+// NewWriterBuilder configures and returns a pointer to a new WriterBuilder.
+func NewWriterBuilder(dialTimeout, ioTimeout time.Duration, skipCertVerify bool) *WriterBuilder {
+	return &WriterBuilder{
 		skipCertVerify: skipCertVerify,
+		ioTimeout:      ioTimeout,
+		dialer: &net.Dialer{
+			Timeout: dialTimeout,
+		},
 	}
-	for _, o := range opts {
-		o(w)
-	}
-	return w
 }
 
-// Build returns an egress writer based on the scheme of the binding drain
-// url.
+// Build returns an egress writer based on the scheme of the binding drain url.
 func (w *WriterBuilder) Build(b *v1.Binding) (WriteCloser, error) {
 	url, err := url.Parse(b.Drain)
 	if err != nil {
@@ -47,22 +47,21 @@ func (w *WriterBuilder) Build(b *v1.Binding) (WriteCloser, error) {
 	}
 
 	switch url.Scheme {
-	case "syslog":
-		return NewTCPWriter(b, w.ioTimeout, w.tcpOpts...)
 	case "https":
 		return NewHTTPS(b, w.skipCertVerify)
+	case "syslog":
+		df := func(addr string) (net.Conn, error) {
+			return w.dialer.Dial("tcp", addr)
+		}
+		return NewTCPWriter(b, w.ioTimeout, WithDialFunc(df))
+	case "syslog-tls":
+		df := func(addr string) (net.Conn, error) {
+			return tls.DialWithDialer(w.dialer, "tcp", addr, &tls.Config{
+				InsecureSkipVerify: true,
+			})
+		}
+		return NewTCPWriter(b, w.ioTimeout, WithDialFunc(df))
 	default:
 		return nil, errUnsupportedScheme
-	}
-}
-
-// BuilderOpt provides a means to configure the WriterBuilder.
-type BuilderOpt func(*WriterBuilder)
-
-// WithTCPOptions is a BuilderOpt that sets the options
-// a TCPWriter will be configured with.
-func WithTCPOptions(opts ...TCPOption) BuilderOpt {
-	return func(wb *WriterBuilder) {
-		wb.tcpOpts = opts
 	}
 }

@@ -1,7 +1,6 @@
 package egress_test
 
 import (
-	"net"
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
@@ -14,8 +13,9 @@ import (
 
 var _ = Describe("WriterBuilder", func() {
 	var (
-		builder *egress.WriterBuilder
-		binding *v1.Binding
+		builder              *egress.WriterBuilder
+		binding              *v1.Binding
+		oldWriterConstructor func(*v1.Binding, time.Duration, ...egress.TCPOption) (*egress.TCPWriter, error)
 	)
 
 	BeforeEach(func() {
@@ -24,19 +24,28 @@ var _ = Describe("WriterBuilder", func() {
 			Hostname: "host-name",
 		}
 
-		builder = egress.NewWriterBuilder(
-			time.Second,
-			true,
-			egress.WithTCPOptions(
-				egress.WithDialFunc(func(a string) (net.Conn, error) {
-					return nil, nil
-				}),
-			),
-		)
+		oldWriterConstructor = egress.NewTCPWriter
+		egress.NewTCPWriter = func(*v1.Binding, time.Duration, ...egress.TCPOption) (*egress.TCPWriter, error) {
+			return nil, nil
+		}
+		builder = egress.NewWriterBuilder(time.Second, time.Second, true)
+	})
+
+	AfterEach(func() {
+		egress.NewTCPWriter = oldWriterConstructor
 	})
 
 	It("returns a tcp writer", func() {
 		binding.Drain = "syslog://some-domain.tld"
+
+		writer, err := builder.Build(binding)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(writer).To(BeAssignableToTypeOf(&egress.TCPWriter{}))
+	})
+
+	It("returns a tls writer", func() {
+		binding.Drain = "syslog-tls://some-domain.tld"
 
 		writer, err := builder.Build(binding)
 		Expect(err).ToNot(HaveOccurred())
@@ -69,10 +78,7 @@ var _ = Describe("WriterBuilder", func() {
 		})
 
 		It("get's passed the value from the builder", func() {
-			builder := egress.NewWriterBuilder(
-				time.Second,
-				false,
-			)
+			builder := egress.NewWriterBuilder(time.Second, time.Second, false)
 			drain := newMockOKDrain()
 
 			b := &v1.Binding{

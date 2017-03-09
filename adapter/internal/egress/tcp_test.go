@@ -18,18 +18,6 @@ import (
 
 var _ = Describe("TCPWriter", func() {
 	Describe("NewTCPWriter()", func() {
-		It("does not accept schemes other than syslog", func() {
-			_, err := egress.NewTCPWriter(
-				&v1.Binding{
-					AppId:    "test-app-id",
-					Hostname: "test-hostname",
-					Drain:    "https://example.com:1234",
-				},
-				time.Second,
-			)
-			Expect(err).To(HaveOccurred())
-		})
-
 		It("accepts a custom dialfunc", func() {
 			var receivedAddr string
 			dialFunc := func(addr string) (net.Conn, error) {

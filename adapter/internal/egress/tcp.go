@@ -28,15 +28,10 @@ type TCPWriter struct {
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
-func NewTCPWriter(binding *v1.Binding, ioTimeout time.Duration, opts ...TCPOption) (*TCPWriter, error) {
+var NewTCPWriter = func(binding *v1.Binding, ioTimeout time.Duration, opts ...TCPOption) (*TCPWriter, error) {
 	drainURL, err := url.Parse(binding.Drain)
 	if err != nil {
 		return nil, err
-	}
-
-	// TODO: need to also support TLS
-	if drainURL.Scheme != "syslog" {
-		return nil, errors.New("invalid scheme for syslog tcp writer")
 	}
 
 	defaultDialer := net.Dialer{}

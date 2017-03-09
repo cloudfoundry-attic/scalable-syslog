@@ -2,6 +2,7 @@ package app_test
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -29,7 +30,7 @@ var _ = Describe("Adapter", func() {
 		client             v1.AdapterClient
 		binding            *v1.Binding
 		egressServer       *MockEgressServer
-		syslogServer       *syslogTCPServer
+		syslogTCPServer    *SyslogTCPServer
 	)
 
 	BeforeEach(func() {
@@ -63,12 +64,12 @@ var _ = Describe("Adapter", func() {
 		adapterHealthAddr, adapterServiceHost = adapter.Start()
 
 		client = startAdapterClient(adapterServiceHost)
-		syslogServer = newSyslogTCPServer()
+		syslogTCPServer = newSyslogTCPServer()
 
 		binding = &v1.Binding{
 			AppId:    "app-guid",
 			Hostname: "a-hostname",
-			Drain:    "syslog://" + syslogServer.Addr().String(),
+			Drain:    "syslog://" + syslogTCPServer.addr().String(),
 		}
 	})
 
@@ -120,14 +121,14 @@ var _ = Describe("Adapter", func() {
 		Eventually(egressServer.receiver).Should(HaveLen(1))
 	})
 
-	It("forwards logs from loggregator to a syslog drain", func() {
+	It("forwards logs from loggregator to a syslog TCP drain", func() {
 		By("creating a binding", func() {
 			_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
 				Binding: binding,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(syslogServer.MsgCount).Should(BeNumerically(">", 10))
+			Eventually(syslogTCPServer.msgCount).Should(BeNumerically(">", 10))
 		})
 
 		By("deleting a binding", func() {
@@ -136,8 +137,40 @@ var _ = Describe("Adapter", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			currentCount := syslogServer.MsgCount()
-			Consistently(syslogServer.MsgCount, "100ms").Should(BeNumerically("~", currentCount, 2))
+			currentCount := syslogTCPServer.msgCount()
+			Consistently(syslogTCPServer.msgCount, "100ms").Should(BeNumerically("~", currentCount, 2))
+		})
+	})
+
+	Context("with tls drain", func() {
+		BeforeEach(func() {
+			syslogTCPServer = newSyslogTLSServer()
+			binding = &v1.Binding{
+				AppId:    "app-guid",
+				Hostname: "a-hostname",
+				Drain:    "syslog-tls://" + syslogTCPServer.addr().String(),
+			}
+		})
+
+		It("forwards logs from loggregator to a syslog TLS drain", func() {
+			By("creating a binding", func() {
+				_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
+					Binding: binding,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(syslogTCPServer.msgCount).Should(BeNumerically(">", 10))
+			})
+
+			By("deleting a binding", func() {
+				_, err := client.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
+					Binding: binding,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				currentCount := syslogTCPServer.msgCount()
+				Consistently(syslogTCPServer.msgCount, "100ms").Should(BeNumerically("~", currentCount, 2))
+			})
 		})
 	})
 })
@@ -203,64 +236,67 @@ func (m *MockEgressServer) Receiver(req *v2.EgressRequest, receiver v2.Egress_Re
 	return nil
 }
 
-type syslogTCPServer struct {
+type SyslogTCPServer struct {
 	lis       net.Listener
-	connCount uint64
 	mu        sync.Mutex
-	data      []byte
-	msgCount  uint64
+	msgCount_ uint64
 }
 
-func newSyslogTCPServer() *syslogTCPServer {
+func newSyslogTCPServer() *SyslogTCPServer {
 	lis, err := net.Listen("tcp", ":0")
 	Expect(err).ToNot(HaveOccurred())
-	m := &syslogTCPServer{
+	m := &SyslogTCPServer{
 		lis: lis,
 	}
 	go m.accept()
 	return m
 }
 
-func (m *syslogTCPServer) accept() {
+func newSyslogTLSServer() *SyslogTCPServer {
+	lis, err := net.Listen("tcp", ":0")
+	Expect(err).ToNot(HaveOccurred())
+	cert, err := tls.LoadX509KeyPair(
+		Cert("adapter.crt"),
+		Cert("adapter.key"),
+	)
+	Expect(err).ToNot(HaveOccurred())
+	tlsLis := tls.NewListener(lis, &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	})
+	m := &SyslogTCPServer{
+		lis: tlsLis,
+	}
+	go m.accept()
+	return m
+}
+
+func (m *SyslogTCPServer) accept() {
 	for {
 		conn, err := m.lis.Accept()
 		if err != nil {
 			return
 		}
-		atomic.AddUint64(&m.connCount, 1)
 		go m.handleConn(conn)
 	}
 }
 
-func (m *syslogTCPServer) handleConn(conn net.Conn) {
+func (m *SyslogTCPServer) handleConn(conn net.Conn) {
 	for {
 		buf := make([]byte, 1024)
 		_, err := conn.Read(buf)
 		if err != nil {
 			return
 		}
-		m.mu.Lock()
 		_ = buf
-		atomic.AddUint64(&m.msgCount, 1)
-		m.mu.Unlock()
+		atomic.AddUint64(&m.msgCount_, 1)
 	}
 }
 
-func (m *syslogTCPServer) ConnCount() uint64 {
-	return atomic.LoadUint64(&m.connCount)
+func (m *SyslogTCPServer) msgCount() uint64 {
+	return atomic.LoadUint64(&m.msgCount_)
 }
 
-func (m *syslogTCPServer) MsgCount() uint64 {
-	return atomic.LoadUint64(&m.msgCount)
-}
-
-func (m *syslogTCPServer) RXData() string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return string(m.data)
-}
-
-func (m *syslogTCPServer) Addr() net.Addr {
+func (m *SyslogTCPServer) addr() net.Addr {
 	return m.lis.Addr()
 }
 
