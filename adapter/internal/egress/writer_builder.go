@@ -57,7 +57,7 @@ func (w *WriterBuilder) Build(b *v1.Binding) (WriteCloser, error) {
 	case "syslog-tls":
 		df := func(addr string) (net.Conn, error) {
 			return tls.DialWithDialer(w.dialer, "tcp", addr, &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: w.skipCertVerify,
 			})
 		}
 		return NewTCPWriter(b, w.ioTimeout, WithDialFunc(df))

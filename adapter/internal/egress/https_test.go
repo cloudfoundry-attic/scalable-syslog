@@ -16,7 +16,6 @@ import (
 
 var _ = Describe("HTTPWriter", func() {
 	It("does not accept schemes other than http", func() {
-
 		b := &v1.Binding{
 			Drain: "syslog://example.com:1123",
 		}

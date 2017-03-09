@@ -25,6 +25,10 @@ import (
 
 var _ = Describe("Adapter", func() {
 	var (
+		logsAPIAddr  string
+		rlpTLSConfig *tls.Config
+		tlsConfig    *tls.Config
+
 		adapterServiceHost string
 		adapterHealthAddr  string
 		client             v1.AdapterClient
@@ -34,10 +38,10 @@ var _ = Describe("Adapter", func() {
 	)
 
 	BeforeEach(func() {
-		var logsAPIAddr string
 		egressServer, logsAPIAddr = startLogsAPIServer()
 
-		rlpTLSConfig, err := api.NewMutualTLSConfig(
+		var err error
+		rlpTLSConfig, err = api.NewMutualTLSConfig(
 			Cert("adapter-rlp.crt"),
 			Cert("adapter-rlp.key"),
 			Cert("loggregator-ca.crt"),
@@ -45,114 +49,100 @@ var _ = Describe("Adapter", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		tlsConfig, err := api.NewMutualTLSConfig(
+		tlsConfig, err = api.NewMutualTLSConfig(
 			Cert("adapter.crt"),
 			Cert("adapter.key"),
 			Cert("scalable-syslog-ca.crt"),
 			"fake-log-provider",
 		)
 		Expect(err).ToNot(HaveOccurred())
-
-		adapter := app.NewAdapter(
-			logsAPIAddr,
-			rlpTLSConfig,
-			tlsConfig,
-			app.WithHealthAddr("localhost:0"),
-			app.WithControllerAddr("localhost:0"),
-			app.WithLogsEgressAPIConnCount(1),
-		)
-		adapterHealthAddr, adapterServiceHost = adapter.Start()
-
-		client = startAdapterClient(adapterServiceHost)
-		syslogTCPServer = newSyslogTCPServer()
-
-		binding = &v1.Binding{
-			AppId:    "app-guid",
-			Hostname: "a-hostname",
-			Drain:    "syslog://" + syslogTCPServer.addr().String(),
-		}
 	})
 
-	It("creates a new binding", func() {
-		_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
-			Binding: binding,
+	Describe("health endpoint", func() {
+		BeforeEach(func() {
+			adapter := app.NewAdapter(
+				logsAPIAddr,
+				rlpTLSConfig,
+				tlsConfig,
+				app.WithHealthAddr("localhost:0"),
+				app.WithControllerAddr("localhost:0"),
+				app.WithLogsEgressAPIConnCount(1),
+			)
+			adapterHealthAddr, adapterServiceHost = adapter.Start()
+
+			client = startAdapterClient(adapterServiceHost)
+			syslogTCPServer = newSyslogTCPServer()
+
+			binding = &v1.Binding{
+				AppId:    "app-guid",
+				Hostname: "a-hostname",
+				Drain:    "syslog://" + syslogTCPServer.addr().String(),
+			}
 		})
-		Expect(err).ToNot(HaveOccurred())
 
-		resp, err := client.ListBindings(context.Background(), new(v1.ListBindingsRequest))
-		Expect(err).ToNot(HaveOccurred())
-		Expect(resp.Bindings).To(HaveLen(1))
-
-		healthResp, err := http.Get(fmt.Sprintf("http://%s/health", adapterHealthAddr))
-		Expect(err).ToNot(HaveOccurred())
-		Expect(healthResp.StatusCode).To(Equal(http.StatusOK))
-
-		body, err := ioutil.ReadAll(healthResp.Body)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(body).To(MatchJSON(`{"drainCount": 1}`))
-	})
-
-	It("deletes a binding", func() {
-		_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
-			Binding: binding,
-		})
-		Expect(err).ToNot(HaveOccurred())
-
-		_, err = client.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
-			Binding: binding,
-		})
-		Expect(err).ToNot(HaveOccurred())
-
-		healthResp, err := http.Get(fmt.Sprintf("http://%s/health", adapterHealthAddr))
-		Expect(err).ToNot(HaveOccurred())
-		Expect(healthResp.StatusCode).To(Equal(http.StatusOK))
-
-		body, err := ioutil.ReadAll(healthResp.Body)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(body).To(MatchJSON(`{"drainCount": 0}`))
-	})
-
-	It("connects the logs egress API", func() {
-		_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
-			Binding: binding,
-		})
-		Expect(err).ToNot(HaveOccurred())
-
-		Eventually(egressServer.receiver).Should(HaveLen(1))
-	})
-
-	It("forwards logs from loggregator to a syslog TCP drain", func() {
-		By("creating a binding", func() {
+		It("creates a new binding", func() {
 			_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
 				Binding: binding,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(syslogTCPServer.msgCount).Should(BeNumerically(">", 10))
+			resp, err := client.ListBindings(context.Background(), new(v1.ListBindingsRequest))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(resp.Bindings).To(HaveLen(1))
+
+			healthResp, err := http.Get(fmt.Sprintf("http://%s/health", adapterHealthAddr))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(healthResp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := ioutil.ReadAll(healthResp.Body)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(body).To(MatchJSON(`{"drainCount": 1}`))
 		})
 
-		By("deleting a binding", func() {
-			_, err := client.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
+		It("deletes a binding", func() {
+			_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
 				Binding: binding,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			currentCount := syslogTCPServer.msgCount()
-			Consistently(syslogTCPServer.msgCount, "100ms").Should(BeNumerically("~", currentCount, 2))
+			_, err = client.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
+				Binding: binding,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			healthResp, err := http.Get(fmt.Sprintf("http://%s/health", adapterHealthAddr))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(healthResp.StatusCode).To(Equal(http.StatusOK))
+
+			body, err := ioutil.ReadAll(healthResp.Body)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(body).To(MatchJSON(`{"drainCount": 0}`))
 		})
 	})
 
-	Context("with tls drain", func() {
+	Context("with TCP drain", func() {
 		BeforeEach(func() {
-			syslogTCPServer = newSyslogTLSServer()
+			adapter := app.NewAdapter(
+				logsAPIAddr,
+				rlpTLSConfig,
+				tlsConfig,
+				app.WithHealthAddr("localhost:0"),
+				app.WithControllerAddr("localhost:0"),
+				app.WithLogsEgressAPIConnCount(1),
+			)
+			adapterHealthAddr, adapterServiceHost = adapter.Start()
+
+			client = startAdapterClient(adapterServiceHost)
+			syslogTCPServer = newSyslogTCPServer()
+
 			binding = &v1.Binding{
 				AppId:    "app-guid",
 				Hostname: "a-hostname",
-				Drain:    "syslog-tls://" + syslogTCPServer.addr().String(),
+				Drain:    "syslog://" + syslogTCPServer.addr().String(),
 			}
 		})
 
-		It("forwards logs from loggregator to a syslog TLS drain", func() {
+		It("forwards logs from loggregator to a syslog TCP drain", func() {
 			By("creating a binding", func() {
 				_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
 					Binding: binding,
@@ -170,6 +160,82 @@ var _ = Describe("Adapter", func() {
 
 				currentCount := syslogTCPServer.msgCount()
 				Consistently(syslogTCPServer.msgCount, "100ms").Should(BeNumerically("~", currentCount, 2))
+			})
+		})
+	})
+
+	Context("with TLS drain", func() {
+		BeforeEach(func() {
+			syslogTCPServer = newSyslogTLSServer()
+
+			binding = &v1.Binding{
+				AppId:    "app-guid",
+				Hostname: "a-hostname",
+				Drain:    "syslog-tls://" + syslogTCPServer.addr().String(),
+			}
+		})
+
+		Context("with skip ssl validation enabled", func() {
+			BeforeEach(func() {
+				adapter := app.NewAdapter(
+					logsAPIAddr,
+					rlpTLSConfig,
+					tlsConfig,
+					app.WithHealthAddr("localhost:0"),
+					app.WithControllerAddr("localhost:0"),
+					app.WithLogsEgressAPIConnCount(1),
+					app.WithSyslogSkipCertVerify(true),
+				)
+				adapterHealthAddr, adapterServiceHost = adapter.Start()
+
+				client = startAdapterClient(adapterServiceHost)
+			})
+
+			It("forwards logs from loggregator to a syslog TLS drain", func() {
+				By("creating a binding", func() {
+					_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
+						Binding: binding,
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					Eventually(syslogTCPServer.msgCount).Should(BeNumerically(">", 10))
+				})
+
+				By("deleting a binding", func() {
+					_, err := client.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
+						Binding: binding,
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					currentCount := syslogTCPServer.msgCount()
+					Consistently(syslogTCPServer.msgCount, "100ms").Should(BeNumerically("~", currentCount, 2))
+				})
+			})
+		})
+
+		Context("with skip ssl validation disabled", func() {
+			BeforeEach(func() {
+				adapter := app.NewAdapter(
+					logsAPIAddr,
+					rlpTLSConfig,
+					tlsConfig,
+					app.WithHealthAddr("localhost:0"),
+					app.WithControllerAddr("localhost:0"),
+					app.WithLogsEgressAPIConnCount(1),
+					app.WithSyslogSkipCertVerify(false),
+				)
+				adapterHealthAddr, adapterServiceHost = adapter.Start()
+
+				client = startAdapterClient(adapterServiceHost)
+			})
+
+			It("fails to forward logs", func() {
+				_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
+					Binding: binding,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Consistently(syslogTCPServer.msgCount).Should(Equal(uint64(0)))
 			})
 		})
 	})
