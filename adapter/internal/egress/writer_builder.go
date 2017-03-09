@@ -21,14 +21,16 @@ type WriteCloser interface {
 
 // WriterBuilder is builder for the various egress syslog writers.
 type WriterBuilder struct {
-	ioTimeout time.Duration
-	tcpOpts   []TCPOption
+	ioTimeout      time.Duration
+	skipCertVerify bool
+	tcpOpts        []TCPOption
 }
 
 // NewWriterBuilder returns a WriterBuilder configured with BuilderOpt(s).
-func NewWriterBuilder(ioTimeout time.Duration, opts ...BuilderOpt) *WriterBuilder {
+func NewWriterBuilder(ioTimeout time.Duration, skipCertVerify bool, opts ...BuilderOpt) *WriterBuilder {
 	w := &WriterBuilder{
-		ioTimeout: ioTimeout,
+		ioTimeout:      ioTimeout,
+		skipCertVerify: skipCertVerify,
 	}
 	for _, o := range opts {
 		o(w)
@@ -47,6 +49,8 @@ func (w *WriterBuilder) Build(b *v1.Binding) (WriteCloser, error) {
 	switch url.Scheme {
 	case "syslog":
 		return NewTCP(*url, b.AppId, b.Hostname, w.ioTimeout, w.tcpOpts...)
+	case "https":
+		return NewHTTPS(b, w.skipCertVerify)
 	default:
 		return nil, errUnsupportedScheme
 	}

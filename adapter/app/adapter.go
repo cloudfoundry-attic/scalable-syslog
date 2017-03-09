@@ -28,6 +28,7 @@ type Adapter struct {
 	controllerTLSConfig    *tls.Config
 	syslogDialTimeout      time.Duration
 	syslogIOTimeout        time.Duration
+	skipCertVerify         bool
 }
 
 // AdapterOption is a type that will manipulate a config
@@ -79,6 +80,14 @@ func WithSyslogIOTimeout(d time.Duration) func(*Adapter) {
 	}
 }
 
+// WithSyslogSkipCertVerify sets the TCP InsecureSkipVerify property for
+// syslog
+func WithSyslogSkipCertVerify(b bool) func(*Adapter) {
+	return func(a *Adapter) {
+		a.skipCertVerify = b
+	}
+}
+
 // NewAdapter returns an Adapter
 func NewAdapter(
 	logsEgressAPIAddr string,
@@ -96,6 +105,7 @@ func NewAdapter(
 		controllerTLSConfig:    controllerTLSConfig,
 		syslogDialTimeout:      1 * time.Second,
 		syslogIOTimeout:        60 * time.Second,
+		skipCertVerify:         true,
 	}
 
 	for _, o := range opts {
@@ -117,6 +127,7 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 	clientManager := ingress.NewClientManager(connector, a.logsAPIConnCount, a.logsAPIConnTTL)
 	builder := egress.NewWriterBuilder(
 		a.syslogIOTimeout,
+		a.skipCertVerify,
 		egress.WithTCPOptions(
 			egress.WithTCPDialer(&net.Dialer{Timeout: a.syslogDialTimeout}),
 		),

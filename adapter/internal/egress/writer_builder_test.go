@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
+	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	. "github.com/onsi/ginkgo"
@@ -28,6 +29,7 @@ var _ = Describe("WriterBuilder", func() {
 
 		builder = egress.NewWriterBuilder(
 			time.Second,
+			true,
 			egress.WithTCPOptions(
 				egress.WithTCPDialer(mockDialer),
 			),
@@ -55,5 +57,35 @@ var _ = Describe("WriterBuilder", func() {
 
 		_, err := builder.Build(binding)
 		Expect(err).To(HaveOccurred())
+	})
+
+	Context("when passed an https scheme", func() {
+		It("returns an http writer", func() {
+			binding.Drain = "https://some-fancy-uri"
+
+			writer, err := builder.Build(binding)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(writer).To(BeAssignableToTypeOf(&egress.HTTPSWriter{}))
+		})
+
+		It("get's passed the value from the builder", func() {
+			builder := egress.NewWriterBuilder(
+				time.Second,
+				false,
+			)
+			drain := newMockOKDrain()
+
+			b := &v1.Binding{
+				Drain:    drain.URL,
+				AppId:    "test-app-id",
+				Hostname: "test-hostname",
+			}
+			writer, err := builder.Build(b)
+			Expect(err).ToNot(HaveOccurred())
+
+			env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
+			Expect(writer.Write(env)).To(HaveOccurred())
+		})
 	})
 })

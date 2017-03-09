@@ -43,6 +43,7 @@ func main() {
 		app.WithControllerAddr(cfg.AdapterHostport),
 		app.WithSyslogDialTimeout(cfg.SyslogDialTimeout),
 		app.WithSyslogIOTimeout(cfg.SyslogIOTimeout),
+		app.WithSyslogSkipCertVerify(*cfg.SkipCertVerify),
 	)
 	adapter.Start()
 

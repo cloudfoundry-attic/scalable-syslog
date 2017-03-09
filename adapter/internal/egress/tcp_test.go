@@ -28,7 +28,7 @@ var _ = Describe("TCPWriter", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("accepts a dialer to customize timeouts/etc", func() {
+		It("dials the syslog drain endpoint", func() {
 			mockDialer := newMockDialer()
 			close(mockDialer.DialOutput.Conn)
 			close(mockDialer.DialOutput.Err)
