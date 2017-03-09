@@ -18,17 +18,18 @@ import (
 )
 
 var _ = Describe("TCPWriter", func() {
+	var binding = &v1.Binding{
+		AppId:    "test-app-id",
+		Hostname: "test-hostname",
+		Drain:    "syslog://example.com:1234",
+	}
+
 	Describe("NewTCPWriter()", func() {
 		It("dials up the drain", func() {
 			spyDialer := SpyDialer{
 				conn: &SpyConn{},
 			}
 			spyStrategy := SpyStrategy{}
-			binding := &v1.Binding{
-				AppId:    "test-app-id",
-				Hostname: "test-hostname",
-				Drain:    "syslog://example.com:1234",
-			}
 
 			writer, err := egress.NewTCPWriter(
 				binding,
@@ -45,11 +46,6 @@ var _ = Describe("TCPWriter", func() {
 			spyConn := &SpyConn{}
 			spyDialer := SpyDialer{}
 			spyStrategy := SpyStrategy{}
-			binding := &v1.Binding{
-				AppId:    "test-app-id",
-				Hostname: "test-hostname",
-				Drain:    "syslog://example.com:1234",
-			}
 			env := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
 
 			By("connecting with a dialer that consistently returns an error")
@@ -89,11 +85,7 @@ var _ = Describe("TCPWriter", func() {
 			}
 
 			writer, _ := egress.NewTCPWriter(
-				&v1.Binding{
-					AppId:    "test-app-id",
-					Hostname: "test-hostname",
-					Drain:    "syslog://example.com:1234",
-				},
+				binding,
 				time.Second,
 				egress.WithDialFunc(spyDialer.dialFunc),
 			)
@@ -120,11 +112,7 @@ var _ = Describe("TCPWriter", func() {
 
 			var err error
 			writer, err = egress.NewTCPWriter(
-				&v1.Binding{
-					AppId:    "test-app-id",
-					Hostname: "test-hostname",
-					Drain:    "syslog://example.com:1234",
-				},
+				binding,
 				time.Second,
 				egress.WithDialFunc(spyDialer.dialFunc),
 			)
@@ -175,48 +163,61 @@ var _ = Describe("TCPWriter", func() {
 	})
 
 	Describe("Close()", func() {
-		var (
-			spyConn *SpyConn
-			writer  *egress.TCPWriter
-		)
-
-		BeforeEach(func() {
-			spyConn = &SpyConn{}
-			spyDialer := &SpyDialer{
-				conn: spyConn,
-			}
-
-			var err error
-			writer, err = egress.NewTCPWriter(
-				&v1.Binding{
-					AppId:    "test-app-id",
-					Hostname: "test-hostname",
-					Drain:    "syslog://example.com:1234",
-				},
-				time.Second,
-				egress.WithDialFunc(spyDialer.dialFunc),
+		Context("with a happy dialer", func() {
+			var (
+				spyConn *SpyConn
+				writer  *egress.TCPWriter
 			)
-			Expect(err).ToNot(HaveOccurred())
-			Eventually(spyDialer.connected).Should(Equal(1))
 
-			env := buildLogEnvelope("", "", "just a test", loggregator_v2.Log_OUT)
-			Eventually(func() error { return writer.Write(env) }).Should(Succeed())
+			BeforeEach(func() {
+				spyConn = &SpyConn{}
+				spyDialer := &SpyDialer{
+					conn: spyConn,
+				}
+
+				var err error
+				writer, err = egress.NewTCPWriter(
+					binding,
+					time.Second,
+					egress.WithDialFunc(spyDialer.dialFunc),
+				)
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(spyDialer.connected).Should(Equal(1))
+
+				env := buildLogEnvelope("", "", "just a test", loggregator_v2.Log_OUT)
+				Eventually(func() error { return writer.Write(env) }).Should(Succeed())
+			})
+
+			It("closes the writer connection", func() {
+				Expect(writer.Close()).To(Succeed())
+				Expect(spyConn.closeCalled()).To(Equal(1))
+			})
+
+			It("returns an error after writing to a closed connection", func() {
+				Expect(writer.Close()).To(Succeed())
+
+				env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
+				Expect(writer.Write(env)).To(MatchError("connection does not exist"))
+			})
 		})
 
-		AfterEach(func() {
-			writer.Close()
-		})
+		Context("with a dialer that is erroring", func() {
+			It("stops connecting", func() {
+				spyDialer := &SpyDialer{
+					err: errors.New("test-error"),
+				}
 
-		It("closes the writer connection", func() {
-			Expect(writer.Close()).To(Succeed())
-			Expect(spyConn.closeCalled()).To(Equal(1))
-		})
+				writer, _ := egress.NewTCPWriter(
+					binding,
+					time.Second,
+					egress.WithDialFunc(spyDialer.dialFunc),
+				)
+				Eventually(spyDialer.called).Should(BeNumerically(">", 2))
 
-		It("returns an error after writing to a closed connection", func() {
-			Expect(writer.Close()).To(Succeed())
-
-			env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
-			Expect(writer.Write(env)).To(MatchError("connection does not exist"))
+				Expect(writer.Close()).To(Succeed())
+				called := spyDialer.called()
+				Consistently(spyDialer.called).Should(BeNumerically("~", called, 1))
+			})
 		})
 	})
 })

@@ -26,8 +26,9 @@ type TCPWriter struct {
 	retryStrategy retrystrategy.RetryStrategy
 	ioTimeout     time.Duration
 
-	mu   sync.Mutex
-	conn net.Conn
+	mu     sync.Mutex
+	conn   net.Conn
+	closed bool
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
@@ -59,6 +60,13 @@ var NewTCPWriter = func(binding *v1.Binding, ioTimeout time.Duration, opts ...TC
 func (w *TCPWriter) connect() {
 	var retryCount int
 	for {
+		w.mu.Lock()
+		closed := w.closed
+		w.mu.Unlock()
+		if closed {
+			return
+		}
+
 		conn, err := w.dialFunc(w.url.Host)
 		if err != nil {
 			duration := w.retryStrategy(retryCount)
@@ -101,7 +109,11 @@ func WithRetryStrategy(r retrystrategy.RetryStrategy) TCPOption {
 func (w *TCPWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.closed = true
+	return w.connClose()
+}
 
+func (w *TCPWriter) connClose() error {
 	if w.conn != nil {
 		err := w.conn.Close()
 		w.conn = nil
@@ -142,7 +154,9 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 	conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
 	_, err := msg.WriteTo(conn)
 	if err != nil {
-		w.Close()
+		w.mu.Lock()
+		defer w.mu.Unlock()
+		w.connClose()
 		go w.connect()
 
 		return err
