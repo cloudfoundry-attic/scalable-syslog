@@ -15,29 +15,36 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/api"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Scheduler - End to End", func() {
 	var (
-		scheduler  *app.Scheduler
-		dataSource *httptest.Server
-		testServer *testAdapterServer
-		bindings   []*v1.Binding
-		healthAddr string
+		scheduler    *app.Scheduler
+		dataSource   *httptest.Server
+		testServer   *testAdapterServer
+		bindings     []*v1.Binding
+		blacklistIPs *ingress.IPRanges
+		healthAddr   string
 	)
 
 	BeforeEach(func() {
+		var err error
+		blacklistIPs, err = ingress.NewIPRanges(
+			ingress.IPRange{Start: "14.15.16.17", End: "14.15.16.20"},
+		)
+		Expect(err).ToNot(HaveOccurred())
 		bindings = []*v1.Binding{
 			{
 				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
-				Drain:    "syslog://new.drain.url/?drain-version=2.0",
+				Drain:    "syslog://14.15.16.21/?drain-version=2.0",
 				Hostname: "org.space.logspinner",
 			},
 			{
 				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
-				Drain:    "syslog://another.new.drain.url/?drain-version=2.0",
+				Drain:    "syslog://14.15.16.16/?drain-version=2.0",
 				Hostname: "org.space.logspinner",
 			},
 		}
@@ -79,6 +86,7 @@ var _ = Describe("Scheduler - End to End", func() {
 			tlsConfig,
 			app.WithHealthAddr("localhost:0"),
 			app.WithPollingInterval(time.Millisecond),
+			app.WithBlacklist(blacklistIPs),
 		)
 		healthAddr = scheduler.Start()
 	})
@@ -101,7 +109,7 @@ var _ = Describe("Scheduler - End to End", func() {
 			Eventually(f, 3*time.Second, 500*time.Millisecond).Should(MatchJSON(`{"drainCount": 2, "adapterCount": 1}`))
 		})
 
-		It("writes drain-version=2.0 bindings to the adapter", func() {
+		It("writes non-blacklisted and drain-version=2.0 bindings to the adapter", func() {
 			expectedRequests := []*v1.CreateBindingRequest{
 				{
 					Binding: bindings[0],
@@ -179,15 +187,17 @@ func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		  "results": {
 			"9be15160-4845-4f05-b089-40e827ba61f1": {
 			  "drains": [
-				"syslog://new.drain.url/?drain-version=2.0",
-				"syslog://another.new.drain.url/?drain-version=2.0",
-				"syslog://legacy.drain.url"
+                "syslog://14.15.16.21/?drain-version=2.0",
+                "syslog://14.15.16.16/?drain-version=2.0",
+                "syslog://14.15.16.18/?drain-version=2.0",
+                "syslog://14.15.16.19/?drain-version=2.0",
+                "syslog://localhost"
 			  ],
 			  "hostname": "org.space.logspinner"
 			},
 			"ed150c22-f866-11e6-bc64-92361f002671": {
 			  "drains": [
-				"syslog://legacy.drain.url"
+				"syslog://localhost"
 			  ],
 			  "hostname": "org.space.logspinner"
 			}

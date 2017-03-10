@@ -4,15 +4,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/health"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/health"
 )
 
 var _ = Describe("Health", func() {
 	var (
 		recorder *httptest.ResponseRecorder
-		handler   *health.Health
+		handler  *health.Health
 	)
 
 	BeforeEach(func() {

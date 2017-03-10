@@ -29,7 +29,9 @@ type Scheduler struct {
 	interval   time.Duration
 
 	adapterService *egress.DefaultAdapterService
-	fetcher        *ingress.VersionFilter
+	fetcher        *ingress.BlacklistFilter
+
+	blacklist *ingress.IPRanges
 }
 
 // NewScheduler returns a new unstarted scheduler.
@@ -46,6 +48,7 @@ func NewScheduler(
 		healthAddr:       ":8080",
 		client:           http.DefaultClient,
 		interval:         15 * time.Second,
+		blacklist:        &ingress.IPRanges{},
 	}
 	for _, o := range opts {
 		o(s)
@@ -77,6 +80,13 @@ func WithPollingInterval(interval time.Duration) func(*Scheduler) {
 	}
 }
 
+// WithBlacklist sets the blacklist for the syslog IPs.
+func WithBlacklist(r *ingress.IPRanges) func(*Scheduler) {
+	return func(s *Scheduler) {
+		s.blacklist = r
+	}
+}
+
 // Start starts polling the syslog drain binding provider and serves the HTTP
 // health endpoint.
 func (s *Scheduler) Start() string {
@@ -86,10 +96,17 @@ func (s *Scheduler) Start() string {
 }
 
 func (s *Scheduler) setupIngress() {
-	s.fetcher = ingress.NewVersionFilter(ingress.NewBindingFetcher(APIClient{
-		client: s.client,
-		addr:   s.apiURL,
-	}))
+	s.fetcher = ingress.NewBlacklistFilter(
+		s.blacklist,
+		ingress.NewVersionFilter(
+			ingress.NewBindingFetcher(
+				APIClient{
+					client: s.client,
+					addr:   s.apiURL,
+				},
+			),
+		),
+	)
 }
 
 func (s *Scheduler) startEgress() {

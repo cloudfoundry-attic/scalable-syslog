@@ -1,8 +1,6 @@
 package ingress_test
 
 import (
-	"fmt"
-
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -21,7 +19,7 @@ var _ = Describe("IPRanges", func() {
 			_, err := ingress.NewIPRanges(
 				ingress.IPRange{Start: "127.0.2.2.1", End: "127.0.2.4"},
 			)
-			Expect(err).To(MatchError("Invalid IP Address for Blacklist IP Range: 127.0.2.2.1"))
+			Expect(err).To(MatchError("invalid IP Address for Blacklist IP Range: 127.0.2.2.1"))
 		})
 
 		It("end address", func() {
@@ -43,7 +41,7 @@ var _ = Describe("IPRanges", func() {
 			_, err := ingress.NewIPRanges(
 				ingress.IPRange{Start: "10.10.10.10", End: "10.8.10.12"},
 			)
-			Expect(err).To(MatchError("Invalid Blacklist IP Range: Start 10.10.10.10 has to be before End 10.8.10.12"))
+			Expect(err).To(MatchError("invalid Blacklist IP Range: Start 10.10.10.10 has to be before End 10.8.10.12"))
 		})
 
 		It("accepts start and end as the same", func() {
@@ -62,10 +60,14 @@ var _ = Describe("IPRanges", func() {
 			)
 			Expect(err).ToNot(HaveOccurred())
 
-			for _, ipTest := range ipTests {
-				outOfRange, err := ranges.IpOutsideOfRanges(ipTest.url)
+			for _, url := range validIPs {
+				err := ranges.IpOutsideOfRanges(url)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(outOfRange).To(Equal(ipTest.output), fmt.Sprintf("Wrong output for url: %s", ipTest.url))
+			}
+
+			for _, url := range invalidIPs {
+				err := ranges.IpOutsideOfRanges(url)
+				Expect(err).To(HaveOccurred())
 			}
 		})
 
@@ -75,17 +77,16 @@ var _ = Describe("IPRanges", func() {
 			)
 
 			for _, testUrl := range malformattedURLs {
-				_, err := ranges.IpOutsideOfRanges(testUrl)
-				Expect(err).To(HaveOccurred())
+				err := ranges.IpOutsideOfRanges(testUrl)
+				Expect(err).To(HaveOccurred(), "url: "+testUrl)
 			}
 		})
 
-		It("always returns true when ip ranges is empty", func() {
+		It("allows all urls for empty blacklist range", func() {
 			ranges, _ := ingress.NewIPRanges()
 
-			outSideOfRange, err := ranges.IpOutsideOfRanges("https://127.0.0.1")
+			err := ranges.IpOutsideOfRanges("https://127.0.0.1")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(outSideOfRange).To(BeTrue())
 		})
 
 		It("resolves ip addresses", func() {
@@ -93,43 +94,40 @@ var _ = Describe("IPRanges", func() {
 				ingress.IPRange{Start: "127.0.0.0", End: "127.0.0.4"},
 			)
 
-			outSideOfRange, err := ranges.IpOutsideOfRanges("syslog://vcap.me:3000?app=great")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(outSideOfRange).To(BeFalse())
-
-			outSideOfRange, err = ranges.IpOutsideOfRanges("syslog://localhost:3000?app=great")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(outSideOfRange).To(BeFalse())
-
-			outSideOfRange, err = ranges.IpOutsideOfRanges("syslog://doesNotExist.local:3000?app=great")
+			err := ranges.IpOutsideOfRanges("syslog://vcap.me:3000?app=great")
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("Resolving host failed: "))
+
+			err = ranges.IpOutsideOfRanges("syslog://localhost:3000?app=great")
+			Expect(err).To(HaveOccurred())
+
+			err = ranges.IpOutsideOfRanges("syslog://example:3000?app=great")
+			Expect(err).To(HaveOccurred())
 		})
 	})
 
 })
 
-var ipTests = []struct {
-	url    string
-	output bool
-}{
-	{"http://127.0.0.1", true},
-	{"http://127.0.1.1", true},
-	{"http://127.0.3.5", true},
-	{"http://127.0.2.2", false},
-	{"http://127.0.2.3", false},
-	{"http://127.0.2.4", false},
-	{"https://127.0.1.1", true},
-	{"https://127.0.2.3", false},
-	{"syslog://127.0.1.1", true},
-	{"syslog://127.0.2.3", false},
-	{"syslog://127.0.1.1:3000", true},
-	{"syslog://127.0.2.3:3000", false},
-	{"syslog://127.0.1.1:3000/test", true},
-	{"syslog://127.0.2.3:3000/test", false},
-	{"syslog://127.0.1.1:3000?app=great", true},
-	{"syslog://127.0.2.3:3000?app=great", false},
-	{"syslog://127.0.2.3:3000?app=great", false},
+var validIPs = []string{
+	"http://127.0.0.1",
+	"http://127.0.1.1",
+	"http://127.0.3.5",
+	"https://127.0.1.1",
+	"syslog://127.0.1.1",
+	"syslog://127.0.1.1:3000",
+	"syslog://127.0.1.1:3000/test",
+	"syslog://127.0.1.1:3000?app=great",
+}
+
+var invalidIPs = []string{
+	"http://127.0.2.2",
+	"http://127.0.2.3",
+	"http://127.0.2.4",
+	"https://127.0.2.3",
+	"syslog://127.0.2.3",
+	"syslog://127.0.2.3:3000",
+	"syslog://127.0.2.3:3000/test",
+	"syslog://127.0.2.3:3000?app=great",
+	"://127.0.2.3:3000?app=great",
 }
 
 var malformattedURLs = []string{

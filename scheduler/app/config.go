@@ -4,9 +4,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"strings"
+
+	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
 type Config struct {
@@ -25,34 +26,40 @@ type Config struct {
 	AdapterIPs        string
 	AdapterPort       string
 	AdapterAddrs      []string
+	Blacklist         *ingress.IPRanges
 }
 
-func LoadConfig() *Config {
+func LoadConfig(args []string) (*Config, error) {
 	var cfg Config
 
-	flag.StringVar(&cfg.HealthHostport, "health", ":8080", "The hostport to listen for health requests")
-	flag.StringVar(&cfg.PprofHostport, "pprof", ":6060", "The hostport to listen for pprof")
+	flags := flag.NewFlagSet("config", flag.ContinueOnError)
 
-	flag.StringVar(&cfg.APIURL, "api-url", "", "The URL of the binding provider")
-	flag.StringVar(&cfg.APICAFile, "api-ca", "", "The file path for the CA cert")
-	flag.StringVar(&cfg.APICertFile, "api-cert", "", "The file path for the client cert")
-	flag.StringVar(&cfg.APIKeyFile, "api-key", "", "The file path for the client key")
-	flag.StringVar(&cfg.APICommonName, "api-cn", "", "The common name used for the TLS config")
-	flag.BoolVar(&cfg.APISkipCertVerify, "api-skip-cert-verify", false, "The option to allow insecure SSL connections")
+	flags.StringVar(&cfg.HealthHostport, "health", ":8080", "The hostport to listen for health requests")
+	flags.StringVar(&cfg.PprofHostport, "pprof", ":6060", "The hostport to listen for pprof")
 
-	flag.StringVar(&cfg.CAFile, "ca", "", "The file path for the CA cert")
-	flag.StringVar(&cfg.CertFile, "cert", "", "The file path for the adapter server cert")
-	flag.StringVar(&cfg.KeyFile, "key", "", "The file path for the adapter server key")
+	flags.StringVar(&cfg.APIURL, "api-url", "", "The URL of the binding provider")
+	flags.StringVar(&cfg.APICAFile, "api-ca", "", "The file path for the CA cert")
+	flags.StringVar(&cfg.APICertFile, "api-cert", "", "The file path for the client cert")
+	flags.StringVar(&cfg.APIKeyFile, "api-key", "", "The file path for the client key")
+	flags.StringVar(&cfg.APICommonName, "api-cn", "", "The common name used for the TLS config")
+	flags.BoolVar(&cfg.APISkipCertVerify, "api-skip-cert-verify", false, "The option to allow insecure SSL connections")
 
-	flag.StringVar(&cfg.AdapterCommonName, "adapter-cn", "", "The common name used for the TLS config")
-	flag.StringVar(&cfg.AdapterPort, "adapter-port", "", "The port of the adapter API")
-	flag.StringVar(&cfg.AdapterIPs, "adapter-ips", "", "Comma separated list of adapter IP addresses")
+	flags.StringVar(&cfg.CAFile, "ca", "", "The file path for the CA cert")
+	flags.StringVar(&cfg.CertFile, "cert", "", "The file path for the adapter server cert")
+	flags.StringVar(&cfg.KeyFile, "key", "", "The file path for the adapter server key")
 
-	flag.Parse()
+	flags.StringVar(&cfg.AdapterCommonName, "adapter-cn", "", "The common name used for the TLS config")
+	flags.StringVar(&cfg.AdapterPort, "adapter-port", "", "The port of the adapter API")
+	flags.StringVar(&cfg.AdapterIPs, "adapter-ips", "", "Comma separated list of adapter IP addresses")
+
+	var blacklist string
+	flags.StringVar(&blacklist, "blacklist-ranges", "", "Comma separated list of blacklist IP ranges")
+
+	flags.Parse(args)
 
 	var errs []error
-	flag.VisitAll(func(f *flag.Flag) {
-		if f.Value.String() == "" {
+	flags.VisitAll(func(f *flag.Flag) {
+		if f.Name != "blacklist-ranges" && f.Value.String() == "" {
 			errs = append(errs, fmt.Errorf("Missing required flag %s", f.Name))
 		}
 	})
@@ -62,16 +69,47 @@ func LoadConfig() *Config {
 		for _, e := range errs {
 			errorMsg += fmt.Sprintf("  %s\n", e.Error())
 		}
-		log.Fatalf("Config validation failed:\n%s", errorMsg)
+
+		return nil, fmt.Errorf("Config validation failed:\n%s", errorMsg)
 	}
 
 	var err error
 	cfg.AdapterAddrs, err = parseAddrs(cfg.AdapterIPs, cfg.AdapterPort)
 	if err != nil {
-		log.Fatalf("No adapter addresses: %s", err)
+		return nil, fmt.Errorf("No adapter addresses: %s", err)
 	}
 
-	return &cfg
+	cfg.Blacklist, err = parseBlacklist(blacklist)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+func parseBlacklist(blacklist string) (*ingress.IPRanges, error) {
+	ipRanges := strings.Split(blacklist, ",")
+	blacklistRanges := make([]ingress.IPRange, 0)
+
+	if len(ipRanges) == 1 && len(ipRanges[0]) == 0 {
+		ipRanges = []string{}
+	}
+
+	for _, ipRange := range ipRanges {
+		ips := strings.Split(ipRange, "-")
+		r := ingress.IPRange{
+			Start: ips[0],
+			End:   ips[1],
+		}
+		blacklistRanges = append(blacklistRanges, r)
+	}
+
+	result, err := ingress.NewIPRanges(blacklistRanges...)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse blacklist ip ranges: %s", err)
+	}
+	return result, nil
+
 }
 
 func parseAddrs(ips, port string) ([]string, error) {

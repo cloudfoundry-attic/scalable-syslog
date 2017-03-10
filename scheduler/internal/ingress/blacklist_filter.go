@@ -1,8 +1,15 @@
 package ingress
 
+import (
+	"log"
+	"sync"
+)
+
 type BlacklistFilter struct {
-	ranges *IPRanges
-	br     BindingReader
+	ranges     *IPRanges
+	br         BindingReader
+	mu         sync.RWMutex
+	drainCount int
 }
 
 func NewBlacklistFilter(r *IPRanges, b BindingReader) *BlacklistFilter {
@@ -13,6 +20,7 @@ func NewBlacklistFilter(r *IPRanges, b BindingReader) *BlacklistFilter {
 }
 
 func (f *BlacklistFilter) FetchBindings() (AppBindings, error) {
+	f.resetDrainCount()
 	sourceBindings, err := f.br.FetchBindings()
 	if err != nil {
 		return nil, err
@@ -21,12 +29,12 @@ func (f *BlacklistFilter) FetchBindings() (AppBindings, error) {
 	for appID, b := range sourceBindings {
 		drainURLs := []string{}
 		for _, d := range b.Drains {
-			ok, err := f.ranges.IpOutsideOfRanges(d)
-			_ = err
-			// TODO: err on URL and this
-			if !ok {
+			err := f.ranges.IpOutsideOfRanges(d)
+			if err != nil {
+				log.Printf("%s", err)
 				continue
 			}
+			f.incrementDrainCount(1)
 			drainURLs = append(drainURLs, d)
 		}
 		if len(drainURLs) > 0 {
@@ -39,4 +47,25 @@ func (f *BlacklistFilter) FetchBindings() (AppBindings, error) {
 	}
 
 	return newBindings, nil
+}
+
+func (f *BlacklistFilter) resetDrainCount() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.drainCount = 0
+}
+
+func (f *BlacklistFilter) incrementDrainCount(c int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.drainCount += c
+}
+
+func (f *BlacklistFilter) Count() int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	return f.drainCount
 }

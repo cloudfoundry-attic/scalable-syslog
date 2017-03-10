@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"net/http"
@@ -13,7 +14,10 @@ import (
 )
 
 func main() {
-	cfg := app.LoadConfig()
+	cfg, err := app.LoadConfig(os.Args[1:])
+	if err != nil {
+		log.Fatalf("Invalid config: %s", err)
+	}
 
 	apiTLSConfig, err := api.NewMutualTLSConfig(
 		cfg.APICertFile,
@@ -42,6 +46,7 @@ func main() {
 		adapterTLSConfig,
 		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithHTTPClient(api.NewHTTPSClient(apiTLSConfig, 5*time.Second)),
+		app.WithBlacklist(cfg.Blacklist),
 	)
 	scheduler.Start()
 
