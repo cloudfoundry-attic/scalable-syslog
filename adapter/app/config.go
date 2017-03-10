@@ -1,4 +1,4 @@
-package config
+package app
 
 import (
 	"flag"
@@ -25,7 +25,7 @@ type Config struct {
 	SyslogSkipCertVerify bool
 }
 
-func Load() *Config {
+func LoadConfig() *Config {
 	var cfg Config
 
 	flag.StringVar(&cfg.HealthHostport, "health", ":8080", "The hostport to listen for health requests")

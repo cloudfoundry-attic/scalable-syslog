@@ -8,12 +8,11 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/app"
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/config"
 	"github.com/cloudfoundry-incubator/scalable-syslog/api"
 )
 
 func main() {
-	cfg := config.Load()
+	cfg := app.LoadConfig()
 
 	tlsConfig, err := api.NewMutualTLSConfig(
 		cfg.CertFile,
