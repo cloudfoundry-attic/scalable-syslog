@@ -132,21 +132,21 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 	subscriber := ingress.NewSubscriber(clientManager, builder)
 	manager := binding.NewBindingManager(subscriber)
 
-	actualHealth = startHealthServer(a.healthAddr, manager)
+	actualHealth = a.startHealthServer(manager)
 	creds := credentials.NewTLS(a.adapterServerTLSConfig)
-	actualService = startAdapterService(a.adapterServerAddr, creds, manager)
+	actualService = a.startAdapterService(creds, manager)
 
 	return actualHealth, actualService
 }
 
-func startHealthServer(hostport string, manager *binding.BindingManager) string {
-	l, err := net.Listen("tcp", hostport)
+func (a *Adapter) startHealthServer(manager *binding.BindingManager) string {
+	l, err := net.Listen("tcp", a.healthAddr)
 	if err != nil {
-		log.Fatalf("Unable to setup Health endpoint (%s): %s", hostport, err)
+		log.Fatalf("Unable to setup Health endpoint (%s): %s", a.healthAddr, err)
 	}
 
 	server := http.Server{
-		Addr:         hostport,
+		Addr:         a.healthAddr,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
@@ -163,8 +163,8 @@ func startHealthServer(hostport string, manager *binding.BindingManager) string 
 	return l.Addr().String()
 }
 
-func startAdapterService(hostport string, creds credentials.TransportCredentials, manager *binding.BindingManager) string {
-	lis, err := net.Listen("tcp", hostport)
+func (a *Adapter) startAdapterService(creds credentials.TransportCredentials, manager *binding.BindingManager) string {
+	lis, err := net.Listen("tcp", a.adapterServerAddr)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
