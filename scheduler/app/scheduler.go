@@ -2,7 +2,6 @@ package app
 
 import (
 	"crypto/tls"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -100,9 +99,9 @@ func (s *Scheduler) setupIngress() {
 		s.blacklist,
 		ingress.NewVersionFilter(
 			ingress.NewBindingFetcher(
-				APIClient{
-					client: s.client,
-					addr:   s.apiURL,
+				ingress.APIClient{
+					Client: s.client,
+					Addr:   s.apiURL,
 				},
 			),
 		),
@@ -139,13 +138,4 @@ func (s *Scheduler) serveHealth() string {
 		log.Fatalf("Health server closing: %s", server.Serve(lis))
 	}()
 	return lis.Addr().String()
-}
-
-type APIClient struct {
-	client *http.Client
-	addr   string
-}
-
-func (w APIClient) Get(nextID int) (*http.Response, error) {
-	return w.client.Get(fmt.Sprintf("%s?batch_size=50&next_id=%d", w.addr, nextID))
 }

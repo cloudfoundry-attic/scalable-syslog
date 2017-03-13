@@ -174,6 +174,10 @@ type fakeCC struct {
 }
 
 func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/internal/v4/syslog_drain_urls" {
+		w.WriteHeader(500)
+		return
+	}
 	if f.count > 0 {
 		w.Write([]byte(`
 			{
