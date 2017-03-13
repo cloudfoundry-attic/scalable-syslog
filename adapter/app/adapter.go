@@ -21,10 +21,10 @@ type Adapter struct {
 	healthAddr             string
 	logsAPIConnCount       int
 	logsAPIConnTTL         time.Duration
-	controllerAddr         string
+	adapterServerAddr      string
 	logsEgressAPIAddr      string
 	logsEgressAPITLSConfig *tls.Config
-	controllerTLSConfig    *tls.Config
+	adapterServerTLSConfig *tls.Config
 	syslogDialTimeout      time.Duration
 	syslogIOTimeout        time.Duration
 	skipCertVerify         bool
@@ -40,10 +40,10 @@ func WithHealthAddr(addr string) func(*Adapter) {
 	}
 }
 
-// WithServiceAddr sets the address for the gRPC controller to bind to.
-func WithControllerAddr(addr string) func(*Adapter) {
+// WithAdapterServerAddr sets the address for the gRPC server to bind to.
+func WithAdapterServerAddr(addr string) func(*Adapter) {
 	return func(c *Adapter) {
-		c.controllerAddr = addr
+		c.adapterServerAddr = addr
 	}
 }
 
@@ -91,17 +91,17 @@ func WithSyslogSkipCertVerify(b bool) func(*Adapter) {
 func NewAdapter(
 	logsEgressAPIAddr string,
 	logsEgressAPITLSConfig *tls.Config,
-	controllerTLSConfig *tls.Config,
+	adapterServerTLSConfig *tls.Config,
 	opts ...AdapterOption,
 ) *Adapter {
 	adapter := &Adapter{
 		healthAddr:             ":8080",
-		controllerAddr:         ":443",
+		adapterServerAddr:      ":443",
 		logsAPIConnCount:       5,
 		logsAPIConnTTL:         600 * time.Second,
 		logsEgressAPIAddr:      logsEgressAPIAddr,
 		logsEgressAPITLSConfig: logsEgressAPITLSConfig,
-		controllerTLSConfig:    controllerTLSConfig,
+		adapterServerTLSConfig: adapterServerTLSConfig,
 		syslogDialTimeout:      1 * time.Second,
 		syslogIOTimeout:        60 * time.Second,
 		skipCertVerify:         true,
@@ -133,8 +133,8 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 	manager := binding.NewBindingManager(subscriber)
 
 	actualHealth = startHealthServer(a.healthAddr, manager)
-	creds := credentials.NewTLS(a.controllerTLSConfig)
-	actualService = startAdapterService(a.controllerAddr, creds, manager)
+	creds := credentials.NewTLS(a.adapterServerTLSConfig)
+	actualService = startAdapterService(a.adapterServerAddr, creds, manager)
 
 	return actualHealth, actualService
 }
@@ -169,16 +169,16 @@ func startAdapterService(hostport string, creds credentials.TransportCredentials
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	adapterService := binding.NewController(manager)
+	adapterServer := binding.NewAdapterServer(manager)
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
 	)
-	v1.RegisterAdapterServer(grpcServer, adapterService)
+	v1.RegisterAdapterServer(grpcServer, adapterServer)
 
 	go func() {
 		log.Fatalf("failed to serve: %v", grpcServer.Serve(lis))
 	}()
 
-	log.Printf("Adapter controller is listening on %s", lis.Addr().String())
+	log.Printf("Adapter server is listening on %s", lis.Addr().String())
 	return lis.Addr().String()
 }

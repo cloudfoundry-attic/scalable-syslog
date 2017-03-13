@@ -29,7 +29,7 @@ func LoadConfig() *Config {
 	var cfg Config
 
 	flag.StringVar(&cfg.HealthHostport, "health", ":8080", "The hostport to listen for health requests")
-	flag.StringVar(&cfg.AdapterHostport, "addr", ":4443", "The hostport to for the adapter controller")
+	flag.StringVar(&cfg.AdapterHostport, "addr", ":4443", "The hostport to for the adapter server")
 	flag.StringVar(&cfg.PprofHostport, "pprof", "localhost:6060", "The hostport to listen for pprof")
 
 	flag.StringVar(&cfg.CAFile, "ca", "", "The file path for the CA cert")

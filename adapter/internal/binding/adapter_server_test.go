@@ -10,21 +10,24 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Controller", func() {
+var _ = Describe("AdapterServer", func() {
 	var (
-		mockStore *mockBindingStore
-		c         *binding.Controller
+		mockStore     *mockBindingStore
+		adapterServer *binding.AdapterServer
 	)
 
 	BeforeEach(func() {
 		mockStore = newMockBindingStore()
 
-		c = binding.NewController(mockStore)
+		adapterServer = binding.NewAdapterServer(mockStore)
 	})
 
 	It("returns a list of known bindings", func() {
 		mockStore.ListOutput.Bindings <- []*v1.Binding{nil, nil}
-		resp, err := c.ListBindings(context.Background(), new(v1.ListBindingsRequest))
+		resp, err := adapterServer.ListBindings(
+			context.Background(),
+			&v1.ListBindingsRequest{},
+		)
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resp.Bindings).To(HaveLen(2))
@@ -36,9 +39,11 @@ var _ = Describe("Controller", func() {
 			Hostname: "some-host",
 			Drain:    "some.url",
 		}
-		_, err := c.CreateBinding(context.Background(), &v1.CreateBindingRequest{
-			Binding: binding,
-		})
+		_, err := adapterServer.CreateBinding(
+			context.Background(),
+			&v1.CreateBindingRequest{
+				Binding: binding,
+			})
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(mockStore.AddInput.Binding).To(Receive(Equal(binding)))
@@ -50,9 +55,11 @@ var _ = Describe("Controller", func() {
 			Hostname: "some-host",
 			Drain:    "some.url",
 		}
-		_, err := c.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
-			Binding: binding,
-		})
+		_, err := adapterServer.DeleteBinding(
+			context.Background(),
+			&v1.DeleteBindingRequest{
+				Binding: binding,
+			})
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(mockStore.DeleteInput.Binding).To(Receive(Equal(binding)))

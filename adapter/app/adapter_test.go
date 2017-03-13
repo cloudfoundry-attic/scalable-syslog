@@ -65,7 +65,7 @@ var _ = Describe("Adapter", func() {
 				rlpTLSConfig,
 				tlsConfig,
 				app.WithHealthAddr("localhost:0"),
-				app.WithControllerAddr("localhost:0"),
+				app.WithAdapterServerAddr("localhost:0"),
 				app.WithLogsEgressAPIConnCount(1),
 			)
 			adapterHealthAddr, adapterServiceHost = adapter.Start()
@@ -127,7 +127,7 @@ var _ = Describe("Adapter", func() {
 				rlpTLSConfig,
 				tlsConfig,
 				app.WithHealthAddr("localhost:0"),
-				app.WithControllerAddr("localhost:0"),
+				app.WithAdapterServerAddr("localhost:0"),
 				app.WithLogsEgressAPIConnCount(1),
 			)
 			adapterHealthAddr, adapterServiceHost = adapter.Start()
@@ -182,7 +182,7 @@ var _ = Describe("Adapter", func() {
 					rlpTLSConfig,
 					tlsConfig,
 					app.WithHealthAddr("localhost:0"),
-					app.WithControllerAddr("localhost:0"),
+					app.WithAdapterServerAddr("localhost:0"),
 					app.WithLogsEgressAPIConnCount(1),
 					app.WithSyslogSkipCertVerify(true),
 				)
@@ -220,7 +220,7 @@ var _ = Describe("Adapter", func() {
 					rlpTLSConfig,
 					tlsConfig,
 					app.WithHealthAddr("localhost:0"),
-					app.WithControllerAddr("localhost:0"),
+					app.WithAdapterServerAddr("localhost:0"),
 					app.WithLogsEgressAPIConnCount(1),
 					app.WithSyslogSkipCertVerify(false),
 				)

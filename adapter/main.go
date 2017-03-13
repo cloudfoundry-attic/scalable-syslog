@@ -39,7 +39,7 @@ func main() {
 		rlpTlsConfig,
 		tlsConfig,
 		app.WithHealthAddr(cfg.HealthHostport),
-		app.WithControllerAddr(cfg.AdapterHostport),
+		app.WithAdapterServerAddr(cfg.AdapterHostport),
 		app.WithSyslogDialTimeout(cfg.SyslogDialTimeout),
 		app.WithSyslogIOTimeout(cfg.SyslogIOTimeout),
 		app.WithSyslogSkipCertVerify(cfg.SyslogSkipCertVerify),
