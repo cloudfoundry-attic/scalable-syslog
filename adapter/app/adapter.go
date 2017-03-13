@@ -124,12 +124,12 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 		grpc.WithTransportCredentials(credentials.NewTLS(a.logsEgressAPITLSConfig)),
 	)
 	clientManager := ingress.NewClientManager(connector, a.logsAPIConnCount, a.logsAPIConnTTL)
-	builder := egress.NewWriterBuilder(
+	syslogConnector := egress.NewSyslogConnector(
 		a.syslogDialTimeout,
 		a.syslogIOTimeout,
 		a.skipCertVerify,
 	)
-	subscriber := ingress.NewSubscriber(clientManager, builder)
+	subscriber := ingress.NewSubscriber(clientManager, syslogConnector)
 	manager := binding.NewBindingManager(subscriber)
 
 	actualHealth = a.startHealthServer(manager)

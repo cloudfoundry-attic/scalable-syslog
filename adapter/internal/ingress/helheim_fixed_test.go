@@ -33,29 +33,29 @@ func (m *mockClientPool) Next() (client v2.EgressClient) {
 	return <-m.NextOutput.Client
 }
 
-type mockWriterBuilder struct {
-	BuildCalled chan bool
-	BuildInput  struct {
+type mockSyslogConnector struct {
+	ConnectCalled chan bool
+	ConnectInput  struct {
 		Binding chan *v1.Binding
 	}
-	BuildOutput struct {
+	ConnectOutput struct {
 		Cw  chan egress.WriteCloser
 		Err chan error
 	}
 }
 
-func newMockWriterBuilder() *mockWriterBuilder {
-	m := &mockWriterBuilder{}
-	m.BuildCalled = make(chan bool, 100)
-	m.BuildInput.Binding = make(chan *v1.Binding, 100)
-	m.BuildOutput.Cw = make(chan egress.WriteCloser, 100)
-	m.BuildOutput.Err = make(chan error, 100)
+func newMockSyslogConnector() *mockSyslogConnector {
+	m := &mockSyslogConnector{}
+	m.ConnectCalled = make(chan bool, 100)
+	m.ConnectInput.Binding = make(chan *v1.Binding, 100)
+	m.ConnectOutput.Cw = make(chan egress.WriteCloser, 100)
+	m.ConnectOutput.Err = make(chan error, 100)
 	return m
 }
-func (m *mockWriterBuilder) Build(binding *v1.Binding) (cw egress.WriteCloser, err error) {
-	m.BuildCalled <- true
-	m.BuildInput.Binding <- binding
-	return <-m.BuildOutput.Cw, <-m.BuildOutput.Err
+func (m *mockSyslogConnector) Connect(binding *v1.Binding) (cw egress.WriteCloser, err error) {
+	m.ConnectCalled <- true
+	m.ConnectInput.Binding <- binding
+	return <-m.ConnectOutput.Cw, <-m.ConnectOutput.Err
 }
 
 type mockReceiverClient struct {
@@ -181,7 +181,7 @@ func (m *mockEgressClient) Receiver(ctx context.Context, in *v2.EgressRequest, o
 	return <-m.ReceiverOutput.Ret0, <-m.ReceiverOutput.Ret1
 }
 
-type mockCloseWriter struct {
+type mockWriteCloser struct {
 	WriteCalled chan bool
 	WriteInput  struct {
 		Arg0 chan *v2.Envelope
@@ -195,8 +195,8 @@ type mockCloseWriter struct {
 	}
 }
 
-func newMockCloseWriter() *mockCloseWriter {
-	m := &mockCloseWriter{}
+func newMockWriteCloser() *mockWriteCloser {
+	m := &mockWriteCloser{}
 	m.WriteCalled = make(chan bool, 100)
 	m.WriteInput.Arg0 = make(chan *v2.Envelope, 100)
 	m.WriteOutput.Ret0 = make(chan error, 100)
@@ -204,12 +204,12 @@ func newMockCloseWriter() *mockCloseWriter {
 	m.CloseOutput.Ret0 = make(chan error, 100)
 	return m
 }
-func (m *mockCloseWriter) Write(arg0 *v2.Envelope) error {
+func (m *mockWriteCloser) Write(arg0 *v2.Envelope) error {
 	m.WriteCalled <- true
 	m.WriteInput.Arg0 <- arg0
 	return <-m.WriteOutput.Ret0
 }
-func (m *mockCloseWriter) Close() error {
+func (m *mockWriteCloser) Close() error {
 	m.CloseCalled <- true
 	return <-m.CloseOutput.Ret0
 }

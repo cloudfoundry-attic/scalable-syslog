@@ -11,26 +11,22 @@ import (
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 )
 
-var (
-	errUnsupportedScheme = errors.New("unsupported scheme")
-)
-
 // WriteCloser is the interface for all syslog writers.
 type WriteCloser interface {
 	Write(*loggregator_v2.Envelope) error
 	Close() error
 }
 
-// WriterBuilder is builder for the various egress syslog writers.
-type WriterBuilder struct {
+// SyslogConnector creates the various egress syslog writers.
+type SyslogConnector struct {
 	skipCertVerify bool
 	ioTimeout      time.Duration
 	dialer         *net.Dialer
 }
 
-// NewWriterBuilder configures and returns a pointer to a new WriterBuilder.
-func NewWriterBuilder(dialTimeout, ioTimeout time.Duration, skipCertVerify bool) *WriterBuilder {
-	return &WriterBuilder{
+// NewSyslogConnector configures and returns a new SyslogConnector.
+func NewSyslogConnector(dialTimeout, ioTimeout time.Duration, skipCertVerify bool) *SyslogConnector {
+	return &SyslogConnector{
 		skipCertVerify: skipCertVerify,
 		ioTimeout:      ioTimeout,
 		dialer: &net.Dialer{
@@ -39,8 +35,9 @@ func NewWriterBuilder(dialTimeout, ioTimeout time.Duration, skipCertVerify bool)
 	}
 }
 
-// Build returns an egress writer based on the scheme of the binding drain url.
-func (w *WriterBuilder) Build(b *v1.Binding) (WriteCloser, error) {
+// Connect returns an egress writer based on the scheme of the binding drain
+// URL.
+func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
 	url, err := url.Parse(b.Drain)
 	if err != nil {
 		return nil, err
@@ -62,6 +59,6 @@ func (w *WriterBuilder) Build(b *v1.Binding) (WriteCloser, error) {
 		}
 		return NewTCPWriter(b, w.ioTimeout, WithDialFunc(df))
 	default:
-		return nil, errUnsupportedScheme
+		return nil, errors.New("unsupported scheme")
 	}
 }

@@ -1,6 +1,6 @@
 package ingress
 
-//go:generate hel --type ClientPool,ReceiverClient,WriterBuilder
+//go:generate hel --type ClientPool,ReceiverClient,SyslogConnector
 
 import v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 

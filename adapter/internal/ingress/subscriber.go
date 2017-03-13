@@ -14,21 +14,21 @@ type ClientPool interface {
 	Next() (client v2.EgressClient)
 }
 
-type WriterBuilder interface {
-	Build(binding *v1.Binding) (cw egress.WriteCloser, err error)
+type SyslogConnector interface {
+	Connect(binding *v1.Binding) (cw egress.WriteCloser, err error)
 }
 
 // Subscriber streams loggregator egress to the syslog drain.
 type Subscriber struct {
-	pool    ClientPool
-	builder WriterBuilder
+	pool      ClientPool
+	connector SyslogConnector
 }
 
 // NewSubscriber returns a new Subscriber.
-func NewSubscriber(cp ClientPool, wb WriterBuilder) *Subscriber {
+func NewSubscriber(cp ClientPool, connector SyslogConnector) *Subscriber {
 	return &Subscriber{
-		pool:    cp,
-		builder: wb,
+		pool:      cp,
+		connector: connector,
 	}
 }
 
@@ -40,9 +40,9 @@ func (s *Subscriber) Start(binding *v1.Binding) func() {
 
 	go func() {
 		for {
-			writer, err := s.builder.Build(binding)
+			writer, err := s.connector.Connect(binding)
 			if err != nil {
-				log.Println("failed to build egress writer: %s", err)
+				log.Println("failed connecting to syslog: %s", err)
 				return
 			}
 
