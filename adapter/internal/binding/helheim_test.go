@@ -3,11 +3,34 @@
 // doing.  Expect any changes made manually to be overwritten
 // the next time hel regenerates this file.
 
-package controller_test
+package binding_test
 
 import v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
-type mockBindingManager struct {
+type mockSubscriber struct {
+	StartCalled chan bool
+	StartInput  struct {
+		Binding chan *v1.Binding
+	}
+	StartOutput struct {
+		StopFunc chan func()
+	}
+}
+
+func newMockSubscriber() *mockSubscriber {
+	m := &mockSubscriber{}
+	m.StartCalled = make(chan bool, 100)
+	m.StartInput.Binding = make(chan *v1.Binding, 100)
+	m.StartOutput.StopFunc = make(chan func(), 100)
+	return m
+}
+func (m *mockSubscriber) Start(binding *v1.Binding) (stopFunc func()) {
+	m.StartCalled <- true
+	m.StartInput.Binding <- binding
+	return <-m.StartOutput.StopFunc
+}
+
+type mockBindingStore struct {
 	AddCalled chan bool
 	AddInput  struct {
 		Binding chan *v1.Binding
@@ -22,8 +45,8 @@ type mockBindingManager struct {
 	}
 }
 
-func newMockBindingManager() *mockBindingManager {
-	m := &mockBindingManager{}
+func newMockBindingStore() *mockBindingStore {
+	m := &mockBindingStore{}
 	m.AddCalled = make(chan bool, 100)
 	m.AddInput.Binding = make(chan *v1.Binding, 100)
 	m.DeleteCalled = make(chan bool, 100)
@@ -32,15 +55,15 @@ func newMockBindingManager() *mockBindingManager {
 	m.ListOutput.Bindings = make(chan []*v1.Binding, 100)
 	return m
 }
-func (m *mockBindingManager) Add(binding *v1.Binding) {
+func (m *mockBindingStore) Add(binding *v1.Binding) {
 	m.AddCalled <- true
 	m.AddInput.Binding <- binding
 }
-func (m *mockBindingManager) Delete(binding *v1.Binding) {
+func (m *mockBindingStore) Delete(binding *v1.Binding) {
 	m.DeleteCalled <- true
 	m.DeleteInput.Binding <- binding
 }
-func (m *mockBindingManager) List() (bindings []*v1.Binding) {
+func (m *mockBindingStore) List() (bindings []*v1.Binding) {
 	m.ListCalled <- true
 	return <-m.ListOutput.Bindings
 }

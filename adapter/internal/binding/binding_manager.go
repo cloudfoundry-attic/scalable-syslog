@@ -1,4 +1,4 @@
-package bindingmanager
+package binding
 
 import (
 	"sync"
@@ -24,7 +24,7 @@ type subscription struct {
 }
 
 // New returns a new Binding Manager.
-func New(s Subscriber) *BindingManager {
+func NewBindingManager(s Subscriber) *BindingManager {
 	return &BindingManager{
 		subscriptions: make(map[string]subscription),
 		subscriber:    s,

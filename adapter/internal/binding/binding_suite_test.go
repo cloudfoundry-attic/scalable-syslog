@@ -1,4 +1,4 @@
-package bindingmanager_test
+package binding_test
 
 import (
 	"log"

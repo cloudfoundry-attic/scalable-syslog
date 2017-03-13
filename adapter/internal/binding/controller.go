@@ -1,4 +1,4 @@
-package controller
+package binding
 
 import (
 	"golang.org/x/net/context"
@@ -6,8 +6,8 @@ import (
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 )
 
-// BindingManager manages the bindings and respective subscriptions
-type BindingManager interface {
+// BindingStore manages the bindings and respective subscriptions
+type BindingStore interface {
 	Add(binding *v1.Binding)
 	Delete(binding *v1.Binding)
 	List() (bindings []*v1.Binding)
@@ -15,11 +15,11 @@ type BindingManager interface {
 
 // Controller implements the v1.AdapterServer interface.
 type Controller struct {
-	manager BindingManager
+	manager BindingStore
 }
 
 // New returns a new Controller.
-func New(m BindingManager) *Controller {
+func NewController(m BindingStore) *Controller {
 	return &Controller{
 		manager: m,
 	}
@@ -34,12 +34,12 @@ func (c *Controller) ListBindings(ctx context.Context, req *v1.ListBindingsReque
 func (c *Controller) CreateBinding(ctx context.Context, req *v1.CreateBindingRequest) (*v1.CreateBindingResponse, error) {
 	c.manager.Add(req.Binding)
 
-	return new(v1.CreateBindingResponse), nil
+	return &v1.CreateBindingResponse{}, nil
 }
 
 // DeleteBinding removes a binding from the binding manager.
 func (c *Controller) DeleteBinding(ctx context.Context, req *v1.DeleteBindingRequest) (*v1.DeleteBindingResponse, error) {
 	c.manager.Delete(req.Binding)
 
-	return new(v1.DeleteBindingResponse), nil
+	return &v1.DeleteBindingResponse{}, nil
 }

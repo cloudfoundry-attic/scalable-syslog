@@ -1,9 +1,9 @@
-package controller_test
+package binding_test
 
 import (
 	"context"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/controller"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/binding"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	. "github.com/onsi/ginkgo"
@@ -12,18 +12,18 @@ import (
 
 var _ = Describe("Controller", func() {
 	var (
-		mockManager *mockBindingManager
-		c           *controller.Controller
+		mockStore *mockBindingStore
+		c         *binding.Controller
 	)
 
 	BeforeEach(func() {
-		mockManager = newMockBindingManager()
+		mockStore = newMockBindingStore()
 
-		c = controller.New(mockManager)
+		c = binding.NewController(mockStore)
 	})
 
 	It("returns a list of known bindings", func() {
-		mockManager.ListOutput.Bindings <- []*v1.Binding{nil, nil}
+		mockStore.ListOutput.Bindings <- []*v1.Binding{nil, nil}
 		resp, err := c.ListBindings(context.Background(), new(v1.ListBindingsRequest))
 
 		Expect(err).ToNot(HaveOccurred())
@@ -41,7 +41,7 @@ var _ = Describe("Controller", func() {
 		})
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(mockManager.AddInput.Binding).To(Receive(Equal(binding)))
+		Expect(mockStore.AddInput.Binding).To(Receive(Equal(binding)))
 	})
 
 	It("deletes existing bindings", func() {
@@ -55,6 +55,6 @@ var _ = Describe("Controller", func() {
 		})
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(mockManager.DeleteInput.Binding).To(Receive(Equal(binding)))
+		Expect(mockStore.DeleteInput.Binding).To(Receive(Equal(binding)))
 	})
 })

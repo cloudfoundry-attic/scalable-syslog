@@ -7,8 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/bindingmanager"
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/controller"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/binding"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/health"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
@@ -131,7 +130,7 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 		a.skipCertVerify,
 	)
 	subscriber := ingress.NewSubscriber(clientManager, builder)
-	manager := bindingmanager.New(subscriber)
+	manager := binding.NewBindingManager(subscriber)
 
 	actualHealth = startHealthServer(a.healthAddr, manager)
 	creds := credentials.NewTLS(a.controllerTLSConfig)
@@ -140,7 +139,7 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 	return actualHealth, actualService
 }
 
-func startHealthServer(hostport string, manager *bindingmanager.BindingManager) string {
+func startHealthServer(hostport string, manager *binding.BindingManager) string {
 	l, err := net.Listen("tcp", hostport)
 	if err != nil {
 		log.Fatalf("Unable to setup Health endpoint (%s): %s", hostport, err)
@@ -164,13 +163,13 @@ func startHealthServer(hostport string, manager *bindingmanager.BindingManager) 
 	return l.Addr().String()
 }
 
-func startAdapterService(hostport string, creds credentials.TransportCredentials, manager *bindingmanager.BindingManager) string {
+func startAdapterService(hostport string, creds credentials.TransportCredentials, manager *binding.BindingManager) string {
 	lis, err := net.Listen("tcp", hostport)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	adapterService := controller.New(manager)
+	adapterService := binding.NewController(manager)
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
 	)

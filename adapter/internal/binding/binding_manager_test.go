@@ -1,7 +1,7 @@
-package bindingmanager_test
+package binding_test
 
 import (
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/bindingmanager"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/binding"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	. "github.com/onsi/ginkgo"
@@ -11,12 +11,12 @@ import (
 var _ = Describe("BindingManager", func() {
 	var (
 		subscriber *mockSubscriber
-		manager    *bindingmanager.BindingManager
+		manager    *binding.BindingManager
 	)
 
 	BeforeEach(func() {
 		subscriber = newMockSubscriber()
-		manager = bindingmanager.New(subscriber)
+		manager = binding.NewBindingManager(subscriber)
 	})
 
 	Describe("Add()", func() {
