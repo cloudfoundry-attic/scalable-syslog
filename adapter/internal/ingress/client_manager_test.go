@@ -24,8 +24,8 @@ var _ = Describe("Client Manager", func() {
 			ingress.NewClientManager(
 				mockConnector,
 				5,
-				10*time.Millisecond,
-				ingress.WithRetryWait(100*time.Millisecond),
+				1*time.Millisecond,
+				ingress.WithRetryWait(10*time.Millisecond),
 			)
 
 			Eventually(func() int {
@@ -48,8 +48,8 @@ var _ = Describe("Client Manager", func() {
 			cm := ingress.NewClientManager(
 				mockConnector,
 				5,
-				10*time.Millisecond,
-				ingress.WithRetryWait(100*time.Millisecond),
+				1*time.Millisecond,
+				ingress.WithRetryWait(10*time.Millisecond),
 			)
 
 			Eventually(func() int {
@@ -71,8 +71,8 @@ var _ = Describe("Client Manager", func() {
 			cm := ingress.NewClientManager(
 				mockConnector,
 				5,
-				10*time.Millisecond,
-				ingress.WithRetryWait(100*time.Millisecond),
+				1*time.Millisecond,
+				ingress.WithRetryWait(10*time.Millisecond),
 			)
 
 			r1 := cm.Next()
