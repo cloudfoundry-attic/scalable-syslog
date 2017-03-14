@@ -21,6 +21,7 @@ type SyslogConnector struct {
 	ioTimeout      time.Duration
 	dialTimeout    time.Duration
 	constructors   map[string]SyslogConstructor
+	alerter        Alerter
 }
 
 // NewSyslogConnector configures and returns a new SyslogConnector.
@@ -34,6 +35,7 @@ func NewSyslogConnector(dialTimeout, ioTimeout time.Duration, skipCertVerify boo
 			"syslog":     NewTCPWriter,
 			"syslog-tls": NewTLSWriter,
 		},
+		alerter: NoopAlerter{},
 	}
 	for _, o := range opts {
 		o(sc)
@@ -67,6 +69,10 @@ func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	dw := NewDiodeWriter(writer, nil)
+	dw := NewDiodeWriter(writer, w.alerter)
 	return dw, nil
 }
+
+type NoopAlerter struct{}
+
+func (NoopAlerter) Alert(missed int) {}
