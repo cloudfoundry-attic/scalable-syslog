@@ -63,5 +63,10 @@ func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
 	if !ok {
 		return nil, errors.New("unsupported scheme")
 	}
-	return constructor(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify)
+	writer, err := constructor(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify)
+	if err != nil {
+		return nil, err
+	}
+	dw := NewDiodeWriter(writer, nil)
+	return dw, nil
 }

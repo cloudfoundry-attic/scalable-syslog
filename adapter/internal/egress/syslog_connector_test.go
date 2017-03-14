@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
+	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
 	. "github.com/onsi/ginkgo"
@@ -32,6 +33,31 @@ var _ = Describe("SyslogConnector", func() {
 		_, err := connector.Connect(binding)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(called).To(BeTrue())
+	})
+
+	It("returns a writer that doesn't block even if the constructor's writer blocks", func(done Done) {
+		defer close(done)
+		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool) (egress.WriteCloser, error) {
+			return &BlockedWriteCloser{}, nil
+		}
+
+		connector := egress.NewSyslogConnector(
+			time.Second,
+			time.Second,
+			true,
+			egress.WithConstructors(map[string]egress.SyslogConstructor{
+				"blocked": blockedConstructor,
+			}))
+
+		binding := &v1.Binding{
+			Drain: "blocked://",
+		}
+		writer, err := connector.Connect(binding)
+		Expect(err).ToNot(HaveOccurred())
+		err = writer.Write(&loggregator_v2.Envelope{
+			SourceId: "test-source-id",
+		})
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("returns an error for an unsupported syslog scheme", func() {
@@ -63,3 +89,13 @@ var _ = Describe("SyslogConnector", func() {
 		Expect(err).To(HaveOccurred())
 	})
 })
+
+type BlockedWriteCloser struct {
+	egress.WriteCloser
+}
+
+func (*BlockedWriteCloser) Write(*loggregator_v2.Envelope) error {
+	for {
+		time.Sleep(time.Second)
+	}
+}
