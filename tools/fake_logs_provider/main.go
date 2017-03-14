@@ -19,6 +19,7 @@ func main() {
 	certFile := flag.String("cert", "", "The server TLS cert")
 	keyFile := flag.String("key", "", "The server TLS private key")
 	commonName := flag.String("cn", "", "The server common name for TLS")
+	delay := flag.Duration("delay", time.Second, "The time the server waits between sending messages")
 
 	flag.Parse()
 
@@ -36,25 +37,30 @@ func main() {
 		log.Fatalf("failed to listen: %s", err)
 	}
 	s := grpc.NewServer(grpc.Creds(creds))
-	loggregator_v2.RegisterEgressServer(s, new(logServer))
+	loggregator_v2.RegisterEgressServer(s, &logServer{
+		delay: *delay,
+	})
 
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
 }
 
-type logServer struct{}
+type logServer struct {
+	delay time.Duration
+}
 
 func (s *logServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator_v2.Egress_ReceiverServer) error {
 	var i int
 	for {
 		e := buildEnvelope(i%2 == 0, r.GetFilter().GetSourceId())
 
+		log.Printf("sending envelope: %d", i)
 		if err := server.Send(e); err != nil {
 			return err
 		}
 		i++
-		time.Sleep(time.Second)
+		time.Sleep(s.delay)
 	}
 
 	return nil
