@@ -19,7 +19,7 @@ type HTTPSWriter struct {
 	client  *http.Client
 }
 
-func NewHTTPSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (*HTTPSWriter, error) {
+func NewHTTPSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (WriteCloser, error) {
 	u, _ := url.Parse(binding.Drain)
 
 	if u.Scheme != "https" {

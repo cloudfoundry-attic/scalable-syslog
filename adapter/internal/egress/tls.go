@@ -15,7 +15,7 @@ type TLSWriter struct {
 	TCPWriter
 }
 
-func NewTLSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (*TLSWriter, error) {
+func NewTLSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (WriteCloser, error) {
 	drainURL, err := url.Parse(binding.Drain)
 	// TODO: remove parsing/error from here
 	if err != nil {

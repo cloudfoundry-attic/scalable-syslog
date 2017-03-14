@@ -20,14 +20,34 @@ type SyslogConnector struct {
 	skipCertVerify bool
 	ioTimeout      time.Duration
 	dialTimeout    time.Duration
+	constructors   map[string]SyslogConstructor
 }
 
 // NewSyslogConnector configures and returns a new SyslogConnector.
-func NewSyslogConnector(dialTimeout, ioTimeout time.Duration, skipCertVerify bool) *SyslogConnector {
-	return &SyslogConnector{
+func NewSyslogConnector(dialTimeout, ioTimeout time.Duration, skipCertVerify bool, opts ...ConnectorOption) *SyslogConnector {
+	sc := &SyslogConnector{
 		ioTimeout:      ioTimeout,
 		dialTimeout:    dialTimeout,
 		skipCertVerify: skipCertVerify,
+		constructors: map[string]SyslogConstructor{
+			"https":      NewHTTPSWriter,
+			"syslog":     NewTCPWriter,
+			"syslog-tls": NewTLSWriter,
+		},
+	}
+	for _, o := range opts {
+		o(sc)
+	}
+	return sc
+}
+
+type SyslogConstructor func(*v1.Binding, time.Duration, time.Duration, bool) (WriteCloser, error)
+
+type ConnectorOption func(*SyslogConnector)
+
+func WithConstructors(constructors map[string]SyslogConstructor) func(*SyslogConnector) {
+	return func(sc *SyslogConnector) {
+		sc.constructors = constructors
 	}
 }
 
@@ -39,14 +59,9 @@ func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
 		return nil, err
 	}
 
-	switch url.Scheme {
-	case "https":
-		return NewHTTPSWriter(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify)
-	case "syslog":
-		return NewTCPWriter(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify)
-	case "syslog-tls":
-		return NewTLSWriter(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify)
-	default:
+	constructor, ok := w.constructors[url.Scheme]
+	if !ok {
 		return nil, errors.New("unsupported scheme")
 	}
+	return constructor(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify)
 }

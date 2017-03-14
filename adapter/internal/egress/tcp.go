@@ -35,7 +35,7 @@ type TCPWriter struct {
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
-func NewTCPWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (*TCPWriter, error) {
+func NewTCPWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (WriteCloser, error) {
 	drainURL, err := url.Parse(binding.Drain)
 	// TODO: remove parsing/error from here
 	if err != nil {

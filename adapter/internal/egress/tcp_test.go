@@ -52,7 +52,7 @@ var _ = Describe("TCPWriter", func() {
 	})
 
 	Describe("Write()", func() {
-		var writer *egress.TCPWriter
+		var writer egress.WriteCloser
 
 		BeforeEach(func() {
 			var err error
@@ -157,7 +157,7 @@ var _ = Describe("TCPWriter", func() {
 	})
 
 	Describe("Close()", func() {
-		var writer *egress.TCPWriter
+		var writer egress.WriteCloser
 
 		Context("with a happy dialer", func() {
 			BeforeEach(func() {
