@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress/retrystrategy"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 )
 
@@ -35,7 +34,7 @@ func NewTLSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, ski
 	w.url = drainURL
 	w.appID = binding.AppId
 	w.hostname = binding.Hostname
-	w.retryStrategy = retrystrategy.Exponential()
+	w.retryStrategy = Exponential()
 	w.ioTimeout = ioTimeout
 	w.dialFunc = df
 	go w.connect()

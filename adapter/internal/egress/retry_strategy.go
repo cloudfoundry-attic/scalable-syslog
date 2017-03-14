@@ -1,4 +1,4 @@
-package retrystrategy
+package egress
 
 import (
 	"math"

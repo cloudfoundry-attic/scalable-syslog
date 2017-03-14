@@ -1,10 +1,10 @@
-package retrystrategy_test
+package egress_test
 
 import (
 	"math/rand"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress/retrystrategy"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -35,8 +35,8 @@ var _ = Describe("RetryStrategy", func() {
 
 		It("backs off exponentially with different random seeds starting at 1ms", func() {
 			rand.Seed(1)
-			strategy := retrystrategy.Exponential()
-			otherStrategy := retrystrategy.Exponential()
+			strategy := egress.Exponential()
+			otherStrategy := egress.Exponential()
 
 			Expect(strategy(0).String()).To(Equal("1ms"))
 			Expect(otherStrategy(0).String()).To(Equal("1ms"))

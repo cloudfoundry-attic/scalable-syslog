@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress/retrystrategy"
 	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 	"github.com/crewjam/rfc5424"
@@ -26,7 +25,7 @@ type TCPWriter struct {
 	appID         string
 	hostname      string
 	dialFunc      DialFunc
-	retryStrategy retrystrategy.RetryStrategy
+	retryStrategy RetryStrategy
 	ioTimeout     time.Duration
 
 	mu     sync.Mutex
@@ -53,7 +52,7 @@ func NewTCPWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, ski
 		url:           drainURL,
 		appID:         binding.AppId,
 		hostname:      binding.Hostname,
-		retryStrategy: retrystrategy.Exponential(),
+		retryStrategy: Exponential(),
 		ioTimeout:     ioTimeout,
 		dialFunc:      df,
 	}
