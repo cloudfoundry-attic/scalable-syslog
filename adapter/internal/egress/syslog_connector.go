@@ -1,9 +1,7 @@
 package egress
 
 import (
-	"crypto/tls"
 	"errors"
-	"net"
 	"net/url"
 	"time"
 
@@ -21,17 +19,15 @@ type WriteCloser interface {
 type SyslogConnector struct {
 	skipCertVerify bool
 	ioTimeout      time.Duration
-	dialer         *net.Dialer
+	dialTimeout    time.Duration
 }
 
 // NewSyslogConnector configures and returns a new SyslogConnector.
 func NewSyslogConnector(dialTimeout, ioTimeout time.Duration, skipCertVerify bool) *SyslogConnector {
 	return &SyslogConnector{
-		skipCertVerify: skipCertVerify,
 		ioTimeout:      ioTimeout,
-		dialer: &net.Dialer{
-			Timeout: dialTimeout,
-		},
+		dialTimeout:    dialTimeout,
+		skipCertVerify: skipCertVerify,
 	}
 }
 
@@ -45,19 +41,11 @@ func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
 
 	switch url.Scheme {
 	case "https":
-		return NewHTTPS(b, w.skipCertVerify)
+		return NewHTTPSWriter(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify)
 	case "syslog":
-		df := func(addr string) (net.Conn, error) {
-			return w.dialer.Dial("tcp", addr)
-		}
-		return NewTCPWriter(b, w.ioTimeout, WithDialFunc(df))
+		return NewTCPWriter(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify)
 	case "syslog-tls":
-		df := func(addr string) (net.Conn, error) {
-			return tls.DialWithDialer(w.dialer, "tcp", addr, &tls.Config{
-				InsecureSkipVerify: w.skipCertVerify,
-			})
-		}
-		return NewTCPWriter(b, w.ioTimeout, WithDialFunc(df))
+		return NewTLSWriter(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify)
 	default:
 		return nil, errors.New("unsupported scheme")
 	}

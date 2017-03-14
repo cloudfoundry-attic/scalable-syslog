@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/app"
+	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/test_util"
 	"github.com/cloudfoundry-incubator/scalable-syslog/api"
 	v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
@@ -42,17 +43,17 @@ var _ = Describe("Adapter", func() {
 
 		var err error
 		rlpTLSConfig, err = api.NewMutualTLSConfig(
-			Cert("adapter-rlp.crt"),
-			Cert("adapter-rlp.key"),
-			Cert("loggregator-ca.crt"),
+			test_util.Cert("adapter-rlp.crt"),
+			test_util.Cert("adapter-rlp.key"),
+			test_util.Cert("loggregator-ca.crt"),
 			"fake-log-provider",
 		)
 		Expect(err).ToNot(HaveOccurred())
 
 		tlsConfig, err = api.NewMutualTLSConfig(
-			Cert("adapter.crt"),
-			Cert("adapter.key"),
-			Cert("scalable-syslog-ca.crt"),
+			test_util.Cert("adapter.crt"),
+			test_util.Cert("adapter.key"),
+			test_util.Cert("scalable-syslog-ca.crt"),
 			"fake-log-provider",
 		)
 		Expect(err).ToNot(HaveOccurred())
@@ -120,57 +121,13 @@ var _ = Describe("Adapter", func() {
 		})
 	})
 
-	Context("with TCP drain", func() {
-		BeforeEach(func() {
-			adapter := app.NewAdapter(
-				logsAPIAddr,
-				rlpTLSConfig,
-				tlsConfig,
-				app.WithHealthAddr("localhost:0"),
-				app.WithAdapterServerAddr("localhost:0"),
-				app.WithLogsEgressAPIConnCount(1),
-			)
-			adapterHealthAddr, adapterServiceHost = adapter.Start()
-
-			client = startAdapterClient(adapterServiceHost)
-			syslogTCPServer = newSyslogTCPServer()
-
-			binding = &v1.Binding{
-				AppId:    "app-guid",
-				Hostname: "a-hostname",
-				Drain:    "syslog://" + syslogTCPServer.addr().String(),
-			}
-		})
-
-		It("forwards logs from loggregator to a syslog TCP drain", func() {
-			By("creating a binding", func() {
-				_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
-					Binding: binding,
-				})
-				Expect(err).ToNot(HaveOccurred())
-
-				Eventually(syslogTCPServer.msgCount).Should(BeNumerically(">", 10))
-			})
-
-			By("deleting a binding", func() {
-				_, err := client.DeleteBinding(context.Background(), &v1.DeleteBindingRequest{
-					Binding: binding,
-				})
-				Expect(err).ToNot(HaveOccurred())
-
-				currentCount := syslogTCPServer.msgCount()
-				Consistently(syslogTCPServer.msgCount, "100ms").Should(BeNumerically("~", currentCount, 2))
-			})
-		})
-	})
-
 	Context("with TLS drain", func() {
 		BeforeEach(func() {
 			syslogTCPServer = newSyslogTLSServer()
 
 			binding = &v1.Binding{
-				AppId:    "app-guid",
-				Hostname: "a-hostname",
+				AppId:    "appguid",
+				Hostname: "ahostname",
 				Drain:    "syslog-tls://" + syslogTCPServer.addr().String(),
 			}
 		})
@@ -243,9 +200,9 @@ var _ = Describe("Adapter", func() {
 
 func startAdapterClient(addr string) v1.AdapterClient {
 	tlsConfig, err := api.NewMutualTLSConfig(
-		Cert("adapter.crt"),
-		Cert("adapter.key"),
-		Cert("scalable-syslog-ca.crt"),
+		test_util.Cert("adapter.crt"),
+		test_util.Cert("adapter.key"),
+		test_util.Cert("scalable-syslog-ca.crt"),
 		"adapter",
 	)
 	Expect(err).ToNot(HaveOccurred())
@@ -263,9 +220,9 @@ func startLogsAPIServer() (*MockEgressServer, string) {
 	}
 
 	tlsConfig, err := api.NewMutualTLSConfig(
-		Cert("fake-log-provider.crt"),
-		Cert("fake-log-provider.key"),
-		Cert("loggregator-ca.crt"),
+		test_util.Cert("fake-log-provider.crt"),
+		test_util.Cert("fake-log-provider.key"),
+		test_util.Cert("loggregator-ca.crt"),
 		"fake-log-provider",
 	)
 	Expect(err).ToNot(HaveOccurred())
@@ -322,8 +279,8 @@ func newSyslogTLSServer() *SyslogTCPServer {
 	lis, err := net.Listen("tcp", ":0")
 	Expect(err).ToNot(HaveOccurred())
 	cert, err := tls.LoadX509KeyPair(
-		Cert("adapter.crt"),
-		Cert("adapter.key"),
+		test_util.Cert("adapter.crt"),
+		test_util.Cert("adapter.key"),
 	)
 	Expect(err).ToNot(HaveOccurred())
 	tlsLis := tls.NewListener(lis, &tls.Config{

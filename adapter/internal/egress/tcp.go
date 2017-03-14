@@ -17,6 +17,9 @@ import (
 	"github.com/crewjam/rfc5424"
 )
 
+// DialFunc represents a method for creating a connection, either TCP or TLS.
+type DialFunc func(addr string) (net.Conn, error)
+
 // TCPWriter represents a syslog writer that connects over unencrypted TCP.
 type TCPWriter struct {
 	url           *url.URL
@@ -32,25 +35,27 @@ type TCPWriter struct {
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
-var NewTCPWriter = func(binding *v1.Binding, ioTimeout time.Duration, opts ...TCPOption) (*TCPWriter, error) {
+func NewTCPWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (*TCPWriter, error) {
 	drainURL, err := url.Parse(binding.Drain)
+	// TODO: remove parsing/error from here
 	if err != nil {
 		return nil, err
 	}
 
-	defaultDialer := net.Dialer{}
+	dialer := &net.Dialer{
+		Timeout: dialTimeout,
+	}
+	df := func(addr string) (net.Conn, error) {
+		return dialer.Dial("tcp", addr)
+	}
+
 	w := &TCPWriter{
-		url:      drainURL,
-		appID:    binding.AppId,
-		hostname: binding.Hostname,
-		dialFunc: func(addr string) (net.Conn, error) {
-			return defaultDialer.Dial("tcp", addr)
-		},
+		url:           drainURL,
+		appID:         binding.AppId,
+		hostname:      binding.Hostname,
 		retryStrategy: retrystrategy.Exponential(),
 		ioTimeout:     ioTimeout,
-	}
-	for _, o := range opts {
-		o(w)
+		dialFunc:      df,
 	}
 	go w.connect()
 
@@ -67,8 +72,10 @@ func (w *TCPWriter) connect() {
 			return
 		}
 
+		w.mu.Lock()
 		conn, err := w.dialFunc(w.url.Host)
 		if err != nil {
+			w.mu.Unlock()
 			duration := w.retryStrategy(retryCount)
 			log.Printf("failed to connect to %s, retrying in %s: %s", w.url.Host, duration, err)
 			time.Sleep(duration)
@@ -78,30 +85,9 @@ func (w *TCPWriter) connect() {
 
 		log.Printf("created conn to syslog drain: %s", w.url.Host)
 
-		w.mu.Lock()
 		w.conn = conn
 		w.mu.Unlock()
 		return
-	}
-}
-
-// TCPOption configures a TCPWriter.
-type TCPOption func(*TCPWriter)
-
-// DialFunc dials up and returns a new connection.
-type DialFunc func(addr string) (net.Conn, error)
-
-// WithDialFunc overrides the default DialFunc used for establishing conns.
-func WithDialFunc(df DialFunc) TCPOption {
-	return func(w *TCPWriter) {
-		w.dialFunc = df
-	}
-}
-
-// WithRetryStrategy overrides the default Exponential backoff strategy.
-func WithRetryStrategy(r retrystrategy.RetryStrategy) TCPOption {
-	return func(w *TCPWriter) {
-		w.retryStrategy = r
 	}
 }
 
@@ -126,7 +112,6 @@ func (w *TCPWriter) connClose() error {
 
 // Write writes an envelope to the syslog drain connection.
 func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
-
 	if env.GetLog() == nil {
 		return nil
 	}

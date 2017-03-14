@@ -4,12 +4,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"time"
+
+	"github.com/crewjam/rfc5424"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
-	"github.com/crewjam/rfc5424"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -19,7 +20,7 @@ var _ = Describe("HTTPWriter", func() {
 		b := &v1.Binding{
 			Drain: "syslog://example.com:1123",
 		}
-		_, err := egress.NewHTTPS(b, true)
+		_, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -31,7 +32,7 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPS(b, false)
+		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, false)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -46,7 +47,7 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id-012345678901234567890012345678901234567890",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPS(b, true)
+		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -62,7 +63,7 @@ var _ = Describe("HTTPWriter", func() {
 			Hostname: "test-hostname",
 		}
 
-		writer, err := egress.NewHTTPS(b, true)
+		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -77,7 +78,7 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPS(b, true)
+		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -86,7 +87,6 @@ var _ = Describe("HTTPWriter", func() {
 		Expect(drain.messages).To(HaveLen(1))
 		Expect(drain.messages[0].AppName).To(Equal("test-app-id"))
 	})
-
 })
 
 type SpyDrain struct {

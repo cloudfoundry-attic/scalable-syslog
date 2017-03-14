@@ -19,14 +19,14 @@ type HTTPSWriter struct {
 	client  *http.Client
 }
 
-func NewHTTPS(binding *v1.Binding, skipCertVerify bool) (*HTTPSWriter, error) {
+func NewHTTPSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (*HTTPSWriter, error) {
 	u, _ := url.Parse(binding.Drain)
 
 	if u.Scheme != "https" {
 		return nil, fmt.Errorf("invalid scheme for syslog HTTPWriter: %s", u.Scheme)
 	}
 
-	client := httpClient(skipCertVerify)
+	client := httpClient(dialTimeout, ioTimeout, skipCertVerify)
 
 	return &HTTPSWriter{
 		binding: binding,
@@ -68,12 +68,12 @@ func (*HTTPSWriter) Close() error {
 	return nil
 }
 
-func httpClient(skipCertVerify bool) *http.Client {
+func httpClient(dialTimeout, ioTimeout time.Duration, skipCertVerify bool) *http.Client {
 	tlsConfig := api.NewTLSConfig()
 	tlsConfig.InsecureSkipVerify = skipCertVerify
 	tr := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
+			Timeout:   dialTimeout,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
 		MaxIdleConns:          100,

@@ -1,12 +1,12 @@
-package app_test
+package test_util
 
 import (
 	"io/ioutil"
 	"log"
 )
 
-//go:generate ../../scripts/generate-certs no-ca
-//go:generate go-bindata -o bindata_test.go -nocompress -pkg app_test -prefix scalable-syslog-certs/ scalable-syslog-certs/
+//go:generate ../../../scripts/generate-certs no-ca
+//go:generate go-bindata -o bindata.go -nocompress -pkg test_util -prefix scalable-syslog-certs/ scalable-syslog-certs/
 
 func Cert(filename string) string {
 	contents := MustAsset(filename)
