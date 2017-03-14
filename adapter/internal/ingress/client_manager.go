@@ -25,18 +25,32 @@ type ClientManager struct {
 	connectionTTL time.Duration
 	connections   []unsafe.Pointer
 	nextIdx       uint64
+	retryWait     time.Duration
+}
+
+type ClientManagerOpts func(*ClientManager)
+
+func WithRetryWait(d time.Duration) func(*ClientManager) {
+	return func(c *ClientManager) {
+		c.retryWait = d
+	}
 }
 
 // NewClientManager returns a ClientManager after opening the specified number
 // of connections.
-func NewClientManager(connector ConnectionBuilder, count int, ttl time.Duration) *ClientManager {
+func NewClientManager(connector ConnectionBuilder, connCount int, ttl time.Duration, opts ...ClientManagerOpts) *ClientManager {
 	c := &ClientManager{
 		connector:     connector,
 		connectionTTL: ttl,
-		connections:   make([]unsafe.Pointer, count),
+		connections:   make([]unsafe.Pointer, connCount),
+		retryWait:     2 * time.Second,
 	}
 
-	for i := 0; i < count; i++ {
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	for i := 0; i < connCount; i++ {
 		c.openNewConnection(i)
 	}
 
@@ -55,7 +69,7 @@ func (c *ClientManager) Next() v2.EgressClient {
 			return conn.client
 		}
 
-		time.Sleep(2 * time.Second)
+		time.Sleep(c.retryWait)
 	}
 }
 

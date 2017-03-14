@@ -123,7 +123,11 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 		balancer,
 		grpc.WithTransportCredentials(credentials.NewTLS(a.logsEgressAPITLSConfig)),
 	)
-	clientManager := ingress.NewClientManager(connector, a.logsAPIConnCount, a.logsAPIConnTTL)
+	clientManager := ingress.NewClientManager(
+		connector,
+		a.logsAPIConnCount,
+		a.logsAPIConnTTL,
+	)
 	syslogConnector := egress.NewSyslogConnector(
 		a.syslogDialTimeout,
 		a.syslogIOTimeout,

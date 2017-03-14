@@ -21,7 +21,12 @@ var _ = Describe("Client Manager", func() {
 	Context("After a period time", func() {
 		It("rolls the connections", func() {
 			mockConnector := NewMockConnector()
-			ingress.NewClientManager(mockConnector, 5, 10*time.Millisecond)
+			ingress.NewClientManager(
+				mockConnector,
+				5,
+				10*time.Millisecond,
+				ingress.WithRetryWait(100*time.Millisecond),
+			)
 
 			Eventually(func() int {
 				return mockConnector.GetSuccessfulConnections()
@@ -40,7 +45,12 @@ var _ = Describe("Client Manager", func() {
 	Describe("Next()", func() {
 		It("returns a client", func() {
 			mockConnector := NewMockConnector()
-			cm := ingress.NewClientManager(mockConnector, 5, 10*time.Millisecond)
+			cm := ingress.NewClientManager(
+				mockConnector,
+				5,
+				10*time.Millisecond,
+				ingress.WithRetryWait(100*time.Millisecond),
+			)
 
 			Eventually(func() int {
 				return mockConnector.GetSuccessfulConnections()
@@ -58,7 +68,12 @@ var _ = Describe("Client Manager", func() {
 			for i := 0; i < 15; i++ {
 				mockConnector.connectErrors <- errors.New("an-error")
 			}
-			cm := ingress.NewClientManager(mockConnector, 5, 100*time.Millisecond)
+			cm := ingress.NewClientManager(
+				mockConnector,
+				5,
+				10*time.Millisecond,
+				ingress.WithRetryWait(100*time.Millisecond),
+			)
 
 			r1 := cm.Next()
 			Expect(r1).ToNot(BeNil())
