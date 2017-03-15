@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"time"
@@ -53,12 +54,13 @@ type logServer struct {
 func (s *logServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator_v2.Egress_ReceiverServer) error {
 	var i int
 	for {
-		e := buildEnvelope(i%2 == 0, r.GetFilter().GetSourceId())
+		e := buildEnvelope(i%2 == 0, r.GetFilter().GetSourceId(), i)
 
 		log.Printf("sending envelope: %d", i)
 		if err := server.Send(e); err != nil {
 			return err
 		}
+		log.Printf("sent envelope: %d", i)
 		i++
 		time.Sleep(s.delay)
 	}
@@ -66,7 +68,7 @@ func (s *logServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator
 	return nil
 }
 
-func buildEnvelope(isLog bool, sourceId string) *loggregator_v2.Envelope {
+func buildEnvelope(isLog bool, sourceId string, id int) *loggregator_v2.Envelope {
 	if isLog {
 		return &loggregator_v2.Envelope{
 			Tags: map[string]*loggregator_v2.Value{
@@ -77,7 +79,7 @@ func buildEnvelope(isLog bool, sourceId string) *loggregator_v2.Envelope {
 			SourceId:  sourceId,
 			Message: &loggregator_v2.Envelope_Log{
 				Log: &loggregator_v2.Log{
-					Payload: []byte("Some happy log"),
+					Payload: []byte(fmt.Sprintf("Some happy log: %d", id)),
 					Type:    loggregator_v2.Log_OUT,
 				},
 			},
