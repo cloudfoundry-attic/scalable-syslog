@@ -21,12 +21,11 @@ type DialFunc func(addr string) (net.Conn, error)
 
 // TCPWriter represents a syslog writer that connects over unencrypted TCP.
 type TCPWriter struct {
-	url           *url.URL
-	appID         string
-	hostname      string
-	dialFunc      DialFunc
-	retryStrategy RetryStrategy
-	ioTimeout     time.Duration
+	url       *url.URL
+	appID     string
+	hostname  string
+	dialFunc  DialFunc
+	ioTimeout time.Duration
 
 	mu     sync.Mutex
 	conn   net.Conn
@@ -49,12 +48,11 @@ func NewTCPWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, ski
 	}
 
 	w := &TCPWriter{
-		url:           drainURL,
-		appID:         binding.AppId,
-		hostname:      binding.Hostname,
-		retryStrategy: Exponential(),
-		ioTimeout:     ioTimeout,
-		dialFunc:      df,
+		url:       drainURL,
+		appID:     binding.AppId,
+		hostname:  binding.Hostname,
+		ioTimeout: ioTimeout,
+		dialFunc:  df,
 	}
 	go w.connect()
 
@@ -62,7 +60,6 @@ func NewTCPWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, ski
 }
 
 func (w *TCPWriter) connect() {
-	var retryCount int
 	for {
 		w.mu.Lock()
 		closed := w.closed
@@ -75,10 +72,9 @@ func (w *TCPWriter) connect() {
 		conn, err := w.dialFunc(w.url.Host)
 		if err != nil {
 			w.mu.Unlock()
-			duration := w.retryStrategy(retryCount)
+			duration := time.Minute
 			log.Printf("failed to connect to %s, retrying in %s: %s", w.url.Host, duration, err)
 			time.Sleep(duration)
-			retryCount++
 			continue
 		}
 

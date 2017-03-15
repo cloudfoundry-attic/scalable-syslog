@@ -34,7 +34,6 @@ func NewTLSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, ski
 	w.url = drainURL
 	w.appID = binding.AppId
 	w.hostname = binding.Hostname
-	w.retryStrategy = Exponential()
 	w.ioTimeout = ioTimeout
 	w.dialFunc = df
 	go w.connect()
