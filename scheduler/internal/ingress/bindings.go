@@ -1,17 +1,13 @@
 package ingress
 
-// Binding reflects the JSON encoded output from the syslog drain binding provider
-type Binding struct {
-	AppID    string
-	Hostname string
-	Drain    string
-}
-type Bindings []Binding
+import v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 
-func (b Bindings) DrainCount(search Binding) int {
+type Bindings []v1.Binding
+
+func (b Bindings) DrainCount(search v1.Binding) int {
 	count := 0
 	for _, binding := range b {
-		if binding.AppID == search.AppID &&
+		if binding.AppId == search.AppId &&
 			binding.Hostname == search.Hostname &&
 			binding.Drain == search.Drain {
 			count++

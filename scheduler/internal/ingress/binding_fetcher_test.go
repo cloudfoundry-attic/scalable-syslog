@@ -9,6 +9,8 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 )
 
 var _ = Describe("BindingFetcher", func() {
@@ -59,13 +61,13 @@ var _ = Describe("BindingFetcher", func() {
 				Expect(bindings).To(HaveLen(2))
 
 				appID := "9be15160-4845-4f05-b089-40e827ba61f1"
-				Expect(bindings).To(ContainElement(ingress.Binding{
-					AppID:    appID,
+				Expect(bindings).To(ContainElement(v1.Binding{
+					AppId:    appID,
 					Hostname: "org.space.logspinner",
 					Drain:    "syslog://some.url",
 				}))
-				Expect(bindings).To(ContainElement(ingress.Binding{
-					AppID:    appID,
+				Expect(bindings).To(ContainElement(v1.Binding{
+					AppId:    appID,
 					Hostname: "org.space.logspinner",
 					Drain:    "syslog://some.other.url",
 				}))

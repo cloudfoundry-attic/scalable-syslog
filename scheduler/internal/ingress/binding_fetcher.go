@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"sync"
+
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
 )
 
 // Getter is configured to fetch HTTP responses
@@ -66,10 +68,10 @@ func (f *BindingFetcher) FetchBindings() (Bindings, error) {
 		for appID, bindingData := range r.Results {
 			hostname := bindingData.Hostname
 			for _, drainURL := range bindingData.Drains {
-				bindings = append(bindings, Binding{
+				bindings = append(bindings, v1.Binding{
 					Hostname: hostname,
 					Drain:    drainURL,
-					AppID:    appID,
+					AppId:    appID,
 				})
 				f.incrementDrainCount(1)
 			}

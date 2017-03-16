@@ -15,7 +15,7 @@ var _ = Describe("Orchestrator", func() {
 	It("writes syslog bindings to the writer", func() {
 		reader := &SpyReader{
 			drains: ingress.Bindings{
-				ingress.Binding{AppID: "app-id", Drain: "syslog://my-app-drain", Hostname: "org.space.app"},
+				v1.Binding{AppId: "app-id", Drain: "syslog://my-app-drain", Hostname: "org.space.app"},
 			},
 		}
 		client := &SpyClient{
@@ -51,7 +51,7 @@ var _ = Describe("Orchestrator", func() {
 	It("deletes bindings that are no longer present", func() {
 		reader := &SpyReader{
 			drains: ingress.Bindings{
-				ingress.Binding{AppID: "app-id", Drain: "syslog://my-app-drain", Hostname: "org.space.app"},
+				v1.Binding{AppId: "app-id", Drain: "syslog://my-app-drain", Hostname: "org.space.app"},
 			},
 		}
 		client := &SpyClient{

@@ -15,8 +15,8 @@ import (
 )
 
 var _ = Describe("DefaultAdapterService", func() {
-	binding := ingress.Binding{
-		AppID:    "app-id",
+	binding := v1.Binding{
+		AppId:    "app-id",
 		Hostname: "org.space.app",
 		Drain:    "syslog://my-drain-url",
 	}
@@ -53,7 +53,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 		actual := ingress.Bindings{binding}
 		expected := ingress.Bindings{
-			ingress.Binding{AppID: "app-id", Hostname: "org.space.other-app", Drain: "syslog://my-drain-url"},
+			v1.Binding{AppId: "app-id", Hostname: "org.space.other-app", Drain: "syslog://my-drain-url"},
 		}
 		s.DeleteDelta(actual, expected)
 
@@ -73,7 +73,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			client.listBindingsResponse_ = &v1.ListBindingsResponse{
 				Bindings: []*v1.Binding{
 					{
-						AppId:    binding.AppID,
+						AppId:    binding.AppId,
 						Hostname: binding.Hostname,
 						Drain:    binding.Drain,
 					},
@@ -102,8 +102,8 @@ var _ = Describe("DefaultAdapterService", func() {
 	})
 
 	Context("Create", func() {
-		appBinding := ingress.Binding{
-			AppID:    "app-id",
+		appBinding := v1.Binding{
+			AppId:    "app-id",
 			Drain:    "syslog://my-drain-url",
 			Hostname: "org.space.app",
 		}
@@ -118,7 +118,7 @@ var _ = Describe("DefaultAdapterService", func() {
 				Expect(client.createCalled()).To(Equal(1))
 				Expect(client.createBindingRequest()).To(Equal(
 					&v1.CreateBindingRequest{Binding: &v1.Binding{
-						AppId:    binding.AppID,
+						AppId:    binding.AppId,
 						Hostname: binding.Hostname,
 						Drain:    binding.Drain,
 					}},
@@ -131,7 +131,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 				actual := ingress.Bindings{
 					{
-						AppID:    "app-id",
+						AppId:    "app-id",
 						Hostname: "org.space.app",
 						Drain:    "syslog://my-drain-url",
 					},
@@ -174,7 +174,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			s := egress.NewAdapterService(clients)
 
 			s.CreateDelta(ingress.Bindings{
-				{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
+				{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
 			}, ingress.Bindings{appBinding})
 
 			createCalled := 0
@@ -188,8 +188,8 @@ var _ = Describe("DefaultAdapterService", func() {
 
 		It("writes to two adapters for each drain binding only once", func() {
 			appBindings := ingress.Bindings{
-				ingress.Binding{AppID: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.app"},
-				ingress.Binding{AppID: "app-id", Drain: "syslog://another-drain", Hostname: "org.space.app"},
+				v1.Binding{AppId: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.app"},
+				v1.Binding{AppId: "app-id", Drain: "syslog://another-drain", Hostname: "org.space.app"},
 			}
 
 			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}}
@@ -208,10 +208,10 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			s.CreateDelta(
 				ingress.Bindings{
-					{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
-					{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
-					{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
-					{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
+					{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
+					{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
+					{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
+					{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
 				},
 				appBindings,
 			)
@@ -229,7 +229,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			actual := ingress.Bindings{binding}
 			expected := ingress.Bindings{
-				ingress.Binding{AppID: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.other-app"},
+				v1.Binding{AppId: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.other-app"},
 			}
 			s.CreateDelta(actual, expected)
 

@@ -27,7 +27,7 @@ func (d *DefaultAdapterService) CreateDelta(actual ingress.Bindings, expected in
 	for _, expectedBinding := range expected {
 		b := &v1.Binding{
 			Hostname: expectedBinding.Hostname,
-			AppId:    expectedBinding.AppID,
+			AppId:    expectedBinding.AppId,
 			Drain:    expectedBinding.Drain,
 		}
 		request := &v1.CreateBindingRequest{Binding: b}
@@ -74,7 +74,7 @@ func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected in
 		request := &v1.DeleteBindingRequest{
 			Binding: &v1.Binding{
 				Hostname: binding.Hostname,
-				AppId:    binding.AppID,
+				AppId:    binding.AppId,
 				Drain:    binding.Drain,
 			},
 		}
@@ -88,7 +88,7 @@ func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected in
 	}
 }
 
-func exists(expected ingress.Bindings, ab ingress.Binding) bool {
+func exists(expected ingress.Bindings, ab v1.Binding) bool {
 	for _, b := range expected {
 		if b.Drain == ab.Drain && b.Hostname == ab.Hostname {
 			return true
@@ -110,8 +110,8 @@ func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
 		}
 		// TODO remove conversion by switching this to v1.Binding
 		for _, b := range resp.Bindings {
-			bindings = append(bindings, ingress.Binding{
-				AppID:    b.AppId,
+			bindings = append(bindings, v1.Binding{
+				AppId:    b.AppId,
 				Hostname: b.Hostname,
 				Drain:    b.Drain,
 			})
