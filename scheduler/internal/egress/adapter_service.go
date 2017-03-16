@@ -25,12 +25,9 @@ func NewAdapterService(p AdapterPool) *DefaultAdapterService {
 
 func (d *DefaultAdapterService) CreateDelta(actual ingress.Bindings, expected ingress.Bindings) {
 	for _, expectedBinding := range expected {
-		b := &v1.Binding{
-			Hostname: expectedBinding.Hostname,
-			AppId:    expectedBinding.AppId,
-			Drain:    expectedBinding.Drain,
+		request := &v1.CreateBindingRequest{
+			Binding: &expectedBinding,
 		}
-		request := &v1.CreateBindingRequest{Binding: b}
 
 		targetWriteCount := min(maxWriteCount, len(d.pool))
 		drainCount := actual.DrainCount(expectedBinding)
@@ -64,7 +61,7 @@ func min(a, b int) int {
 func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected ingress.Bindings) {
 	var toDelete ingress.Bindings
 	for _, binding := range actual {
-		if !exists(expected, binding) {
+		if expected.DrainCount(binding) == 0 {
 			toDelete = append(toDelete, binding)
 		}
 	}
@@ -86,16 +83,6 @@ func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected in
 			}
 		}
 	}
-}
-
-func exists(expected ingress.Bindings, ab v1.Binding) bool {
-	for _, b := range expected {
-		if b.Drain == ab.Drain && b.Hostname == ab.Hostname {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
