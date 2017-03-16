@@ -69,11 +69,7 @@ func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected in
 
 	for _, binding := range toDelete {
 		request := &v1.DeleteBindingRequest{
-			Binding: &v1.Binding{
-				Hostname: binding.Hostname,
-				AppId:    binding.AppId,
-				Drain:    binding.Drain,
-			},
+			Binding: &binding,
 		}
 
 		for _, client := range d.pool {
@@ -95,13 +91,8 @@ func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
 		if err != nil {
 			continue
 		}
-		// TODO remove conversion by switching this to v1.Binding
 		for _, b := range resp.Bindings {
-			bindings = append(bindings, v1.Binding{
-				AppId:    b.AppId,
-				Hostname: b.Hostname,
-				Drain:    b.Drain,
-			})
+			bindings = append(bindings, *b)
 		}
 	}
 
