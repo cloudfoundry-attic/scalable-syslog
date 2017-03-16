@@ -33,15 +33,17 @@ func (d *DefaultAdapterService) CreateDelta(actual BindingList, expected ingress
 			}
 			request := &v1.CreateBindingRequest{Binding: b}
 
-			alreadyExist := actual.DrainCount(b)
+			targetWriteCount := min(maxWriteCount, len(d.pool))
+			drainCount := actual.DrainCount(b)
+			actualCreateCount := targetWriteCount - drainCount
 
 			log.Printf(
 				"creating new binding on adapter index=%d, number of writes=%d",
 				d.currentPoolIdx,
-				maxWriteCount-alreadyExist,
+				actualCreateCount,
 			)
 
-			pool := d.pool.Subset(d.currentPoolIdx, maxWriteCount-alreadyExist)
+			pool := d.pool.Subset(d.currentPoolIdx, actualCreateCount)
 			for _, client := range pool {
 				client.CreateBinding(context.Background(), request)
 			}
@@ -52,6 +54,13 @@ func (d *DefaultAdapterService) CreateDelta(actual BindingList, expected ingress
 			}
 		}
 	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (d *DefaultAdapterService) DeleteDelta(actual BindingList, expected ingress.AppBindings) {

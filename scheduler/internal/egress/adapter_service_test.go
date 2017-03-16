@@ -108,16 +108,37 @@ var _ = Describe("DefaultAdapterService", func() {
 			Hostname: "org.space.app",
 		}
 
-		It("writes to a gRPC server with a single client", func() {
-			client := &SpyClient{}
-			s := egress.NewAdapterService(egress.AdapterPool{client})
+		Context("with a single client in the pool", func() {
+			It("creates the binding on the client", func() {
+				client := &SpyClient{}
+				s := egress.NewAdapterService(egress.AdapterPool{client})
 
-			s.CreateDelta(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
+				s.CreateDelta(egress.BindingList{}, ingress.AppBindings{"app-id": appBinding})
 
-			Expect(client.createCalled()).To(Equal(1))
-			Expect(client.createBindingRequest()).To(Equal(
-				&v1.CreateBindingRequest{Binding: binding},
-			))
+				Expect(client.createCalled()).To(Equal(1))
+				Expect(client.createBindingRequest()).To(Equal(
+					&v1.CreateBindingRequest{Binding: binding},
+				))
+			})
+
+			It("does not create a second binding when the client already has the binding", func() {
+				client := &SpyClient{}
+				s := egress.NewAdapterService(egress.AdapterPool{client})
+
+				actual := egress.BindingList{
+					{
+						&v1.Binding{
+							AppId:    "app-id",
+							Hostname: "org.space.app",
+							Drain:    "syslog://my-drain-url",
+						},
+					},
+				}
+				expected := ingress.AppBindings{"app-id": appBinding}
+				s.CreateDelta(actual, expected)
+
+				Expect(client.createCalled()).To(Equal(0))
+			})
 		})
 
 		It("writes both gRPC servers with two clients", func() {
@@ -208,7 +229,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			client := &SpyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{client})
 
-			actual := egress.BindingList{{binding}, {binding}}
+			actual := egress.BindingList{{binding}}
 			expected := ingress.AppBindings{
 				"app-id": {
 					Drains: []string{
