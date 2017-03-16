@@ -14,11 +14,8 @@ import (
 var _ = Describe("Orchestrator", func() {
 	It("writes syslog bindings to the writer", func() {
 		reader := &SpyReader{
-			drains: ingress.AppBindings{
-				"app-id": ingress.Binding{
-					Hostname: "org.space.app",
-					Drains:   []string{"syslog://my-app-drain"},
-				},
+			drains: ingress.Bindings{
+				ingress.Binding{AppID: "app-id", Drain: "syslog://my-app-drain", Hostname: "org.space.app"},
 			},
 		}
 		client := &SpyClient{
@@ -53,11 +50,8 @@ var _ = Describe("Orchestrator", func() {
 
 	It("deletes bindings that are no longer present", func() {
 		reader := &SpyReader{
-			drains: ingress.AppBindings{
-				"app-id": ingress.Binding{
-					Hostname: "org.space.app",
-					Drains:   []string{"syslog://my-app-drain"},
-				},
+			drains: ingress.Bindings{
+				ingress.Binding{AppID: "app-id", Drain: "syslog://my-app-drain", Hostname: "org.space.app"},
 			},
 		}
 		client := &SpyClient{
@@ -93,10 +87,10 @@ var _ = Describe("Orchestrator", func() {
 })
 
 type SpyReader struct {
-	drains ingress.AppBindings
+	drains ingress.Bindings
 	err    error
 }
 
-func (s *SpyReader) FetchBindings() (appBindings ingress.AppBindings, err error) {
+func (s *SpyReader) FetchBindings() (appBindings ingress.Bindings, err error) {
 	return s.drains, s.err
 }

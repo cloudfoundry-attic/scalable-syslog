@@ -23,35 +23,33 @@ func NewAdapterService(p AdapterPool) *DefaultAdapterService {
 	}
 }
 
-func (d *DefaultAdapterService) CreateDelta(actual BindingList, expected ingress.AppBindings) {
-	for appID, drainBinding := range expected {
-		for _, drainURL := range drainBinding.Drains {
-			b := &v1.Binding{
-				Hostname: drainBinding.Hostname,
-				AppId:    appID,
-				Drain:    drainURL,
-			}
-			request := &v1.CreateBindingRequest{Binding: b}
+func (d *DefaultAdapterService) CreateDelta(actual BindingList, expected ingress.Bindings) {
+	for _, expectedBinding := range expected {
+		b := &v1.Binding{
+			Hostname: expectedBinding.Hostname,
+			AppId:    expectedBinding.AppID,
+			Drain:    expectedBinding.Drain,
+		}
+		request := &v1.CreateBindingRequest{Binding: b}
 
-			targetWriteCount := min(maxWriteCount, len(d.pool))
-			drainCount := actual.DrainCount(b)
-			actualCreateCount := targetWriteCount - drainCount
+		targetWriteCount := min(maxWriteCount, len(d.pool))
+		drainCount := actual.DrainCount(b)
+		actualCreateCount := targetWriteCount - drainCount
 
-			log.Printf(
-				"creating new binding on adapter index=%d, number of writes=%d",
-				d.currentPoolIdx,
-				actualCreateCount,
-			)
+		log.Printf(
+			"creating new binding on adapter index=%d, number of writes=%d",
+			d.currentPoolIdx,
+			actualCreateCount,
+		)
 
-			pool := d.pool.Subset(d.currentPoolIdx, actualCreateCount)
-			for _, client := range pool {
-				client.CreateBinding(context.Background(), request)
-			}
+		pool := d.pool.Subset(d.currentPoolIdx, actualCreateCount)
+		for _, client := range pool {
+			client.CreateBinding(context.Background(), request)
+		}
 
-			d.currentPoolIdx += 1
-			if d.currentPoolIdx >= len(d.pool) {
-				d.currentPoolIdx = 0
-			}
+		d.currentPoolIdx += 1
+		if d.currentPoolIdx >= len(d.pool) {
+			d.currentPoolIdx = 0
 		}
 	}
 }
@@ -63,7 +61,7 @@ func min(a, b int) int {
 	return b
 }
 
-func (d *DefaultAdapterService) DeleteDelta(actual BindingList, expected ingress.AppBindings) {
+func (d *DefaultAdapterService) DeleteDelta(actual BindingList, expected ingress.Bindings) {
 	var toDelete []*v1.Binding
 	for _, adapterBindings := range actual {
 		for _, ab := range adapterBindings {
@@ -88,14 +86,9 @@ func (d *DefaultAdapterService) DeleteDelta(actual BindingList, expected ingress
 	}
 }
 
-func exists(expected ingress.AppBindings, ab *v1.Binding) bool {
-	b, ok := expected[ab.AppId]
-	if !ok {
-		return false
-	}
-
-	for _, d := range b.Drains {
-		if d == ab.Drain && b.Hostname == ab.Hostname {
+func exists(expected ingress.Bindings, ab *v1.Binding) bool {
+	for _, b := range expected {
+		if b.Drain == ab.Drain && b.Hostname == ab.Hostname {
 			return true
 		}
 	}

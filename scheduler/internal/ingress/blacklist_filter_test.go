@@ -21,20 +21,10 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("returns valid bindings", func() {
-		input := ingress.AppBindings{
-			"app-id-with-multiple-drains": ingress.Binding{
-				Drains: []string{
-					"syslog://10.10.10.10",
-					"syslog://10.10.10.12",
-				},
-				Hostname: "we.dont.care",
-			},
-			"app-id-with-good-drain": ingress.Binding{
-				Drains: []string{
-					"syslog://10.10.10.10",
-				},
-				Hostname: "we.dont.care",
-			},
+		input := ingress.Bindings{
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
+			ingress.Binding{AppID: "app-id-with-good-drain", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
 		}
 		bindingReader := SpyBindingReader{Bindings: input}
 
@@ -46,28 +36,13 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("removes bindings with an invalid host", func() {
-		input := ingress.AppBindings{
-			"app-id-with-multiple-drains": ingress.Binding{
-				Drains: []string{
-					"syslog://some.invalid.host",
-					"syslog://10.10.10.12",
-				},
-				Hostname: "we.dont.care",
-			},
-			"app-id-with-bad-drain": ingress.Binding{
-				Drains: []string{
-					"syslog://invalid.host",
-				},
-				Hostname: "we.dont.care",
-			},
+		input := ingress.Bindings{
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://some.invalid.host"},
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
+			ingress.Binding{AppID: "app-id-with-bad-drain", Hostname: "we.dont.care", Drain: "syslog://invalid.host"},
 		}
-		expected := ingress.AppBindings{
-			"app-id-with-multiple-drains": ingress.Binding{
-				Drains: []string{
-					"syslog://10.10.10.12",
-				},
-				Hostname: "we.dont.care",
-			},
+		expected := ingress.Bindings{
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
 		}
 		bindingReader := SpyBindingReader{Bindings: input}
 
@@ -79,22 +54,12 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("removes bindings for a blacklisted IP", func() {
-		input := ingress.AppBindings{
-			"app-id-with-multiple-drains": ingress.Binding{
-				Drains: []string{
-					"syslog://14.15.16.18",
-					"syslog://10.10.10.12",
-				},
-				Hostname: "we.dont.care",
-			},
+		input := ingress.Bindings{
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://14.15.16.18"},
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
-		expected := ingress.AppBindings{
-			"app-id-with-multiple-drains": ingress.Binding{
-				Drains: []string{
-					"syslog://10.10.10.12",
-				},
-				Hostname: "we.dont.care",
-			},
+		expected := ingress.Bindings{
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
 		bindingReader := SpyBindingReader{Bindings: input}
 
@@ -106,22 +71,12 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("removes bindings for incompleted schemes", func() {
-		input := ingress.AppBindings{
-			"app-id-with-multiple-drains": ingress.Binding{
-				Drains: []string{
-					"http://",
-					"syslog://10.10.10.12",
-				},
-				Hostname: "we.dont.care",
-			},
+		input := ingress.Bindings{
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "http://"},
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
-		expected := ingress.AppBindings{
-			"app-id-with-multiple-drains": ingress.Binding{
-				Drains: []string{
-					"syslog://10.10.10.12",
-				},
-				Hostname: "we.dont.care",
-			},
+		expected := ingress.Bindings{
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
 		bindingReader := SpyBindingReader{Bindings: input}
 
@@ -143,21 +98,11 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("returns the drain count for non-blacklisted bindings", func() {
-		input := ingress.AppBindings{
-			"app-id-with-multiple-drains": ingress.Binding{
-				Drains: []string{
-					"syslog://10.10.10.12",
-					"syslog://14.15.16.18",
-				},
-				Hostname: "we.dont.care",
-			},
-			"app-id-with-bad-drain": ingress.Binding{
-				Drains: []string{
-					"syslog://10.10.10.15",
-					"syslog://14.15.16.20",
-				},
-				Hostname: "we.dont.care",
-			},
+		input := ingress.Bindings{
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://14.15.16.18"},
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://14.15.16.20"},
+			ingress.Binding{AppID: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.15"},
 		}
 		spyBindingReader := SpyBindingReader{
 			Bindings: input,
@@ -172,10 +117,10 @@ var _ = Describe("BlacklistFilter", func() {
 })
 
 type SpyBindingReader struct {
-	Bindings ingress.AppBindings
+	Bindings ingress.Bindings
 	Err      error
 }
 
-func (s SpyBindingReader) FetchBindings() (ingress.AppBindings, error) {
+func (s SpyBindingReader) FetchBindings() (ingress.Bindings, error) {
 	return s.Bindings, s.Err
 }

@@ -19,31 +19,21 @@ func NewBlacklistFilter(r *IPRanges, b BindingReader) *BlacklistFilter {
 	}
 }
 
-func (f *BlacklistFilter) FetchBindings() (AppBindings, error) {
+func (f *BlacklistFilter) FetchBindings() (Bindings, error) {
 	f.resetDrainCount()
 	sourceBindings, err := f.br.FetchBindings()
 	if err != nil {
 		return nil, err
 	}
-	newBindings := AppBindings{}
-	for appID, b := range sourceBindings {
-		drainURLs := []string{}
-		for _, d := range b.Drains {
-			err := f.ranges.IpOutsideOfRanges(d)
-			if err != nil {
-				log.Printf("%s", err)
-				continue
-			}
-			f.incrementDrainCount(1)
-			drainURLs = append(drainURLs, d)
+	newBindings := Bindings{}
+	for _, binding := range sourceBindings {
+		err := f.ranges.IpOutsideOfRanges(binding.Drain)
+		if err != nil {
+			log.Printf("%s", err)
+			continue
 		}
-		if len(drainURLs) > 0 {
-			binding := Binding{
-				Hostname: b.Hostname,
-				Drains:   drainURLs,
-			}
-			newBindings[appID] = binding
-		}
+		newBindings = append(newBindings, binding)
+		f.incrementDrainCount(1)
 	}
 
 	return newBindings, nil

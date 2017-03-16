@@ -5,7 +5,7 @@ import (
 )
 
 type BindingReader interface {
-	FetchBindings() (appBindings AppBindings, err error)
+	FetchBindings() (appBindings Bindings, err error)
 }
 
 // VersionFilter wraps a BindingReader and filters out versions that do not
@@ -22,29 +22,19 @@ func NewVersionFilter(br BindingReader) *VersionFilter {
 }
 
 // FetchBindings calls the wrapped BindingReader and filters the result.
-func (f *VersionFilter) FetchBindings() (AppBindings, error) {
+func (f *VersionFilter) FetchBindings() (Bindings, error) {
 	sourceBindings, err := f.br.FetchBindings()
 	if err != nil {
 		return nil, err
 	}
-	newBindings := AppBindings{}
-	for appID, b := range sourceBindings {
-		drainURLs := []string{}
-		for _, d := range b.Drains {
-			url, err := url.Parse(d)
-			if err != nil {
-				continue
-			}
-			if url.Query().Get("drain-version") == "2.0" {
-				drainURLs = append(drainURLs, d)
-			}
+	newBindings := Bindings{}
+	for _, binding := range sourceBindings {
+		url, err := url.Parse(binding.Drain)
+		if err != nil {
+			continue
 		}
-		if len(drainURLs) > 0 {
-			binding := Binding{
-				Hostname: b.Hostname,
-				Drains:   drainURLs,
-			}
-			newBindings[appID] = binding
+		if url.Query().Get("drain-version") == "2.0" {
+			newBindings = append(newBindings, binding)
 		}
 	}
 	return newBindings, nil

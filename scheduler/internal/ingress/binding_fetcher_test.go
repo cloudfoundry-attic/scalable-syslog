@@ -56,12 +56,19 @@ var _ = Describe("BindingFetcher", func() {
 			It("returns the bindings", func() {
 				bindings, err := fetcher.FetchBindings()
 				Expect(err).ToNot(HaveOccurred())
-				Expect(bindings).To(HaveLen(1))
+				Expect(bindings).To(HaveLen(2))
 
 				appID := "9be15160-4845-4f05-b089-40e827ba61f1"
-				Expect(bindings).To(HaveKey(appID))
-				Expect(bindings[appID].Hostname).To(Equal("org.space.logspinner"))
-				Expect(bindings[appID].Drains).To(ConsistOf("syslog://some.url", "syslog://some.other.url"))
+				Expect(bindings).To(ContainElement(ingress.Binding{
+					AppID:    appID,
+					Hostname: "org.space.logspinner",
+					Drain:    "syslog://some.url",
+				}))
+				Expect(bindings).To(ContainElement(ingress.Binding{
+					AppID:    appID,
+					Hostname: "org.space.logspinner",
+					Drain:    "syslog://some.other.url",
+				}))
 			})
 
 			It("fetches all the pages", func() {

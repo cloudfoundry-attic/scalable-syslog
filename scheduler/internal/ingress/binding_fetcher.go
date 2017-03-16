@@ -22,15 +22,18 @@ type BindingFetcher struct {
 
 // Binding reflects the JSON encoded output from the syslog drain binding provider
 type Binding struct {
-	Drains   []string
+	AppID    string
 	Hostname string
+	Drain    string
 }
-
-type AppBindings map[string]Binding
+type Bindings []Binding
 
 type response struct {
-	Results AppBindings
-	NextID  int `json:"next_id"`
+	Results map[string]struct {
+		Drains   []string
+		Hostname string
+	}
+	NextID int `json:"next_id"`
 }
 
 // NewBindingFetcher returns a new BindingFetcher
@@ -42,8 +45,8 @@ func NewBindingFetcher(g Getter) *BindingFetcher {
 
 // FetchBindings reaches out to the syslog drain binding provider via the Getter and decodes
 // the response. If it does not get a 200, it returns an error.
-func (f *BindingFetcher) FetchBindings() (AppBindings, error) {
-	drains := make(AppBindings)
+func (f *BindingFetcher) FetchBindings() (Bindings, error) {
+	bindings := Bindings{}
 	nextID := 0
 	f.resetDrainCount()
 
@@ -68,13 +71,20 @@ func (f *BindingFetcher) FetchBindings() (AppBindings, error) {
 			return nil, fmt.Errorf("invalid API response body")
 		}
 
-		for appID, binding := range r.Results {
-			drains[appID] = binding
-			f.incrementDrainCount(len(binding.Drains))
+		for appID, bindingData := range r.Results {
+			hostname := bindingData.Hostname
+			for _, drainURL := range bindingData.Drains {
+				bindings = append(bindings, Binding{
+					Hostname: hostname,
+					Drain:    drainURL,
+					AppID:    appID,
+				})
+				f.incrementDrainCount(1)
+			}
 		}
 
 		if r.NextID == 0 {
-			return drains, nil
+			return bindings, nil
 		}
 		nextID = r.NextID
 	}

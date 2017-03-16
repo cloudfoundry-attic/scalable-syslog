@@ -10,12 +10,12 @@ import (
 )
 
 type BindingReader interface {
-	FetchBindings() (appBindings ingress.AppBindings, err error)
+	FetchBindings() (appBindings ingress.Bindings, err error)
 }
 
 type AdapterService interface {
-	CreateDelta(actual BindingList, expected ingress.AppBindings)
-	DeleteDelta(actual BindingList, expected ingress.AppBindings)
+	CreateDelta(actual BindingList, expected ingress.Bindings)
+	DeleteDelta(actual BindingList, expected ingress.Bindings)
 	List() (BindingList, error)
 }
 

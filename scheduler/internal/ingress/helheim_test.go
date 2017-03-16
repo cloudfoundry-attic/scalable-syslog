@@ -33,21 +33,21 @@ func (m *mockCounter) Count() int {
 type mockBindingReader struct {
 	FetchBindingsCalled chan bool
 	FetchBindingsOutput struct {
-		AppBindings chan ingress.AppBindings
-		Err         chan error
+		Bindings chan ingress.Bindings
+		Err      chan error
 	}
 }
 
 func newMockBindingReader() *mockBindingReader {
 	m := &mockBindingReader{}
 	m.FetchBindingsCalled = make(chan bool, 100)
-	m.FetchBindingsOutput.AppBindings = make(chan ingress.AppBindings, 100)
+	m.FetchBindingsOutput.Bindings = make(chan ingress.Bindings, 100)
 	m.FetchBindingsOutput.Err = make(chan error, 100)
 	return m
 }
-func (m *mockBindingReader) FetchBindings() (appBindings ingress.AppBindings, err error) {
+func (m *mockBindingReader) FetchBindings() (appBindings ingress.Bindings, err error) {
 	m.FetchBindingsCalled <- true
-	return <-m.FetchBindingsOutput.AppBindings, <-m.FetchBindingsOutput.Err
+	return <-m.FetchBindingsOutput.Bindings, <-m.FetchBindingsOutput.Err
 }
 
 type mockAdapterPool struct {
