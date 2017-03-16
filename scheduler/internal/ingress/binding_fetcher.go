@@ -20,14 +20,6 @@ type BindingFetcher struct {
 	drainCount int
 }
 
-// Binding reflects the JSON encoded output from the syslog drain binding provider
-type Binding struct {
-	AppID    string
-	Hostname string
-	Drain    string
-}
-type Bindings []Binding
-
 type response struct {
 	Results map[string]struct {
 		Drains   []string

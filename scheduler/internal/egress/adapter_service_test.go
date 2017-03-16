@@ -15,8 +15,8 @@ import (
 )
 
 var _ = Describe("DefaultAdapterService", func() {
-	binding := &v1.Binding{
-		AppId:    "app-id",
+	binding := ingress.Binding{
+		AppID:    "app-id",
 		Hostname: "org.space.app",
 		Drain:    "syslog://my-drain-url",
 	}
@@ -33,7 +33,7 @@ var _ = Describe("DefaultAdapterService", func() {
 		client := &SpyClient{}
 		s := egress.NewAdapterService(egress.AdapterPool{client})
 
-		actual := egress.BindingList{{binding}}
+		actual := ingress.Bindings{binding}
 		expected := ingress.Bindings{}
 		s.DeleteDelta(actual, expected)
 
@@ -51,7 +51,7 @@ var _ = Describe("DefaultAdapterService", func() {
 		client := &SpyClient{}
 		s := egress.NewAdapterService(egress.AdapterPool{client})
 
-		actual := egress.BindingList{{binding}}
+		actual := ingress.Bindings{binding}
 		expected := ingress.Bindings{
 			ingress.Binding{AppID: "app-id", Hostname: "org.space.other-app", Drain: "syslog://my-drain-url"},
 		}
@@ -71,7 +71,13 @@ var _ = Describe("DefaultAdapterService", func() {
 		It("gets a list of bindings from all adapters", func() {
 			client := &SpyClient{}
 			client.listBindingsResponse_ = &v1.ListBindingsResponse{
-				Bindings: []*v1.Binding{binding},
+				Bindings: []*v1.Binding{
+					{
+						AppId:    binding.AppID,
+						Hostname: binding.Hostname,
+						Drain:    binding.Drain,
+					},
+				},
 			}
 
 			s := egress.NewAdapterService(egress.AdapterPool{client})
@@ -81,19 +87,17 @@ var _ = Describe("DefaultAdapterService", func() {
 			Expect(client.listCalled()).To(Equal(true))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len(bindings)).To(Equal(1))
-			Expect(len(bindings[0])).To(Equal(1))
-			Expect(bindings[0][0]).To(Equal(binding))
+			Expect(bindings[0]).To(Equal(binding))
 		})
 
-		It("adds an empty slice when list fails", func() {
+		It("returns no bindings when list fails", func() {
 			client := &SpyClient{}
 			client.listBindingsError_ = errors.New("list failed")
 
 			s := egress.NewAdapterService(egress.AdapterPool{client})
 
 			bindings, _ := s.List()
-			Expect(len(bindings)).To(Equal(1))
-			Expect(len(bindings[0])).To(Equal(0))
+			Expect(len(bindings)).To(Equal(0))
 		})
 	})
 
@@ -109,11 +113,15 @@ var _ = Describe("DefaultAdapterService", func() {
 				client := &SpyClient{}
 				s := egress.NewAdapterService(egress.AdapterPool{client})
 
-				s.CreateDelta(egress.BindingList{}, ingress.Bindings{appBinding})
+				s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
 				Expect(client.createCalled()).To(Equal(1))
 				Expect(client.createBindingRequest()).To(Equal(
-					&v1.CreateBindingRequest{Binding: binding},
+					&v1.CreateBindingRequest{Binding: &v1.Binding{
+						AppId:    binding.AppID,
+						Hostname: binding.Hostname,
+						Drain:    binding.Drain,
+					}},
 				))
 			})
 
@@ -121,13 +129,11 @@ var _ = Describe("DefaultAdapterService", func() {
 				client := &SpyClient{}
 				s := egress.NewAdapterService(egress.AdapterPool{client})
 
-				actual := egress.BindingList{
+				actual := ingress.Bindings{
 					{
-						&v1.Binding{
-							AppId:    "app-id",
-							Hostname: "org.space.app",
-							Drain:    "syslog://my-drain-url",
-						},
+						AppID:    "app-id",
+						Hostname: "org.space.app",
+						Drain:    "syslog://my-drain-url",
 					},
 				}
 				expected := ingress.Bindings{appBinding}
@@ -142,7 +148,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			secondClient := &SpyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{firstClient, secondClient})
 
-			s.CreateDelta(egress.BindingList{}, ingress.Bindings{appBinding})
+			s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
 			Expect(firstClient.createCalled()).To(Equal(1))
 			Expect(secondClient.createCalled()).To(Equal(1))
@@ -152,7 +158,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
 			s := egress.NewAdapterService(clients)
 
-			s.CreateDelta(egress.BindingList{}, ingress.Bindings{appBinding})
+			s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
 			createCalled := 0
 			for _, client := range clients {
@@ -167,8 +173,8 @@ var _ = Describe("DefaultAdapterService", func() {
 			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
 			s := egress.NewAdapterService(clients)
 
-			s.CreateDelta(egress.BindingList{
-				{&v1.Binding{"app-id", "org.space.app", "syslog://my-drain-url"}},
+			s.CreateDelta(ingress.Bindings{
+				{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
 			}, ingress.Bindings{appBinding})
 
 			createCalled := 0
@@ -190,7 +196,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			s := egress.NewAdapterService(clients)
 
 			s.CreateDelta(
-				egress.BindingList{},
+				ingress.Bindings{},
 				appBindings,
 			)
 
@@ -201,15 +207,11 @@ var _ = Describe("DefaultAdapterService", func() {
 			Expect(createCalled).To(Equal(4))
 
 			s.CreateDelta(
-				egress.BindingList{
-					{
-						&v1.Binding{"app-id", "org.space.app", "syslog://my-drain-url"},
-						&v1.Binding{"app-id", "org.space.app", "syslog://another-drain"},
-					},
-					{
-						&v1.Binding{"app-id", "org.space.app", "syslog://my-drain-url"},
-						&v1.Binding{"app-id", "org.space.app", "syslog://another-drain"},
-					},
+				ingress.Bindings{
+					{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
+					{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
+					{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
+					{AppID: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
 				},
 				appBindings,
 			)
@@ -225,7 +227,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			client := &SpyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{client})
 
-			actual := egress.BindingList{{binding}}
+			actual := ingress.Bindings{binding}
 			expected := ingress.Bindings{
 				ingress.Binding{AppID: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.other-app"},
 			}

@@ -23,7 +23,7 @@ func NewAdapterService(p AdapterPool) *DefaultAdapterService {
 	}
 }
 
-func (d *DefaultAdapterService) CreateDelta(actual BindingList, expected ingress.Bindings) {
+func (d *DefaultAdapterService) CreateDelta(actual ingress.Bindings, expected ingress.Bindings) {
 	for _, expectedBinding := range expected {
 		b := &v1.Binding{
 			Hostname: expectedBinding.Hostname,
@@ -33,7 +33,7 @@ func (d *DefaultAdapterService) CreateDelta(actual BindingList, expected ingress
 		request := &v1.CreateBindingRequest{Binding: b}
 
 		targetWriteCount := min(maxWriteCount, len(d.pool))
-		drainCount := actual.DrainCount(b)
+		drainCount := actual.DrainCount(expectedBinding)
 		actualCreateCount := targetWriteCount - drainCount
 
 		log.Printf(
@@ -61,20 +61,22 @@ func min(a, b int) int {
 	return b
 }
 
-func (d *DefaultAdapterService) DeleteDelta(actual BindingList, expected ingress.Bindings) {
-	var toDelete []*v1.Binding
-	for _, adapterBindings := range actual {
-		for _, ab := range adapterBindings {
-			if !exists(expected, ab) {
-				toDelete = append(toDelete, ab)
-			}
+func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected ingress.Bindings) {
+	var toDelete ingress.Bindings
+	for _, binding := range actual {
+		if !exists(expected, binding) {
+			toDelete = append(toDelete, binding)
 		}
 	}
 	log.Printf("deleting bindings count=%d", len(toDelete))
 
-	for _, ab := range toDelete {
+	for _, binding := range toDelete {
 		request := &v1.DeleteBindingRequest{
-			Binding: ab,
+			Binding: &v1.Binding{
+				Hostname: binding.Hostname,
+				AppId:    binding.AppID,
+				Drain:    binding.Drain,
+			},
 		}
 
 		for _, client := range d.pool {
@@ -86,7 +88,7 @@ func (d *DefaultAdapterService) DeleteDelta(actual BindingList, expected ingress
 	}
 }
 
-func exists(expected ingress.Bindings, ab *v1.Binding) bool {
+func exists(expected ingress.Bindings, ab ingress.Binding) bool {
 	for _, b := range expected {
 		if b.Drain == ab.Drain && b.Hostname == ab.Hostname {
 			return true
@@ -96,18 +98,24 @@ func exists(expected ingress.Bindings, ab *v1.Binding) bool {
 	return false
 }
 
-func (d *DefaultAdapterService) List() (BindingList, error) {
-	request := new(v1.ListBindingsRequest)
+func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
+	request := &v1.ListBindingsRequest{}
 
-	var bindings BindingList
+	var bindings ingress.Bindings
+
 	for _, client := range d.pool {
 		resp, err := client.ListBindings(context.Background(), request)
 		if err != nil {
-			bindings = append(bindings, make([]*v1.Binding, 0))
 			continue
 		}
-
-		bindings = append(bindings, resp.Bindings)
+		// TODO remove conversion by switching this to v1.Binding
+		for _, b := range resp.Bindings {
+			bindings = append(bindings, ingress.Binding{
+				AppID:    b.AppId,
+				Hostname: b.Hostname,
+				Drain:    b.Drain,
+			})
+		}
 	}
 
 	return bindings, nil

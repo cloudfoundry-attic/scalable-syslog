@@ -14,9 +14,9 @@ type BindingReader interface {
 }
 
 type AdapterService interface {
-	CreateDelta(actual BindingList, expected ingress.Bindings)
-	DeleteDelta(actual BindingList, expected ingress.Bindings)
-	List() (BindingList, error)
+	CreateDelta(actual ingress.Bindings, expected ingress.Bindings)
+	DeleteDelta(actual ingress.Bindings, expected ingress.Bindings)
+	List() (ingress.Bindings, error)
 }
 
 // Orchestrator manages writes to a number of adapters.
