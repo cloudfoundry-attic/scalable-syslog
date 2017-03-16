@@ -22,12 +22,12 @@ import (
 
 var _ = Describe("Scheduler - End to End", func() {
 	var (
-		scheduler    *app.Scheduler
-		dataSource   *httptest.Server
-		testServer   *testAdapterServer
-		bindings     []*v1.Binding
-		blacklistIPs *ingress.IPRanges
-		healthAddr   string
+		scheduler         *app.Scheduler
+		dataSource        *httptest.Server
+		testAdapterServer *testAdapterServer
+		bindings          []*v1.Binding
+		blacklistIPs      *ingress.IPRanges
+		healthAddr        string
 	)
 
 	BeforeEach(func() {
@@ -64,11 +64,11 @@ var _ = Describe("Scheduler - End to End", func() {
 			log.Fatalf("Invalid TLS config: %s", err)
 		}
 
-		testServer = NewTestAdapterServer()
+		testAdapterServer = NewTestAdapterServer()
 		grpcServer := grpc.NewServer(
 			grpc.Creds(credentials.NewTLS(adapterTLSConfig)),
 		)
-		v1.RegisterAdapterServer(grpcServer, testServer)
+		v1.RegisterAdapterServer(grpcServer, testAdapterServer)
 
 		go grpcServer.Serve(lis)
 
@@ -121,13 +121,13 @@ var _ = Describe("Scheduler - End to End", func() {
 			// TODO: when we implement diffing in the scheduler this will need
 			// to change to HaveLen(2)
 			lenCheck := func() int {
-				return len(testServer.ActualCreateBindingRequest)
+				return len(testAdapterServer.ActualCreateBindingRequest)
 			}
 			Eventually(lenCheck).Should(BeNumerically(">=", 2))
 			var actualRequests []*v1.CreateBindingRequest
 			f := func() []*v1.CreateBindingRequest {
 				select {
-				case req := <-testServer.ActualCreateBindingRequest:
+				case req := <-testAdapterServer.ActualCreateBindingRequest:
 					actualRequests = append(actualRequests, req)
 				default:
 				}
@@ -153,11 +153,11 @@ var _ = Describe("Scheduler - End to End", func() {
 					Binding: bindings[1],
 				},
 			}
-			Eventually(testServer.ActualDeleteBindingRequest).Should(HaveLen(2))
+			Eventually(testAdapterServer.ActualDeleteBindingRequest).Should(HaveLen(2))
 			var actualRequests []*v1.DeleteBindingRequest
 			f := func() []*v1.DeleteBindingRequest {
 				select {
-				case req := <-testServer.ActualDeleteBindingRequest:
+				case req := <-testAdapterServer.ActualDeleteBindingRequest:
 					actualRequests = append(actualRequests, req)
 				default:
 				}
@@ -166,7 +166,76 @@ var _ = Describe("Scheduler - End to End", func() {
 			Eventually(f).Should(ConsistOf(expectedRequests))
 		})
 	})
+
+	Context("when an app is renamed", func() {
+		BeforeEach(func() {
+			dataSource = httptest.NewServer(&fakeCCWithRenamedApps{})
+		})
+
+		It("creates new adapter bindings and removes the previous bindings", func(done Done) {
+			defer close(done)
+			createReq := <-testAdapterServer.ActualCreateBindingRequest
+			Expect(createReq.Binding).To(Equal(&v1.Binding{
+				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+				Hostname: "org.space.original",
+				Drain:    "syslog://14.15.16.22/?drain-version=2.0",
+			}))
+
+			deleteReq := <-testAdapterServer.ActualDeleteBindingRequest
+			Expect(deleteReq.Binding).To(Equal(&v1.Binding{
+				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+				Hostname: "org.space.original",
+				Drain:    "syslog://14.15.16.22/?drain-version=2.0",
+			}))
+			createReq = <-testAdapterServer.ActualCreateBindingRequest
+			Expect(createReq.Binding).To(Equal(&v1.Binding{
+				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+				Hostname: "org.space.new",
+				Drain:    "syslog://14.15.16.22/?drain-version=2.0",
+			}))
+		})
+	})
 })
+
+type fakeCCWithRenamedApps struct {
+	called bool
+}
+
+func (f *fakeCCWithRenamedApps) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/internal/v4/syslog_drain_urls" {
+		w.WriteHeader(500)
+		return
+	}
+	if f.called {
+		w.Write([]byte(`
+		{
+		  "results": {
+			"9be15160-4845-4f05-b089-40e827ba61f1": {
+			  "drains": [
+                "syslog://14.15.16.22/?drain-version=2.0"
+			  ],
+			  "hostname": "org.space.new"
+			}
+		  }
+		}
+		`))
+		return
+	}
+
+	w.Write([]byte(`
+		{
+		  "results": {
+			"9be15160-4845-4f05-b089-40e827ba61f1": {
+			  "drains": [
+                "syslog://14.15.16.22/?drain-version=2.0"
+			  ],
+			  "hostname": "org.space.original"
+			}
+		  }
+		}
+	`))
+	f.called = true
+}
 
 type fakeCC struct {
 	count           int

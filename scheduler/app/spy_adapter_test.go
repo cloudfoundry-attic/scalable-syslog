@@ -43,7 +43,7 @@ func (t *testAdapterServer) DeleteBinding(c context.Context, r *v1.DeleteBinding
 	oldBindings := t.Bindings
 	t.Bindings = nil
 	for _, b := range oldBindings {
-		if b.AppId == r.Binding.AppId && b.Drain == r.Binding.Drain {
+		if b.AppId == r.Binding.AppId && b.Hostname == r.Binding.Hostname && b.Drain == r.Binding.Drain {
 			continue
 		}
 		t.Bindings = append(t.Bindings, b)

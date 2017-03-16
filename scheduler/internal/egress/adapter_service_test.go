@@ -31,20 +31,44 @@ var _ = Describe("DefaultAdapterService", func() {
 
 	It("makes a call to remove drain", func() {
 		client := &SpyClient{}
-		toDelete := &v1.Binding{
+		s := egress.NewAdapterService(egress.AdapterPool{client})
+
+		actual := egress.BindingList{{binding}}
+		expected := ingress.AppBindings{}
+		s.DeleteDelta(actual, expected)
+
+		expectedToBeDeleted := &v1.Binding{
 			AppId:    "app-id",
 			Hostname: "org.space.app",
 			Drain:    "syslog://my-drain-url",
 		}
-		actual := egress.BindingList{{binding}}
-		expected := ingress.AppBindings{}
+		Expect(client.deleteBindingRequest()).To(Equal(
+			&v1.DeleteBindingRequest{Binding: expectedToBeDeleted},
+		))
+	})
 
+	It("remove drains on hostname rename", func() {
+		client := &SpyClient{}
 		s := egress.NewAdapterService(egress.AdapterPool{client})
 
+		actual := egress.BindingList{{binding}}
+		expected := ingress.AppBindings{
+			"app-id": {
+				Drains: []string{
+					"syslog://my-drain-url",
+				},
+				Hostname: "org.space.other-app",
+			},
+		}
 		s.DeleteDelta(actual, expected)
 
+		expectedToBeDeleted := &v1.Binding{
+			AppId:    "app-id",
+			Hostname: "org.space.app",
+			Drain:    "syslog://my-drain-url",
+		}
 		Expect(client.deleteBindingRequest()).To(Equal(
-			&v1.DeleteBindingRequest{Binding: toDelete},
+			&v1.DeleteBindingRequest{Binding: expectedToBeDeleted},
 		))
 	})
 
@@ -178,6 +202,31 @@ var _ = Describe("DefaultAdapterService", func() {
 				createCalled += (client.(*SpyClient)).createCalled()
 			}
 			Expect(createCalled).To(Equal(4))
+		})
+
+		It("creates a new drain on hostname rename", func() {
+			client := &SpyClient{}
+			s := egress.NewAdapterService(egress.AdapterPool{client})
+
+			actual := egress.BindingList{{binding}, {binding}}
+			expected := ingress.AppBindings{
+				"app-id": {
+					Drains: []string{
+						"syslog://my-drain-url",
+					},
+					Hostname: "org.space.other-app",
+				},
+			}
+			s.CreateDelta(actual, expected)
+
+			expectedToBeCreated := &v1.Binding{
+				AppId:    "app-id",
+				Hostname: "org.space.other-app",
+				Drain:    "syslog://my-drain-url",
+			}
+			Expect(client.createBindingRequest()).To(Equal(
+				&v1.CreateBindingRequest{Binding: expectedToBeCreated},
+			))
 		})
 	})
 })

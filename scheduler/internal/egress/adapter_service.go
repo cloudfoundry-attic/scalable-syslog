@@ -33,7 +33,7 @@ func (d *DefaultAdapterService) CreateDelta(actual BindingList, expected ingress
 			}
 			request := &v1.CreateBindingRequest{Binding: b}
 
-			alreadyExist := actual.DrainCount(appID, drainURL)
+			alreadyExist := actual.DrainCount(b)
 
 			log.Printf(
 				"creating new binding on adapter index=%d, number of writes=%d",
@@ -86,7 +86,7 @@ func exists(expected ingress.AppBindings, ab *v1.Binding) bool {
 	}
 
 	for _, d := range b.Drains {
-		if d == ab.Drain {
+		if d == ab.Drain && b.Hostname == ab.Hostname {
 			return true
 		}
 	}

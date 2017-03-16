@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 )
+
 type asset struct {
 	bytes []byte
 	info  os.FileInfo
@@ -487,15 +488,15 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"adapter.crt": adapterCrt,
-	"adapter.csr": adapterCsr,
-	"adapter.key": adapterKey,
+	"adapter.crt":            adapterCrt,
+	"adapter.csr":            adapterCsr,
+	"adapter.key":            adapterKey,
 	"scalable-syslog-ca.crl": scalableSyslogCaCrl,
 	"scalable-syslog-ca.crt": scalableSyslogCaCrt,
 	"scalable-syslog-ca.key": scalableSyslogCaKey,
-	"scheduler.crt": schedulerCrt,
-	"scheduler.csr": schedulerCsr,
-	"scheduler.key": schedulerKey,
+	"scheduler.crt":          schedulerCrt,
+	"scheduler.csr":          schedulerCsr,
+	"scheduler.key":          schedulerKey,
 }
 
 // AssetDir returns the file names below a certain
@@ -537,16 +538,17 @@ type bintree struct {
 	Func     func() (*asset, error)
 	Children map[string]*bintree
 }
+
 var _bintree = &bintree{nil, map[string]*bintree{
-	"adapter.crt": &bintree{adapterCrt, map[string]*bintree{}},
-	"adapter.csr": &bintree{adapterCsr, map[string]*bintree{}},
-	"adapter.key": &bintree{adapterKey, map[string]*bintree{}},
+	"adapter.crt":            &bintree{adapterCrt, map[string]*bintree{}},
+	"adapter.csr":            &bintree{adapterCsr, map[string]*bintree{}},
+	"adapter.key":            &bintree{adapterKey, map[string]*bintree{}},
 	"scalable-syslog-ca.crl": &bintree{scalableSyslogCaCrl, map[string]*bintree{}},
 	"scalable-syslog-ca.crt": &bintree{scalableSyslogCaCrt, map[string]*bintree{}},
 	"scalable-syslog-ca.key": &bintree{scalableSyslogCaKey, map[string]*bintree{}},
-	"scheduler.crt": &bintree{schedulerCrt, map[string]*bintree{}},
-	"scheduler.csr": &bintree{schedulerCsr, map[string]*bintree{}},
-	"scheduler.key": &bintree{schedulerKey, map[string]*bintree{}},
+	"scheduler.crt":          &bintree{schedulerCrt, map[string]*bintree{}},
+	"scheduler.csr":          &bintree{schedulerCsr, map[string]*bintree{}},
+	"scheduler.key":          &bintree{schedulerKey, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory
@@ -595,4 +597,3 @@ func _filePath(dir, name string) string {
 	cannonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
 }
-
