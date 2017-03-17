@@ -1,6 +1,8 @@
 package egress
 
 import (
+	"time"
+
 	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
 )
 
@@ -40,10 +42,13 @@ func (d *DiodeWriter) done() bool {
 
 func (d *DiodeWriter) attemptMessageTransfer() {
 	env, ok := d.diode.TryNext()
-	if ok {
-		// TODO: do something with error?
-		d.wc.Write(env)
+	if !ok {
+		time.Sleep(10 * time.Millisecond)
+		return
 	}
+
+	// TODO: do something with error?
+	d.wc.Write(env)
 }
 
 // Write writes an envelope into the diode. This can not fail.
