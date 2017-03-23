@@ -28,5 +28,5 @@ func NewHealth(s BindingStore) *Health {
 func (h *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	count := len(h.store.List())
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(fmt.Sprintf(`{"drainCount": %d}`, count)))
+	w.Write([]byte(fmt.Sprintf(`{"drainCount": %d}\n`, count)))
 }

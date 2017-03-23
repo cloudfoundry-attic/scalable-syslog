@@ -29,7 +29,7 @@ func NewHealth(d, a Counter) *Health {
 // Handle implements the http.Handler interface.
 func (h *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	output := fmt.Sprintf(
-		`{"drainCount": %d,"adapterCount": %d}`,
+		`{"drainCount": %d,"adapterCount": %d}\n`,
 		h.drainCounter.Count(),
 		h.adapterCounter.Count(),
 	)
