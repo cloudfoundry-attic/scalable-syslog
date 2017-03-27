@@ -2,6 +2,7 @@ package egress_test
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
@@ -12,10 +13,14 @@ import (
 )
 
 var _ = Describe("Orchestrator", func() {
-	var healthEmitter *SpyHealthEmitter
+	var (
+		healthEmitter  *SpyHealthEmitter
+		adapterService *SpyAdapterService
+	)
 
 	BeforeEach(func() {
 		healthEmitter = &SpyHealthEmitter{}
+		adapterService = &SpyAdapterService{}
 	})
 
 	It("writes syslog bindings to the writer", func() {
@@ -28,75 +33,26 @@ var _ = Describe("Orchestrator", func() {
 				},
 			},
 		}
-		client := &SpyClient{
-			listBindingsResponse_: &v1.ListBindingsResponse{},
-		}
 
-		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter), healthEmitter)
+		o := egress.NewOrchestrator(reader, adapterService, healthEmitter)
 		go o.Run(1 * time.Millisecond)
 
-		Eventually(client.createBindingRequest, 2).Should(Equal(
-			&v1.CreateBindingRequest{
-				&v1.Binding{
-					AppId:    "app-id",
-					Hostname: "org.space.app",
-					Drain:    "syslog://my-app-drain",
-				},
-			},
-		))
+		Eventually(adapterService.CreateDeltaActual).Should(HaveLen(0))
+		Eventually(adapterService.CreateDeltaExpected).Should(HaveLen(1))
+
+		Eventually(adapterService.DeleteDeltaActual).Should(HaveLen(0))
+		Eventually(adapterService.DeleteDeltaExpected).Should(HaveLen(1))
 	})
 
 	It("does not write when the read fails", func() {
 		reader := &SpyReader{
 			err: errors.New("Nope!"),
 		}
-		client := &SpyClient{}
 
-		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter), healthEmitter)
+		o := egress.NewOrchestrator(reader, adapterService, healthEmitter)
 		go o.Run(1 * time.Millisecond)
 
-		Consistently(client.createBindingRequest).Should(BeNil())
-	})
-
-	It("deletes bindings that are no longer present", func() {
-		reader := &SpyReader{
-			drains: ingress.Bindings{
-				v1.Binding{
-					AppId:    "app-id",
-					Drain:    "syslog://my-app-drain",
-					Hostname: "org.space.app",
-				},
-			},
-		}
-		client := &SpyClient{
-			listBindingsResponse_: &v1.ListBindingsResponse{
-				Bindings: []*v1.Binding{
-					&v1.Binding{
-						AppId:    "app-id",
-						Hostname: "org.space.app",
-						Drain:    "syslog://my-app-drain",
-					},
-					&v1.Binding{
-						AppId:    "app-id",
-						Hostname: "org.space.app",
-						Drain:    "syslog://other-drain",
-					},
-				},
-			},
-		}
-
-		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter), healthEmitter)
-		go o.Run(1 * time.Millisecond)
-
-		Eventually(client.deleteBindingRequest, 2).Should(Equal(
-			&v1.DeleteBindingRequest{
-				&v1.Binding{
-					AppId:    "app-id",
-					Hostname: "org.space.app",
-					Drain:    "syslog://other-drain",
-				},
-			},
-		))
+		Consistently(adapterService.CreateDeltaCalled).Should(BeFalse())
 	})
 })
 
@@ -112,3 +68,66 @@ func (s *SpyReader) FetchBindings() (appBindings ingress.Bindings, err error) {
 type SpyHealthEmitter struct{}
 
 func (s *SpyHealthEmitter) SetCounter(_ map[string]int) {}
+
+type SpyAdapterService struct {
+	mu                                     sync.Mutex
+	createDeltaActual, createDeltaExpected ingress.Bindings
+	deleteDeltaActual, deleteDeltaExpected ingress.Bindings
+	createDeltaCalled                      bool
+}
+
+func (s *SpyAdapterService) List() (ingress.Bindings, error) {
+	return nil, nil
+}
+
+func (s *SpyAdapterService) CreateDelta(actual ingress.Bindings, expected ingress.Bindings) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.createDeltaCalled = true
+	s.createDeltaActual = actual
+	s.createDeltaExpected = expected
+}
+
+func (s *SpyAdapterService) DeleteDelta(actual ingress.Bindings, expected ingress.Bindings) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.deleteDeltaActual = actual
+	s.deleteDeltaExpected = expected
+}
+
+func (s *SpyAdapterService) CreateDeltaCalled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.createDeltaCalled
+}
+
+func (s *SpyAdapterService) CreateDeltaActual() ingress.Bindings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.createDeltaActual
+}
+
+func (s *SpyAdapterService) CreateDeltaExpected() ingress.Bindings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.createDeltaExpected
+}
+
+func (s *SpyAdapterService) DeleteDeltaActual() ingress.Bindings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.deleteDeltaActual
+}
+
+func (s *SpyAdapterService) DeleteDeltaExpected() ingress.Bindings {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.deleteDeltaExpected
+}
