@@ -24,6 +24,7 @@ type Scheduler struct {
 	adapterTLSConfig *tls.Config
 
 	healthAddr string
+	health     *health.Health
 	client     *http.Client
 	interval   time.Duration
 
@@ -48,6 +49,7 @@ func NewScheduler(
 		client:           http.DefaultClient,
 		interval:         15 * time.Second,
 		blacklist:        &ingress.IPRanges{},
+		health:           health.NewHealth(),
 	}
 	for _, o := range opts {
 		o(s)
@@ -112,14 +114,14 @@ func (s *Scheduler) startEgress() {
 	creds := credentials.NewTLS(s.adapterTLSConfig)
 
 	pool := egress.NewAdapterPool(s.adapterAddrs, grpc.WithTransportCredentials(creds))
-	s.adapterService = egress.NewAdapterService(pool)
-	orchestrator := egress.NewOrchestrator(s.fetcher, s.adapterService)
+	s.adapterService = egress.NewAdapterService(pool, s.health)
+	orchestrator := egress.NewOrchestrator(s.fetcher, s.adapterService, s.health)
 	go orchestrator.Run(s.interval)
 }
 
 func (s *Scheduler) serveHealth() string {
 	router := http.NewServeMux()
-	router.Handle("/health", health.NewHealth(s.fetcher, s.adapterService))
+	router.Handle("/health", s.health)
 
 	server := http.Server{
 		Addr:         s.healthAddr,

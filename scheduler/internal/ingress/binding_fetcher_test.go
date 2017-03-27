@@ -79,12 +79,6 @@ var _ = Describe("BindingFetcher", func() {
 				Expect(mockGetter.GetInput.NextID).To(Receive(Equal(0)))
 				Expect(mockGetter.GetInput.NextID).To(Receive(Equal(50)))
 			})
-
-			It("reports the number of application syslog drains", func() {
-				Expect(fetcher.Count()).To(Equal(0))
-				fetcher.FetchBindings()
-				Expect(fetcher.Count()).To(Equal(2))
-			})
 		})
 
 		Context("when the status code is 200 and the body is invalid json", func() {

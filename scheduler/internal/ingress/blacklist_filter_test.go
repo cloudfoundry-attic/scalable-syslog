@@ -98,24 +98,6 @@ var _ = Describe("BlacklistFilter", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(actual).To(BeNil())
 	})
-
-	It("returns the drain count for non-blacklisted bindings", func() {
-		input := ingress.Bindings{
-			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://14.15.16.18"},
-			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
-			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://14.15.16.20"},
-			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.15"},
-		}
-		spyBindingReader := SpyBindingReader{
-			Bindings: input,
-		}
-		filter := ingress.NewBlacklistFilter(blacklistIps, spyBindingReader)
-
-		Expect(filter.Count()).To(Equal(0))
-		_, err := filter.FetchBindings()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(filter.Count()).To(Equal(2))
-	})
 })
 
 type SpyBindingReader struct {

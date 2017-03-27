@@ -17,7 +17,9 @@ type DefaultAdapterService struct {
 // syslog drain bindings
 const maxWriteCount = 2
 
-func NewAdapterService(p AdapterPool) *DefaultAdapterService {
+func NewAdapterService(p AdapterPool, h HealthEmitter) *DefaultAdapterService {
+	h.SetCounter(map[string]int{"adapterCount": len(p)})
+
 	return &DefaultAdapterService{
 		pool: p,
 	}
@@ -97,8 +99,4 @@ func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
 	}
 
 	return bindings, nil
-}
-
-func (d *DefaultAdapterService) Count() int {
-	return len(d.pool)
 }

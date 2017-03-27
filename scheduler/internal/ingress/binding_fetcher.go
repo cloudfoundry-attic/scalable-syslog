@@ -42,7 +42,6 @@ func NewBindingFetcher(g Getter) *BindingFetcher {
 func (f *BindingFetcher) FetchBindings() (Bindings, error) {
 	bindings := Bindings{}
 	nextID := 0
-	f.resetDrainCount()
 
 	for {
 		resp, err := f.getter.Get(nextID)
@@ -73,7 +72,6 @@ func (f *BindingFetcher) FetchBindings() (Bindings, error) {
 					Drain:    drainURL,
 					AppId:    appID,
 				})
-				f.incrementDrainCount(1)
 			}
 		}
 
@@ -82,25 +80,4 @@ func (f *BindingFetcher) FetchBindings() (Bindings, error) {
 		}
 		nextID = r.NextID
 	}
-}
-
-func (f *BindingFetcher) resetDrainCount() {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.drainCount = 0
-}
-
-func (f *BindingFetcher) incrementDrainCount(c int) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.drainCount += c
-}
-
-func (f *BindingFetcher) Count() int {
-	f.mu.RLock()
-	defer f.mu.RUnlock()
-
-	return f.drainCount
 }

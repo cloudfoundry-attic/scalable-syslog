@@ -13,6 +13,10 @@ type BindingReader interface {
 	FetchBindings() (appBindings ingress.Bindings, err error)
 }
 
+type HealthEmitter interface {
+	SetCounter(c map[string]int)
+}
+
 type AdapterService interface {
 	CreateDelta(actual ingress.Bindings, expected ingress.Bindings)
 	DeleteDelta(actual ingress.Bindings, expected ingress.Bindings)
@@ -23,14 +27,16 @@ type AdapterService interface {
 type Orchestrator struct {
 	reader  BindingReader
 	service AdapterService
+	health  HealthEmitter
 	once    sync.Once
 }
 
 // NewOrchestrator creates a new orchestrator.
-func NewOrchestrator(r BindingReader, s AdapterService) *Orchestrator {
+func NewOrchestrator(r BindingReader, s AdapterService, h HealthEmitter) *Orchestrator {
 	return &Orchestrator{
 		reader:  r,
 		service: s,
+		health:  h,
 	}
 }
 
@@ -42,6 +48,8 @@ func (o *Orchestrator) Run(interval time.Duration) {
 			log.Printf("fetch bindings failed with error: %s", err)
 			continue
 		}
+
+		o.health.SetCounter(map[string]int{"drainCount": len(expected)})
 
 		actual, err := o.service.List()
 		if err != nil {

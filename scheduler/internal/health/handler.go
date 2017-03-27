@@ -3,36 +3,44 @@
 package health
 
 import (
-	"fmt"
+	"encoding/json"
+	"log"
 	"net/http"
+	"sync"
 )
-
-// Counter provides numerical information about an object's health.
-type Counter interface {
-	Count() int
-}
 
 // The Health handler will report the number of drains back to user.
 type Health struct {
-	drainCounter   Counter
-	adapterCounter Counter
+	counts map[string]int
+	mu     sync.RWMutex
 }
 
 // NewHealth returns a new Health handler.
-func NewHealth(d, a Counter) *Health {
+func NewHealth() *Health {
 	return &Health{
-		drainCounter:   d,
-		adapterCounter: a,
+		counts: make(map[string]int),
 	}
 }
 
 // Handle implements the http.Handler interface.
 func (h *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	output := fmt.Sprintf(
-		`{"drainCount": %d,"adapterCount": %d}` + "\n",
-		h.drainCounter.Count(),
-		h.adapterCounter.Count(),
-	)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Write([]byte(output))
+
+	h.mu.RLock()
+	jsonCounts, err := json.Marshal(h.counts)
+	h.mu.RUnlock()
+
+	if err != nil {
+		log.Printf("unable to marshal counts: %s", err)
+	}
+	w.Write(jsonCounts)
+}
+
+func (h *Health) SetCounter(c map[string]int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for k, v := range c {
+		h.counts[k] = v
+	}
 }

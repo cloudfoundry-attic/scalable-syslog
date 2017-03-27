@@ -12,6 +12,12 @@ import (
 )
 
 var _ = Describe("Orchestrator", func() {
+	var healthEmitter *SpyHealthEmitter
+
+	BeforeEach(func() {
+		healthEmitter = &SpyHealthEmitter{}
+	})
+
 	It("writes syslog bindings to the writer", func() {
 		reader := &SpyReader{
 			drains: ingress.Bindings{
@@ -26,7 +32,7 @@ var _ = Describe("Orchestrator", func() {
 			listBindingsResponse_: &v1.ListBindingsResponse{},
 		}
 
-		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}))
+		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter), healthEmitter)
 		go o.Run(1 * time.Millisecond)
 
 		Eventually(client.createBindingRequest, 2).Should(Equal(
@@ -46,7 +52,7 @@ var _ = Describe("Orchestrator", func() {
 		}
 		client := &SpyClient{}
 
-		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}))
+		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter), healthEmitter)
 		go o.Run(1 * time.Millisecond)
 
 		Consistently(client.createBindingRequest).Should(BeNil())
@@ -79,7 +85,7 @@ var _ = Describe("Orchestrator", func() {
 			},
 		}
 
-		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}))
+		o := egress.NewOrchestrator(reader, egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter), healthEmitter)
 		go o.Run(1 * time.Millisecond)
 
 		Eventually(client.deleteBindingRequest, 2).Should(Equal(
@@ -102,3 +108,7 @@ type SpyReader struct {
 func (s *SpyReader) FetchBindings() (appBindings ingress.Bindings, err error) {
 	return s.drains, s.err
 }
+
+type SpyHealthEmitter struct{}
+
+func (s *SpyHealthEmitter) SetCounter(_ map[string]int) {}
