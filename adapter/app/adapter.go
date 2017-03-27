@@ -102,7 +102,7 @@ func NewAdapter(
 		logsEgressAPIAddr:      logsEgressAPIAddr,
 		logsEgressAPITLSConfig: logsEgressAPITLSConfig,
 		adapterServerTLSConfig: adapterServerTLSConfig,
-		syslogDialTimeout:      1 * time.Second,
+		syslogDialTimeout:      5 * time.Second,
 		syslogIOTimeout:        60 * time.Second,
 		skipCertVerify:         true,
 	}

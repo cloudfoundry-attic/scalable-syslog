@@ -42,7 +42,7 @@ func LoadConfig() *Config {
 	flag.StringVar(&cfg.RLPKeyFile, "rlp-key", "", "The file path for the adapter RLP client key")
 	flag.StringVar(&cfg.RLPCommonName, "rlp-cn", "", "The common name for the Loggregator egress API")
 
-	flag.DurationVar(&cfg.SyslogDialTimeout, "syslog-dial-timeout", time.Second, "The timeout for dialing to syslog drains")
+	flag.DurationVar(&cfg.SyslogDialTimeout, "syslog-dial-timeout", 5*time.Second, "The timeout for dialing to syslog drains")
 	flag.DurationVar(&cfg.SyslogIOTimeout, "syslog-io-timeout", 60*time.Second, "The timeout for writing to syslog drains")
 	flag.BoolVar(&cfg.SyslogSkipCertVerify, "syslog-skip-cert-verify", true, "The option to not verify syslog TLS certs")
 
