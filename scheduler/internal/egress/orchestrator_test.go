@@ -73,8 +73,8 @@ type SpyReader struct {
 	err    error
 }
 
-func (s *SpyReader) FetchBindings() (appBindings ingress.Bindings, err error) {
-	return s.drains, s.err
+func (s *SpyReader) FetchBindings() (appBindings ingress.Bindings, invalid int, err error) {
+	return s.drains, 0, s.err
 }
 
 type SpyHealthEmitter struct{}

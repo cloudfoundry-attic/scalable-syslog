@@ -106,7 +106,12 @@ var _ = Describe("Scheduler - End to End", func() {
 				Expect(err).ToNot(HaveOccurred())
 				return body
 			}
-			Eventually(f, 3*time.Second, 500*time.Millisecond).Should(MatchJSON(`{"drainCount": 2, "adapterCount": 1}`))
+			Eventually(f, 3*time.Second, 500*time.Millisecond).Should(MatchJSON(`
+			{
+				"drainCount": 2,
+				"adapterCount": 1,
+				"blacklistedOrInvalidUrlCount": 2
+			}`))
 		})
 
 		It("writes non-blacklisted and drain-version=2.0 bindings to the adapter", func() {

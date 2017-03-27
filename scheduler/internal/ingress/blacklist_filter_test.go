@@ -31,10 +31,11 @@ var _ = Describe("BlacklistFilter", func() {
 		bindingReader := SpyBindingReader{Bindings: input}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
-		actual, err := filter.FetchBindings()
+		actual, removed, err := filter.FetchBindings()
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actual).To(Equal(input))
+		Expect(removed).To(Equal(0))
 	})
 
 	It("removes bindings with an invalid host", func() {
@@ -49,10 +50,11 @@ var _ = Describe("BlacklistFilter", func() {
 		bindingReader := SpyBindingReader{Bindings: input}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
-		actual, err := filter.FetchBindings()
+		actual, removed, err := filter.FetchBindings()
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actual).To(Equal(expected))
+		Expect(removed).To(Equal(2))
 	})
 
 	It("removes bindings for a blacklisted IP", func() {
@@ -66,10 +68,11 @@ var _ = Describe("BlacklistFilter", func() {
 		bindingReader := SpyBindingReader{Bindings: input}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
-		actual, err := filter.FetchBindings()
+		actual, removed, err := filter.FetchBindings()
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actual).To(Equal(expected))
+		Expect(removed).To(Equal(1))
 	})
 
 	It("removes bindings for incompleted schemes", func() {
@@ -83,7 +86,7 @@ var _ = Describe("BlacklistFilter", func() {
 		bindingReader := SpyBindingReader{Bindings: input}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
-		actual, err := filter.FetchBindings()
+		actual, _, err := filter.FetchBindings()
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(actual).To(Equal(expected))
@@ -93,7 +96,7 @@ var _ = Describe("BlacklistFilter", func() {
 		bindingReader := SpyBindingReader{nil, errors.New("Woops")}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
-		actual, err := filter.FetchBindings()
+		actual, _, err := filter.FetchBindings()
 
 		Expect(err).To(HaveOccurred())
 		Expect(actual).To(BeNil())
