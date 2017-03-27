@@ -3,7 +3,6 @@ package egress
 
 import (
 	"log"
-	"sync"
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
@@ -28,7 +27,6 @@ type Orchestrator struct {
 	reader  BindingReader
 	service AdapterService
 	health  HealthEmitter
-	once    sync.Once
 }
 
 // NewOrchestrator creates a new orchestrator.
