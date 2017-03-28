@@ -36,7 +36,7 @@ func (c *BindingManager) Add(binding *v1.Binding) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	key := buildKey(binding)
+	key := c.buildKey(binding)
 	if _, ok := c.subscriptions[key]; !ok {
 		c.subscriptions[key] = subscription{
 			binding:     binding,
@@ -52,7 +52,7 @@ func (c *BindingManager) Delete(binding *v1.Binding) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	key := buildKey(binding)
+	key := c.buildKey(binding)
 	s, ok := c.subscriptions[key]
 	if ok {
 		s.unsubscribe()
@@ -62,9 +62,11 @@ func (c *BindingManager) Delete(binding *v1.Binding) {
 }
 
 // List returns a list of all the bindings in the Binding Manager.
-func (c *BindingManager) List() (bindings []*v1.Binding) {
+func (c *BindingManager) List() []*v1.Binding {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
+	var bindings []*v1.Binding
 
 	for _, b := range c.subscriptions {
 		bindings = append(bindings, b.binding)
@@ -73,6 +75,6 @@ func (c *BindingManager) List() (bindings []*v1.Binding) {
 	return bindings
 }
 
-func buildKey(binding *v1.Binding) (key string) {
+func (c *BindingManager) buildKey(binding *v1.Binding) (key string) {
 	return binding.AppId + binding.Hostname + binding.Drain
 }
