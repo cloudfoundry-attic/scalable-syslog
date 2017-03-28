@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"log"
 	"net"
-	"net/http"
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/binding"
@@ -138,35 +137,11 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 	subscriber := ingress.NewSubscriber(clientManager, syslogConnector)
 	manager := binding.NewBindingManager(subscriber)
 
-	actualHealth = a.startHealthServer()
+	actualHealth = health.StartServer(a.health, a.healthAddr)
 	creds := credentials.NewTLS(a.adapterServerTLSConfig)
 	actualService = a.startAdapterService(creds, manager)
 
 	return actualHealth, actualService
-}
-
-func (a *Adapter) startHealthServer() string {
-	l, err := net.Listen("tcp", a.healthAddr)
-	if err != nil {
-		log.Fatalf("Unable to setup Health endpoint (%s): %s", a.healthAddr, err)
-	}
-
-	server := http.Server{
-		Addr:         a.healthAddr,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-	}
-
-	router := http.NewServeMux()
-	router.Handle("/health", a.health)
-	server.Handler = router
-
-	go func() {
-		log.Fatalf("Health server closing: %s", server.Serve(l))
-	}()
-
-	log.Printf("Health endpoint is listening on %s", l.Addr().String())
-	return l.Addr().String()
 }
 
 func (a *Adapter) startAdapterService(creds credentials.TransportCredentials, manager *binding.BindingManager) string {
