@@ -9,7 +9,7 @@ import (
 // BindingManager stores binding subscriptions.
 type BindingManager struct {
 	mu            sync.RWMutex
-	subscriptions map[string]subscription
+	subscriptions map[v1.Binding]subscription
 	subscriber    Subscriber
 }
 
@@ -26,7 +26,7 @@ type subscription struct {
 // New returns a new Binding Manager.
 func NewBindingManager(s Subscriber) *BindingManager {
 	return &BindingManager{
-		subscriptions: make(map[string]subscription),
+		subscriptions: make(map[v1.Binding]subscription),
 		subscriber:    s,
 	}
 }
@@ -36,7 +36,7 @@ func (c *BindingManager) Add(binding *v1.Binding) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	key := c.buildKey(binding)
+	key := *binding
 	if _, ok := c.subscriptions[key]; !ok {
 		c.subscriptions[key] = subscription{
 			binding:     binding,
@@ -52,7 +52,7 @@ func (c *BindingManager) Delete(binding *v1.Binding) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	key := c.buildKey(binding)
+	key := *binding
 	s, ok := c.subscriptions[key]
 	if ok {
 		s.unsubscribe()
@@ -73,8 +73,4 @@ func (c *BindingManager) List() []*v1.Binding {
 	}
 
 	return bindings
-}
-
-func (c *BindingManager) buildKey(binding *v1.Binding) (key string) {
-	return binding.AppId + binding.Hostname + binding.Drain
 }
