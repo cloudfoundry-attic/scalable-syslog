@@ -14,12 +14,13 @@ var _ = Describe("AdapterServer", func() {
 	var (
 		mockStore     *mockBindingStore
 		adapterServer *binding.AdapterServer
+		healthEmitter *SpyHealthEmitter
 	)
 
 	BeforeEach(func() {
 		mockStore = newMockBindingStore()
-
-		adapterServer = binding.NewAdapterServer(mockStore)
+		healthEmitter = &SpyHealthEmitter{}
+		adapterServer = binding.NewAdapterServer(mockStore, healthEmitter)
 	})
 
 	It("returns a list of known bindings", func() {
@@ -34,6 +35,7 @@ var _ = Describe("AdapterServer", func() {
 	})
 
 	It("adds new binding", func() {
+		mockStore.ListOutput.Bindings <- []*v1.Binding{nil, nil}
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host",
@@ -43,13 +45,15 @@ var _ = Describe("AdapterServer", func() {
 			context.Background(),
 			&v1.CreateBindingRequest{
 				Binding: binding,
-			})
+			},
+		)
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(mockStore.AddInput.Binding).To(Receive(Equal(binding)))
 	})
 
 	It("deletes existing bindings", func() {
+		mockStore.ListOutput.Bindings <- []*v1.Binding{nil, nil}
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host",
@@ -65,3 +69,7 @@ var _ = Describe("AdapterServer", func() {
 		Expect(mockStore.DeleteInput.Binding).To(Receive(Equal(binding)))
 	})
 })
+
+type SpyHealthEmitter struct{}
+
+func (s *SpyHealthEmitter) SetCounter(_ map[string]int) {}

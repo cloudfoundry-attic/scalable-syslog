@@ -9,9 +9,9 @@ import (
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/binding"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/health"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/health"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -28,6 +28,7 @@ type Adapter struct {
 	syslogDialTimeout      time.Duration
 	syslogIOTimeout        time.Duration
 	skipCertVerify         bool
+	health                 *health.Health
 }
 
 // AdapterOption is a type that will manipulate a config
@@ -105,6 +106,7 @@ func NewAdapter(
 		syslogDialTimeout:      5 * time.Second,
 		syslogIOTimeout:        60 * time.Second,
 		skipCertVerify:         true,
+		health:                 health.NewHealth(),
 	}
 
 	for _, o := range opts {
@@ -156,7 +158,7 @@ func (a *Adapter) startHealthServer(manager *binding.BindingManager) string {
 	}
 
 	router := http.NewServeMux()
-	router.Handle("/health", health.NewHealth(manager))
+	router.Handle("/health", a.health)
 	server.Handler = router
 
 	go func() {
@@ -173,7 +175,7 @@ func (a *Adapter) startAdapterService(creds credentials.TransportCredentials, ma
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	adapterServer := binding.NewAdapterServer(manager)
+	adapterServer := binding.NewAdapterServer(manager, a.health)
 	grpcServer := grpc.NewServer(
 		grpc.Creds(creds),
 	)

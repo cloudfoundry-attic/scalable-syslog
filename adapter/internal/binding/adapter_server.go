@@ -13,15 +13,21 @@ type BindingStore interface {
 	List() (bindings []*v1.Binding)
 }
 
+type HealthEmitter interface {
+	SetCounter(map[string]int)
+}
+
 // AdapterServer implements the v1.AdapterServer interface.
 type AdapterServer struct {
-	store BindingStore
+	store  BindingStore
+	health HealthEmitter
 }
 
 // New returns a new AdapterServer.
-func NewAdapterServer(store BindingStore) *AdapterServer {
+func NewAdapterServer(store BindingStore, health HealthEmitter) *AdapterServer {
 	return &AdapterServer{
-		store: store,
+		store:  store,
+		health: health,
 	}
 }
 
@@ -33,6 +39,7 @@ func (c *AdapterServer) ListBindings(ctx context.Context, req *v1.ListBindingsRe
 // CreateBinding adds a new binding to the binding manager.
 func (c *AdapterServer) CreateBinding(ctx context.Context, req *v1.CreateBindingRequest) (*v1.CreateBindingResponse, error) {
 	c.store.Add(req.Binding)
+	c.health.SetCounter(map[string]int{"drainCount": len(c.store.List())})
 
 	return &v1.CreateBindingResponse{}, nil
 }
@@ -40,6 +47,7 @@ func (c *AdapterServer) CreateBinding(ctx context.Context, req *v1.CreateBinding
 // DeleteBinding removes a binding from the binding manager.
 func (c *AdapterServer) DeleteBinding(ctx context.Context, req *v1.DeleteBindingRequest) (*v1.DeleteBindingResponse, error) {
 	c.store.Delete(req.Binding)
+	c.health.SetCounter(map[string]int{"drainCount": len(c.store.List())})
 
 	return &v1.DeleteBindingResponse{}, nil
 }
