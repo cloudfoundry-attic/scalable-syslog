@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/health"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/health"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

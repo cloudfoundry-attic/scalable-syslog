@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/health"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/health"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 
 	"google.golang.org/grpc"
