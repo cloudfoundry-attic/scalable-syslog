@@ -56,7 +56,7 @@ func (s *Subscriber) Start(binding *v1.Binding) func() {
 				continue
 			}
 
-			if err := readWriteLoop(receiver, writer, &unsubscribe); err != nil {
+			if err := s.readWriteLoop(receiver, writer, &unsubscribe); err != nil {
 				log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
 				continue
 			}
@@ -70,7 +70,7 @@ func (s *Subscriber) Start(binding *v1.Binding) func() {
 	}
 }
 
-func readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteCloser, u *int32) error {
+func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteCloser, u *int32) error {
 	defer r.CloseSend()
 	defer w.Close()
 

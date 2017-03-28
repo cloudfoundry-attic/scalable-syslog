@@ -138,14 +138,14 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 	subscriber := ingress.NewSubscriber(clientManager, syslogConnector)
 	manager := binding.NewBindingManager(subscriber)
 
-	actualHealth = a.startHealthServer(manager)
+	actualHealth = a.startHealthServer()
 	creds := credentials.NewTLS(a.adapterServerTLSConfig)
 	actualService = a.startAdapterService(creds, manager)
 
 	return actualHealth, actualService
 }
 
-func (a *Adapter) startHealthServer(manager *binding.BindingManager) string {
+func (a *Adapter) startHealthServer() string {
 	l, err := net.Listen("tcp", a.healthAddr)
 	if err != nil {
 		log.Fatalf("Unable to setup Health endpoint (%s): %s", a.healthAddr, err)
