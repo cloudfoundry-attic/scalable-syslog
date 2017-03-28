@@ -51,6 +51,26 @@ var _ = Describe("AdapterServer", func() {
 		Expect(store.add).To(Equal(binding))
 	})
 
+	It("increments the drain count when creating a binding", func() {
+		store = &SpyStore{list: []*v1.Binding{nil}}
+		adapterServer := binding.NewAdapterServer(store, healthEmitter)
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host",
+			Drain:    "some.url",
+		}
+		adapterServer.CreateBinding(
+			context.Background(),
+			&v1.CreateBindingRequest{
+				Binding: binding,
+			},
+		)
+
+		Expect(healthEmitter.setCounter).To(Equal(map[string]int{
+			"drainCount": 1,
+		}))
+	})
+
 	It("deletes existing bindings", func() {
 		adapterServer := binding.NewAdapterServer(store, healthEmitter)
 		binding := &v1.Binding{
@@ -67,11 +87,35 @@ var _ = Describe("AdapterServer", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(store.delete).To(Equal(binding))
 	})
+
+	It("decrements the drain count when deleting a binding", func() {
+		store = &SpyStore{list: []*v1.Binding{}}
+		adapterServer := binding.NewAdapterServer(store, healthEmitter)
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host",
+			Drain:    "some.url",
+		}
+		adapterServer.CreateBinding(
+			context.Background(),
+			&v1.CreateBindingRequest{
+				Binding: binding,
+			},
+		)
+
+		Expect(healthEmitter.setCounter).To(Equal(map[string]int{
+			"drainCount": 0,
+		}))
+	})
 })
 
-type SpyHealthEmitter struct{}
+type SpyHealthEmitter struct {
+	setCounter map[string]int
+}
 
-func (s *SpyHealthEmitter) SetCounter(_ map[string]int) {}
+func (s *SpyHealthEmitter) SetCounter(counts map[string]int) {
+	s.setCounter = counts
+}
 
 type SpyStore struct {
 	list   []*v1.Binding
