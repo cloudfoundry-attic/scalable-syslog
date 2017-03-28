@@ -14,9 +14,9 @@ import (
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/app"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/test_util"
-	"github.com/cloudfoundry-incubator/scalable-syslog/api"
-	v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
+	v2 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 

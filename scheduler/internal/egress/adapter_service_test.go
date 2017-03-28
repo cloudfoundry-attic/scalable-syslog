@@ -7,7 +7,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"

@@ -12,8 +12,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/api"
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"

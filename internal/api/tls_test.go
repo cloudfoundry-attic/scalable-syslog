@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/api"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
 )
 
 var _ = Describe("TLS", func() {

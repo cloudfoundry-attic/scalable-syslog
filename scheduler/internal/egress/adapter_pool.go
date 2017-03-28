@@ -3,7 +3,7 @@ package egress
 import (
 	"log"
 
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 
 	"google.golang.org/grpc"
 )

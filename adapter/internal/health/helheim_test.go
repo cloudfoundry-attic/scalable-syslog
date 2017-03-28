@@ -5,7 +5,7 @@
 
 package health_test
 
-import v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+import v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 
 type mockBindingStore struct {
 	ListCalled chan bool

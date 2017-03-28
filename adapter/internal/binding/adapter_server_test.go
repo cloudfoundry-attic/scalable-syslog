@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/binding"
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

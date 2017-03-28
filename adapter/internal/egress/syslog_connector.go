@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 )
 
 // WriteCloser is the interface for all syslog writers.

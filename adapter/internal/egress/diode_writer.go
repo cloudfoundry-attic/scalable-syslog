@@ -3,7 +3,7 @@ package egress
 import (
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 )
 
 type DiodeWriter struct {

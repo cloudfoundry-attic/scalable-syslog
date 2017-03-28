@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
-	v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
+	v2 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

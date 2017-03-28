@@ -7,7 +7,7 @@ import (
 	"time"
 	"unsafe"
 
-	v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
+	v2 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 )
 
 type ConnectionBuilder interface {

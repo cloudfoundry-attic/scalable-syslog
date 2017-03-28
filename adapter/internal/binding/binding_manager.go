@@ -3,7 +3,7 @@ package binding
 import (
 	"sync"
 
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 )
 
 // BindingManager stores binding subscriptions.

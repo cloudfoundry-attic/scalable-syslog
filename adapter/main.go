@@ -8,7 +8,7 @@ import (
 	_ "net/http/pprof"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/app"
-	"github.com/cloudfoundry-incubator/scalable-syslog/api"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
 )
 
 func main() {

@@ -1,6 +1,6 @@
 package ingress
 
-import v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+import v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 
 type Bindings []v1.Binding
 

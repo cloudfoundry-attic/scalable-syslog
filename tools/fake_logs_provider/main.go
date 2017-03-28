@@ -7,8 +7,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/api"
-	"github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

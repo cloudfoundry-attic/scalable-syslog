@@ -11,7 +11,7 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/health"
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

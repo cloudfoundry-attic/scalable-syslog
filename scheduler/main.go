@@ -9,7 +9,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/api"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 )
 

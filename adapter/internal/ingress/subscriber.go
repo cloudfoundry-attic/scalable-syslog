@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
-	v2 "github.com/cloudfoundry-incubator/scalable-syslog/api/loggregator/v2"
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/api/v1"
+	v2 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
+	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 )
 
 type ClientPool interface {
