@@ -15,43 +15,41 @@ import (
 
 var _ = Describe("BindingFetcher", func() {
 	var (
-		mockGetter *mockGetter
-		fetcher    *ingress.BindingFetcher
+		getter  *SpyGetter
+		fetcher *ingress.BindingFetcher
 	)
 
 	BeforeEach(func() {
-		mockGetter = newMockGetter()
-		fetcher = ingress.NewBindingFetcher(mockGetter)
+		getter = &SpyGetter{}
+		fetcher = ingress.NewBindingFetcher(getter)
 	})
 
 	Context("when the getter does not return an error", func() {
-		BeforeEach(func() {
-			close(mockGetter.GetOutput.Err)
-		})
-
 		Context("when the status code is 200 and the body is valid json", func() {
 			BeforeEach(func() {
-				mockGetter.GetOutput.Resp <- &http.Response{
-					StatusCode: http.StatusOK,
-					Body: ioutil.NopCloser(strings.NewReader(`
-					{
-					  "results": {
-						"9be15160-4845-4f05-b089-40e827ba61f1": {
-						  "drains": [
-							"syslog://some.url",
-							"syslog://some.other.url"
-						  ],
-						  "hostname": "org.space.logspinner"
-						}
-					  },
-					  "next_id": 50
-					}
-				`)),
-				}
+				getter.getResponses = []*http.Response{
+					&http.Response{
+						StatusCode: http.StatusOK,
+						Body: ioutil.NopCloser(strings.NewReader(`
+							{
+							  "results": {
+								"9be15160-4845-4f05-b089-40e827ba61f1": {
+								  "drains": [
+									"syslog://some.url",
+									"syslog://some.other.url"
+								  ],
+								  "hostname": "org.space.logspinner"
+								}
+							  },
+							  "next_id": 50
+							}
+					`)),
+					},
 
-				mockGetter.GetOutput.Resp <- &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       ioutil.NopCloser(strings.NewReader(`{ "results": { }, "next_id": null }`)),
+					&http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(strings.NewReader(`{ "results": { }, "next_id": null }`)),
+					},
 				}
 			})
 
@@ -75,17 +73,19 @@ var _ = Describe("BindingFetcher", func() {
 
 			It("fetches all the pages", func() {
 				fetcher.FetchBindings()
-				Expect(mockGetter.GetCalled).To(HaveLen(2))
-				Expect(mockGetter.GetInput.NextID).To(Receive(Equal(0)))
-				Expect(mockGetter.GetInput.NextID).To(Receive(Equal(50)))
+				Expect(getter.getCalled).To(Equal(2))
+				Expect(getter.getNextID[0]).To(Equal(0))
+				Expect(getter.getNextID[1]).To(Equal(50))
 			})
 		})
 
 		Context("when the status code is 200 and the body is invalid json", func() {
 			BeforeEach(func() {
-				mockGetter.GetOutput.Resp <- &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       ioutil.NopCloser(strings.NewReader("invalid")),
+				getter.getResponses = []*http.Response{
+					&http.Response{
+						StatusCode: http.StatusOK,
+						Body:       ioutil.NopCloser(strings.NewReader("invalid")),
+					},
 				}
 			})
 
@@ -97,7 +97,7 @@ var _ = Describe("BindingFetcher", func() {
 
 		Context("when the status code is not 200", func() {
 			BeforeEach(func() {
-				mockGetter.GetOutput.Resp <- &http.Response{StatusCode: http.StatusBadRequest}
+				getter.getResponses = []*http.Response{{StatusCode: http.StatusBadRequest}}
 			})
 
 			It("returns an error", func() {
@@ -108,15 +108,35 @@ var _ = Describe("BindingFetcher", func() {
 	})
 
 	Context("when the getter does returns an error", func() {
-		BeforeEach(func() {
-			mockGetter.GetOutput.Err <- errors.New("some-error")
-			close(mockGetter.GetOutput.Resp)
-		})
-
 		It("returns an error", func() {
+			getter.getResponses = []*http.Response{{StatusCode: 500}}
+			getter.getError = errors.New("some-error")
+
 			_, err := fetcher.FetchBindings()
+
 			Expect(err).To(HaveOccurred())
 		})
 	})
 
 })
+
+type SpyGetter struct {
+	currentResponse int
+	getCalled       int
+	getNextID       []int
+	getResponses    []*http.Response
+	getError        error
+}
+
+func (s *SpyGetter) Get(nextID int) (*http.Response, error) {
+	s.getCalled++
+	s.getNextID = append(s.getNextID, nextID)
+	resp := s.getResponses[s.currentResponse]
+	s.currentResponse++
+
+	if s.getError != nil {
+		return nil, s.getError
+	}
+
+	return resp, nil
+}

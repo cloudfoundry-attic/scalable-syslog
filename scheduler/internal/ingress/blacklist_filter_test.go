@@ -28,7 +28,7 @@ var _ = Describe("BlacklistFilter", func() {
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 			v1.Binding{AppId: "app-id-with-good-drain", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
 		}
-		bindingReader := SpyBindingReader{Bindings: input}
+		bindingReader := &SpyBindingReader{bindings: input}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
 		actual, removed, err := filter.FetchBindings()
@@ -47,7 +47,7 @@ var _ = Describe("BlacklistFilter", func() {
 		expected := ingress.Bindings{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
 		}
-		bindingReader := SpyBindingReader{Bindings: input}
+		bindingReader := &SpyBindingReader{bindings: input}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
 		actual, removed, err := filter.FetchBindings()
@@ -65,7 +65,7 @@ var _ = Describe("BlacklistFilter", func() {
 		expected := ingress.Bindings{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
-		bindingReader := SpyBindingReader{Bindings: input}
+		bindingReader := &SpyBindingReader{bindings: input}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
 		actual, removed, err := filter.FetchBindings()
@@ -83,7 +83,7 @@ var _ = Describe("BlacklistFilter", func() {
 		expected := ingress.Bindings{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
-		bindingReader := SpyBindingReader{Bindings: input}
+		bindingReader := &SpyBindingReader{bindings: input}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
 		actual, _, err := filter.FetchBindings()
@@ -93,7 +93,7 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("returns an error if the binding reader cannot fetch bindings", func() {
-		bindingReader := SpyBindingReader{nil, errors.New("Woops")}
+		bindingReader := &SpyBindingReader{nil, errors.New("Woops")}
 
 		filter := ingress.NewBlacklistFilter(blacklistIps, bindingReader)
 		actual, _, err := filter.FetchBindings()
@@ -102,12 +102,3 @@ var _ = Describe("BlacklistFilter", func() {
 		Expect(actual).To(BeNil())
 	})
 })
-
-type SpyBindingReader struct {
-	Bindings ingress.Bindings
-	Err      error
-}
-
-func (s SpyBindingReader) FetchBindings() (ingress.Bindings, error) {
-	return s.Bindings, s.Err
-}
