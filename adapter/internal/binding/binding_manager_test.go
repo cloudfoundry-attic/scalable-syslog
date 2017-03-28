@@ -10,18 +10,17 @@ import (
 
 var _ = Describe("BindingManager", func() {
 	var (
-		subscriber *mockSubscriber
+		subscriber *SpySubscriber
 		manager    *binding.BindingManager
 	)
 
 	BeforeEach(func() {
-		subscriber = newMockSubscriber()
+		subscriber = &SpySubscriber{}
 		manager = binding.NewBindingManager(subscriber)
 	})
 
 	Describe("Add()", func() {
 		It("keeps track of the drains", func() {
-			close(subscriber.StartOutput.StopFunc)
 			manager.Add(&v1.Binding{
 				AppId:    "some-id",
 				Hostname: "some-hostname",
@@ -37,7 +36,6 @@ var _ = Describe("BindingManager", func() {
 		})
 
 		It("does not add duplicate bindings", func() {
-			close(subscriber.StartOutput.StopFunc)
 			for i := 0; i < 2; i++ {
 				manager.Add(&v1.Binding{
 					AppId:    "some-id",
@@ -49,7 +47,7 @@ var _ = Describe("BindingManager", func() {
 			bindings := manager.List()
 
 			Expect(bindings).To(HaveLen(1))
-			Expect(subscriber.StartCalled).To(HaveLen(1))
+			Expect(subscriber.startCalled).To(Equal(1))
 		})
 
 		It("runs a subscription for the binding", func() {
@@ -58,18 +56,14 @@ var _ = Describe("BindingManager", func() {
 				Hostname: "some-hostname",
 				Drain:    "some.url",
 			}
-			close(subscriber.StartOutput.StopFunc)
 
 			manager.Add(binding)
-			Expect(subscriber.StartInput.Binding).To(Receive(Equal(binding)))
+			Expect(subscriber.start).To(Equal(binding))
 		})
 	})
 
 	Describe("Delete()", func() {
 		It("removes a binding", func() {
-			var stopCount int
-			subscriber.StartOutput.StopFunc <- func() { stopCount++ }
-
 			binding := &v1.Binding{
 				AppId:    "some-id",
 				Hostname: "some-hostname",
@@ -82,9 +76,6 @@ var _ = Describe("BindingManager", func() {
 		})
 
 		It("unsubscribes a binding", func() {
-			var stopCount int
-			subscriber.StartOutput.StopFunc <- func() { stopCount++ }
-
 			binding := &v1.Binding{
 				AppId:    "some-id",
 				Hostname: "some-hostname",
@@ -93,7 +84,22 @@ var _ = Describe("BindingManager", func() {
 			manager.Add(binding)
 			manager.Delete(binding)
 
-			Expect(stopCount).To(Equal(1))
+			Expect(subscriber.stopCount).To(Equal(1))
 		})
 	})
 })
+
+type SpySubscriber struct {
+	start       *v1.Binding
+	startCalled int
+	stopCount   int
+}
+
+func (s *SpySubscriber) Start(binding *v1.Binding) (stopFunc func()) {
+	s.start = binding
+	s.startCalled++
+
+	return func() {
+		s.stopCount++
+	}
+}

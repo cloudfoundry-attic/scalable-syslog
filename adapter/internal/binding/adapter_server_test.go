@@ -12,19 +12,18 @@ import (
 
 var _ = Describe("AdapterServer", func() {
 	var (
-		mockStore     *mockBindingStore
-		adapterServer *binding.AdapterServer
+		store         *SpyStore
 		healthEmitter *SpyHealthEmitter
 	)
 
 	BeforeEach(func() {
-		mockStore = newMockBindingStore()
 		healthEmitter = &SpyHealthEmitter{}
-		adapterServer = binding.NewAdapterServer(mockStore, healthEmitter)
 	})
 
 	It("returns a list of known bindings", func() {
-		mockStore.ListOutput.Bindings <- []*v1.Binding{nil, nil}
+		store = &SpyStore{list: []*v1.Binding{nil, nil}}
+		adapterServer := binding.NewAdapterServer(store, healthEmitter)
+
 		resp, err := adapterServer.ListBindings(
 			context.Background(),
 			&v1.ListBindingsRequest{},
@@ -35,7 +34,7 @@ var _ = Describe("AdapterServer", func() {
 	})
 
 	It("adds new binding", func() {
-		mockStore.ListOutput.Bindings <- []*v1.Binding{nil, nil}
+		adapterServer := binding.NewAdapterServer(store, healthEmitter)
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host",
@@ -49,11 +48,11 @@ var _ = Describe("AdapterServer", func() {
 		)
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(mockStore.AddInput.Binding).To(Receive(Equal(binding)))
+		Expect(store.add).To(Equal(binding))
 	})
 
 	It("deletes existing bindings", func() {
-		mockStore.ListOutput.Bindings <- []*v1.Binding{nil, nil}
+		adapterServer := binding.NewAdapterServer(store, healthEmitter)
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host",
@@ -66,10 +65,26 @@ var _ = Describe("AdapterServer", func() {
 			})
 
 		Expect(err).ToNot(HaveOccurred())
-		Expect(mockStore.DeleteInput.Binding).To(Receive(Equal(binding)))
+		Expect(store.delete).To(Equal(binding))
 	})
 })
 
 type SpyHealthEmitter struct{}
 
 func (s *SpyHealthEmitter) SetCounter(_ map[string]int) {}
+
+type SpyStore struct {
+	list   []*v1.Binding
+	add    *v1.Binding
+	delete *v1.Binding
+}
+
+func (s *SpyStore) Add(binding *v1.Binding) {
+	s.add = binding
+}
+func (s *SpyStore) Delete(binding *v1.Binding) {
+	s.delete = binding
+}
+func (s *SpyStore) List() []*v1.Binding {
+	return s.list
+}
