@@ -2,6 +2,7 @@ package egress
 
 import (
 	"errors"
+	"log"
 	"net/url"
 	"time"
 
@@ -35,7 +36,7 @@ func NewSyslogConnector(dialTimeout, ioTimeout time.Duration, skipCertVerify boo
 			"syslog":     NewTCPWriter,
 			"syslog-tls": NewTLSWriter,
 		},
-		alerter: NoopAlerter{},
+		alerter: logAlerter{},
 	}
 	for _, o := range opts {
 		o(sc)
@@ -73,6 +74,8 @@ func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
 	return dw, nil
 }
 
-type NoopAlerter struct{}
+type logAlerter struct{}
 
-func (NoopAlerter) Alert(missed int) {}
+func (logAlerter) Alert(missed int) {
+	log.Printf("Dropped %d logs", missed)
+}

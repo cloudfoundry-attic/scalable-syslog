@@ -3,6 +3,8 @@ package egress
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -50,16 +52,18 @@ func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
 	if err != nil {
 		return err
 	}
-	reader := bytes.NewBuffer(b)
 
-	response, err := w.client.Post(w.binding.Drain, "text/plain", reader)
+	resp, err := w.client.Post(w.binding.Drain, "text/plain", bytes.NewBuffer(b))
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 
-	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return fmt.Errorf("Syslog Writer: Post responded with %d status code", response.StatusCode)
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("Syslog Writer: Post responded with %d status code", resp.StatusCode)
 	}
+
+	io.Copy(ioutil.Discard, resp.Body)
 
 	return nil
 }
@@ -71,6 +75,7 @@ func (*HTTPSWriter) Close() error {
 func httpClient(dialTimeout, ioTimeout time.Duration, skipCertVerify bool) *http.Client {
 	tlsConfig := api.NewTLSConfig()
 	tlsConfig.InsecureSkipVerify = skipCertVerify
+
 	tr := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   dialTimeout,

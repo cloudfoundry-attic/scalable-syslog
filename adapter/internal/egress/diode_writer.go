@@ -15,7 +15,7 @@ type DiodeWriter struct {
 func NewDiodeWriter(wc WriteCloser, alerter Alerter) *DiodeWriter {
 	dw := &DiodeWriter{
 		wc:    wc,
-		diode: NewOneToOne(100, alerter),
+		diode: NewOneToOne(10000, alerter),
 		done_: make(chan struct{}),
 	}
 	go dw.start()
