@@ -54,18 +54,28 @@ func NewTCPWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, ski
 		ioTimeout: ioTimeout,
 		dialFunc:  df,
 	}
-	go w.connect()
 
 	return w, nil
 }
 
-func (w *TCPWriter) connect() {
+func (w *TCPWriter) connection() (net.Conn, error) {
+	w.mu.Lock()
+	conn := w.conn
+	w.mu.Unlock()
+
+	if conn == nil {
+		return w.connect()
+	}
+	return conn, nil
+}
+
+func (w *TCPWriter) connect() (net.Conn, error) {
 	for {
 		w.mu.Lock()
 		closed := w.closed
 		w.mu.Unlock()
 		if closed {
-			return
+			return nil, errors.New("attempting connect after close")
 		}
 
 		w.mu.Lock()
@@ -82,7 +92,7 @@ func (w *TCPWriter) connect() {
 
 		w.conn = conn
 		w.mu.Unlock()
-		return
+		return conn, nil
 	}
 }
 
@@ -123,21 +133,17 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 		Message: appendNewline(removeNulls(env.GetLog().Payload)),
 	}
 
-	w.mu.Lock()
-	conn := w.conn
-	w.mu.Unlock()
-
-	if conn == nil {
-		return errors.New("connection does not exist")
+	conn, err := w.connection()
+	if err != nil {
+		return err
 	}
 
 	conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
-	_, err := msg.WriteTo(conn)
+	_, err = msg.WriteTo(conn)
 	if err != nil {
 		w.mu.Lock()
-		defer w.mu.Unlock()
-		w.connClose()
-		go w.connect()
+		_ = w.connClose()
+		w.mu.Unlock()
 
 		return err
 	}

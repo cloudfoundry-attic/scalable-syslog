@@ -36,21 +36,6 @@ var _ = Describe("TCPWriter", func() {
 		listener.Close()
 	})
 
-	Describe("NewTCPWriter()", func() {
-		It("connects to a syslog drain", func(done Done) {
-			defer close(done)
-			writer, err := egress.NewTCPWriter(
-				binding,
-				time.Second,
-				time.Second,
-				false,
-			)
-			defer writer.Close()
-			listener.Accept()
-			Expect(err).ToNot(HaveOccurred())
-		})
-	})
-
 	Describe("Write()", func() {
 		var writer egress.WriteCloser
 
@@ -71,10 +56,7 @@ var _ = Describe("TCPWriter", func() {
 
 		DescribeTable("envelopes are written out with proper priority", func(logType loggregator_v2.Log_Type, expectedPriority int) {
 			env := buildLogEnvelope("APP", "2", "just a test", logType)
-			f := func() error {
-				return writer.Write(env)
-			}
-			Eventually(f).Should(Succeed())
+			Expect(writer.Write(env)).To(Succeed())
 
 			conn, err := listener.Accept()
 			Expect(err).ToNot(HaveOccurred())
@@ -93,10 +75,7 @@ var _ = Describe("TCPWriter", func() {
 
 		DescribeTable("envelopes are written out with proper process id", func(sourceType, sourceInstance, expectedProcessID string, expectedLength int) {
 			env := buildLogEnvelope(sourceType, sourceInstance, "just a test", loggregator_v2.Log_OUT)
-			f := func() error {
-				return writer.Write(env)
-			}
-			Eventually(f).Should(Succeed())
+			Expect(writer.Write(env)).To(Succeed())
 
 			conn, err := listener.Accept()
 			Expect(err).ToNot(HaveOccurred())
@@ -114,10 +93,7 @@ var _ = Describe("TCPWriter", func() {
 
 		It("strips null termination char from message", func() {
 			env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
-			f := func() error {
-				return writer.Write(env)
-			}
-			Eventually(f).Should(Succeed())
+			Expect(writer.Write(env)).To(Succeed())
 
 			conn, err := listener.Accept()
 			Expect(err).ToNot(HaveOccurred())
@@ -134,19 +110,12 @@ var _ = Describe("TCPWriter", func() {
 			counterEnv := buildCounterEnvelope()
 			logEnv := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
 
+			Expect(writer.Write(counterEnv)).To(Succeed())
+			Expect(writer.Write(logEnv)).To(Succeed())
+
 			conn, err := listener.Accept()
 			Expect(err).ToNot(HaveOccurred())
 			buf := bufio.NewReader(conn)
-
-			f := func() error {
-				return writer.Write(counterEnv)
-			}
-			Eventually(f).Should(Succeed())
-
-			f = func() error {
-				return writer.Write(logEnv)
-			}
-			Eventually(f).Should(Succeed())
 
 			actual, err := buf.ReadString('\n')
 			Expect(err).ToNot(HaveOccurred())
@@ -157,7 +126,10 @@ var _ = Describe("TCPWriter", func() {
 	})
 
 	Describe("Close()", func() {
-		var writer egress.WriteCloser
+		var (
+			writer egress.WriteCloser
+			conn   net.Conn
+		)
 
 		Context("with a happy dialer", func() {
 			BeforeEach(func() {
@@ -169,24 +141,33 @@ var _ = Describe("TCPWriter", func() {
 					false,
 				)
 				Expect(err).ToNot(HaveOccurred())
+
+				By("writing to establish connection")
+				logEnv := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
+				err = writer.Write(logEnv)
+				Expect(err).ToNot(HaveOccurred())
+
+				conn, err = listener.Accept()
+				Expect(err).ToNot(HaveOccurred())
+
+				b := make([]byte, 256)
+				_, err = conn.Read(b)
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("closes the writer connection", func() {
-				conn, err := listener.Accept()
-				Expect(err).ToNot(HaveOccurred())
-
 				Expect(writer.Close()).To(Succeed())
+
 				b := make([]byte, 256)
-				_, err = conn.Read(b)
+				_, err := conn.Read(b)
 				Expect(err).To(Equal(io.EOF))
 			})
 
 			It("returns an error after writing to a closed connection", func() {
-				env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
-
 				Expect(writer.Close()).To(Succeed())
 
-				Expect(writer.Write(env)).To(MatchError("connection does not exist"))
+				env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
+				Expect(writer.Write(env)).To(MatchError("attempting connect after close"))
 			})
 		})
 	})
