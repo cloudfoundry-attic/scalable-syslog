@@ -12,7 +12,6 @@ import (
 
 var _ = Describe("AdapterServer", func() {
 	var (
-		store         *SpyStore
 		healthEmitter *SpyHealthEmitter
 	)
 
@@ -21,7 +20,7 @@ var _ = Describe("AdapterServer", func() {
 	})
 
 	It("returns a list of known bindings", func() {
-		store = &SpyStore{list: []*v1.Binding{nil, nil}}
+		store := &SpyStore{list: []*v1.Binding{nil, nil}}
 		adapterServer := binding.NewAdapterServer(store, healthEmitter)
 
 		resp, err := adapterServer.ListBindings(
@@ -34,6 +33,7 @@ var _ = Describe("AdapterServer", func() {
 	})
 
 	It("adds new binding", func() {
+		store := &SpyStore{list: []*v1.Binding{}}
 		adapterServer := binding.NewAdapterServer(store, healthEmitter)
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
@@ -52,7 +52,7 @@ var _ = Describe("AdapterServer", func() {
 	})
 
 	It("increments the drain count when creating a binding", func() {
-		store = &SpyStore{list: []*v1.Binding{nil}}
+		store := &SpyStore{list: []*v1.Binding{nil}}
 		adapterServer := binding.NewAdapterServer(store, healthEmitter)
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
@@ -72,6 +72,7 @@ var _ = Describe("AdapterServer", func() {
 	})
 
 	It("deletes existing bindings", func() {
+		store := &SpyStore{list: []*v1.Binding{}}
 		adapterServer := binding.NewAdapterServer(store, healthEmitter)
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
@@ -89,7 +90,7 @@ var _ = Describe("AdapterServer", func() {
 	})
 
 	It("decrements the drain count when deleting a binding", func() {
-		store = &SpyStore{list: []*v1.Binding{}}
+		store := &SpyStore{list: []*v1.Binding{}}
 		adapterServer := binding.NewAdapterServer(store, healthEmitter)
 		binding := &v1.Binding{
 			AppId:    "some-app-id",
