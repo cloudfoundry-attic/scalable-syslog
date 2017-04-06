@@ -88,8 +88,6 @@ func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteClo
 			continue
 		}
 
-		// TODO: Add buffering diode
-
 		w.Write(env)
 	}
 }
