@@ -47,6 +47,7 @@ func main() {
 		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithHTTPClient(api.NewHTTPSClient(apiTLSConfig, 5*time.Second)),
 		app.WithBlacklist(cfg.Blacklist),
+		app.WithPollingInterval(cfg.APIPollingInterval),
 	)
 	scheduler.Start()
 

@@ -6,27 +6,29 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
 type Config struct {
-	HealthHostport    string
-	PprofHostport     string
-	APIURL            string
-	APICAFile         string
-	APICertFile       string
-	APIKeyFile        string
-	APICommonName     string
-	APISkipCertVerify bool
-	CAFile            string
-	CertFile          string
-	KeyFile           string
-	AdapterCommonName string
-	AdapterIPs        string
-	AdapterPort       string
-	AdapterAddrs      []string
-	Blacklist         *ingress.IPRanges
+	HealthHostport     string
+	PprofHostport      string
+	APIURL             string
+	APICAFile          string
+	APICertFile        string
+	APIKeyFile         string
+	APICommonName      string
+	APISkipCertVerify  bool
+	APIPollingInterval time.Duration
+	CAFile             string
+	CertFile           string
+	KeyFile            string
+	AdapterCommonName  string
+	AdapterIPs         string
+	AdapterPort        string
+	AdapterAddrs       []string
+	Blacklist          *ingress.IPRanges
 }
 
 func LoadConfig(args []string) (*Config, error) {
@@ -43,6 +45,7 @@ func LoadConfig(args []string) (*Config, error) {
 	flags.StringVar(&cfg.APIKeyFile, "api-key", "", "The file path for the client key")
 	flags.StringVar(&cfg.APICommonName, "api-cn", "", "The common name used for the TLS config")
 	flags.BoolVar(&cfg.APISkipCertVerify, "api-skip-cert-verify", false, "The option to allow insecure SSL connections")
+	flags.DurationVar(&cfg.APIPollingInterval, "api-polling-interval", 15*time.Second, "The option to configure the API polling interval")
 
 	flags.StringVar(&cfg.CAFile, "ca", "", "The file path for the CA cert")
 	flags.StringVar(&cfg.CertFile, "cert", "", "The file path for the adapter server cert")
