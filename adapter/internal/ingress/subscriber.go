@@ -58,6 +58,9 @@ func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int
 	writer, err := s.connector.Connect(binding)
 	if err != nil {
 		log.Println("Failed connecting to syslog: %s", err)
+		// If connect fails it is likely due to a parse error with the binding
+		// URL or other input error. As a result we should not retry
+		// connecting.
 		return false
 	}
 	defer writer.Close()
