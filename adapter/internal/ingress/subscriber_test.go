@@ -134,24 +134,45 @@ var _ = Describe("Subscriber", func() {
 		client.ReceiverOutput.Ret0 <- receiverClient
 		close(client.ReceiverOutput.Ret1)
 		close(receiverClient.CloseSendOutput.Ret0)
+		close(receiverClient.RecvOutput.Ret1)
 
-		unsubscribeFn := subscriber.Start(binding)
+		unsubscribe := subscriber.Start(binding)
 
 		Eventually(mockClientPool.NextCalled).Should(Receive())
 
-		close(receiverClient.RecvOutput.Ret1)
 		go func() {
 			for {
 				receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
 			}
 		}()
 
-		unsubscribeFn()
+		unsubscribe()
 
 		Eventually(receiverClient.CloseSendCalled).Should(Receive())
 		Eventually(closeWriter.closes).Should(Receive())
-
 		Consistently(mockClientPool.NextCalled).ShouldNot(Receive())
+	})
+
+	It("cancels the connection context if unsubscribe func is called", func() {
+		syslogConnector.ConnectOutput.Cw <- newSpyCloseWriter()
+		close(syslogConnector.ConnectOutput.Err)
+
+		client := newMockEgressClient()
+		mockClientPool.NextOutput.Client <- client
+
+		receiverClient := newMockReceiverClient()
+		client.ReceiverOutput.Ret0 <- receiverClient
+		close(client.ReceiverOutput.Ret1)
+		close(receiverClient.RecvOutput.Ret0)
+		close(receiverClient.RecvOutput.Ret1)
+		close(receiverClient.CloseSendOutput.Ret0)
+
+		unsubscribe := subscriber.Start(binding)
+		unsubscribe()
+
+		ctx := <-client.ReceiverInput.Ctx
+		done := ctx.Done()
+		Eventually(done, 2).Should(BeClosed())
 	})
 
 	It("ignores non log messages", func() {

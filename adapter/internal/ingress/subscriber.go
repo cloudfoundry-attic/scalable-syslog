@@ -64,13 +64,15 @@ func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int
 
 	// TODO: What if we cannot get a client?
 	client := s.pool.Next()
-	receiver, err := client.Receiver(context.Background(), &v2.EgressRequest{
+	ctx, cancel := context.WithCancel(context.Background())
+	receiver, err := client.Receiver(ctx, &v2.EgressRequest{
 		ShardId: buildShardId(binding),
 		Filter:  &v2.Filter{SourceId: binding.AppId},
 	})
 	if err != nil {
 		return true
 	}
+	defer cancel()
 	defer receiver.CloseSend()
 
 	if err := s.readWriteLoop(receiver, writer, unsubscribe); err != nil {
