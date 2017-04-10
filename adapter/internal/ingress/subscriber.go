@@ -38,44 +38,52 @@ func NewSubscriber(cp ClientPool, connector SyslogConnector) *Subscriber {
 func (s *Subscriber) Start(binding *v1.Binding) func() {
 	var unsubscribe int32
 
-	go func() {
-		for {
-			writer, err := s.connector.Connect(binding)
-			if err != nil {
-				log.Println("failed connecting to syslog: %s", err)
-				return
-			}
-
-			// TODO: What if we cannot get a client?
-			client := s.pool.Next()
-			receiver, err := client.Receiver(context.Background(), &v2.EgressRequest{
-				ShardId: buildShardId(binding),
-				Filter:  &v2.Filter{SourceId: binding.AppId},
-			})
-			if err != nil {
-				continue
-			}
-
-			if err := s.readWriteLoop(receiver, writer, &unsubscribe); err != nil {
-				log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
-				continue
-			}
-
-			return
-		}
-	}()
+	go s.connectAndRead(binding, &unsubscribe)
 
 	return func() {
 		atomic.AddInt32(&unsubscribe, 1)
 	}
 }
 
-func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteCloser, u *int32) error {
-	defer r.CloseSend()
-	defer w.Close()
-
+func (s *Subscriber) connectAndRead(binding *v1.Binding, unsubscribe *int32) {
 	for {
-		if atomic.LoadInt32(u) > 0 {
+		cont := s.attemptConnectAndRead(binding, unsubscribe)
+		if !cont {
+			return
+		}
+	}
+}
+
+func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int32) bool {
+	writer, err := s.connector.Connect(binding)
+	if err != nil {
+		log.Println("Failed connecting to syslog: %s", err)
+		return false
+	}
+	defer writer.Close()
+
+	// TODO: What if we cannot get a client?
+	client := s.pool.Next()
+	receiver, err := client.Receiver(context.Background(), &v2.EgressRequest{
+		ShardId: buildShardId(binding),
+		Filter:  &v2.Filter{SourceId: binding.AppId},
+	})
+	if err != nil {
+		return true
+	}
+	defer receiver.CloseSend()
+
+	if err := s.readWriteLoop(receiver, writer, unsubscribe); err != nil {
+		log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
+		return true
+	}
+
+	return false
+}
+
+func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteCloser, unsubscribe *int32) error {
+	for {
+		if atomic.LoadInt32(unsubscribe) > 0 {
 			log.Print("Subscriber read/write loop is closing")
 			return nil
 		}
@@ -88,7 +96,10 @@ func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteClo
 			continue
 		}
 
-		w.Write(env)
+		// We decided to ignore the error from the writer since in most
+		// situations the connector will provide a diode writer and the diode
+		// writer never returns an error.
+		_ = w.Write(env)
 	}
 }
 
