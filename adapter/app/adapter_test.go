@@ -258,11 +258,12 @@ func (m *MockEgressServer) Receiver(req *v2.EgressRequest, receiver v2.Egress_Re
 	m.receiver <- receiver
 
 	for {
-		Expect(receiver.Send(buildLogEnvelope())).To(Succeed())
+		err := receiver.Send(buildLogEnvelope())
+		if err != nil {
+			return err
+		}
 		time.Sleep(time.Millisecond)
 	}
-
-	return nil
 }
 
 type SyslogTCPServer struct {
