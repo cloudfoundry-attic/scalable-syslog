@@ -26,16 +26,20 @@ var _ = Describe("Scheduler - End to End", func() {
 		dataSource        *httptest.Server
 		testAdapterServer *testAdapterServer
 		bindings          []*v1.Binding
-		blacklistIPs      *ingress.IPRanges
 		healthAddr        string
+		opts              []app.SchedulerOption
 	)
 
 	BeforeEach(func() {
-		var err error
-		blacklistIPs, err = ingress.NewIPRanges(
+		blacklistIPs, err := ingress.NewIPRanges(
 			ingress.IPRange{Start: "14.15.16.17", End: "14.15.16.20"},
 		)
 		Expect(err).ToNot(HaveOccurred())
+		opts = []app.SchedulerOption{
+			app.WithHealthAddr("localhost:0"),
+			app.WithPollingInterval(time.Millisecond),
+			app.WithBlacklist(blacklistIPs),
+		}
 		bindings = []*v1.Binding{
 			{
 				AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
@@ -84,9 +88,7 @@ var _ = Describe("Scheduler - End to End", func() {
 			dataSource.URL,
 			[]string{lis.Addr().String()},
 			tlsConfig,
-			app.WithHealthAddr("localhost:0"),
-			app.WithPollingInterval(time.Millisecond),
-			app.WithBlacklist(blacklistIPs),
+			opts...,
 		)
 		healthAddr = scheduler.Start()
 	})
