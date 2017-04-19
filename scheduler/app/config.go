@@ -12,6 +12,7 @@ import (
 )
 
 type Config struct {
+	RequireOptIn       bool
 	HealthHostport     string
 	PprofHostport      string
 	APIURL             string
@@ -36,6 +37,7 @@ func LoadConfig(args []string) (*Config, error) {
 
 	flags := flag.NewFlagSet("config", flag.ContinueOnError)
 
+	flags.BoolVar(&cfg.RequireOptIn, "require-opt-in", false, "Ignore drain URLs without a drain-version=2.0 query parameter")
 	flags.StringVar(&cfg.HealthHostport, "health", ":8080", "The hostport to listen for health requests")
 	flags.StringVar(&cfg.PprofHostport, "pprof", ":6060", "The hostport to listen for pprof")
 

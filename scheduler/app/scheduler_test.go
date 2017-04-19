@@ -39,6 +39,7 @@ var _ = Describe("Scheduler - End to End", func() {
 			app.WithHealthAddr("localhost:0"),
 			app.WithPollingInterval(time.Millisecond),
 			app.WithBlacklist(blacklistIPs),
+			app.WithOptIn(true),
 		}
 		bindings = []*v1.Binding{
 			{
@@ -123,6 +124,76 @@ var _ = Describe("Scheduler - End to End", func() {
 				},
 				{
 					Binding: bindings[1],
+				},
+			}
+			// TODO: when we implement diffing in the scheduler this will need
+			// to change to HaveLen(2)
+			lenCheck := func() int {
+				return len(testAdapterServer.ActualCreateBindingRequest)
+			}
+			Eventually(lenCheck).Should(BeNumerically(">=", 2))
+			var actualRequests []*v1.CreateBindingRequest
+			f := func() []*v1.CreateBindingRequest {
+				select {
+				case req := <-testAdapterServer.ActualCreateBindingRequest:
+					actualRequests = append(actualRequests, req)
+				default:
+				}
+				return actualRequests
+			}
+			Eventually(f).Should(ConsistOf(expectedRequests))
+		})
+	})
+
+	Context("with opt in disabled", func() {
+		BeforeEach(func() {
+			dataSource = httptest.NewServer(&fakeCC{})
+			opts = append(opts, app.WithOptIn(false))
+			bindings = []*v1.Binding{
+				{
+					AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+					Drain:    "syslog://14.15.16.21/",
+					Hostname: "org.space.logspinner",
+				},
+				{
+					AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+					Drain:    "syslog://14.15.16.21/?drain-version=2.0",
+					Hostname: "org.space.logspinner",
+				},
+				{
+					AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+					Drain:    "syslog://14.15.16.16/?drain-version=2.0",
+					Hostname: "org.space.logspinner",
+				},
+				{
+					AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
+					Drain:    "syslog://localhost",
+					Hostname: "org.space.logspinner",
+				},
+				{
+					AppId:    "ed150c22-f866-11e6-bc64-92361f002671",
+					Drain:    "syslog://localhost",
+					Hostname: "org.space.logspinner",
+				},
+			}
+		})
+
+		It("gets logs for all bindings", func() {
+			expectedRequests := []*v1.CreateBindingRequest{
+				{
+					Binding: bindings[0],
+				},
+				{
+					Binding: bindings[1],
+				},
+				{
+					Binding: bindings[2],
+				},
+				{
+					Binding: bindings[3],
+				},
+				{
+					Binding: bindings[4],
 				},
 			}
 			// TODO: when we implement diffing in the scheduler this will need
@@ -267,6 +338,7 @@ func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		  "results": {
 			"9be15160-4845-4f05-b089-40e827ba61f1": {
 			  "drains": [
+                "syslog://14.15.16.21/",
                 "syslog://14.15.16.21/?drain-version=2.0",
                 "syslog://14.15.16.16/?drain-version=2.0",
                 "syslog://14.15.16.18/?drain-version=2.0",
