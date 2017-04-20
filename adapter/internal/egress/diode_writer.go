@@ -24,6 +24,19 @@ func NewDiodeWriter(wc WriteCloser, alerter gendiodes.Alerter) *DiodeWriter {
 	return dw
 }
 
+// Write writes an envelope into the diode. This can not fail.
+func (d *DiodeWriter) Write(env *loggregator_v2.Envelope) error {
+	d.diode.Set(env)
+	return nil
+}
+
+// Close tearsdown the goroutine servicing the diode and also closes the
+// underlying writer, returning it's error.
+func (d *DiodeWriter) Close() error {
+	close(d.done_)
+	return d.wc.Close()
+}
+
 func (d *DiodeWriter) start() {
 	for {
 		if d.done() {
@@ -51,17 +64,4 @@ func (d *DiodeWriter) attemptMessageTransfer() {
 
 	// TODO: do something with error?
 	d.wc.Write(env)
-}
-
-// Write writes an envelope into the diode. This can not fail.
-func (d *DiodeWriter) Write(env *loggregator_v2.Envelope) error {
-	d.diode.Set(env)
-	return nil
-}
-
-// Close tearsdown the goroutine servicing the diode and also closes the
-// underlying writer, returning it's error.
-func (d *DiodeWriter) Close() error {
-	close(d.done_)
-	return d.wc.Close()
 }
