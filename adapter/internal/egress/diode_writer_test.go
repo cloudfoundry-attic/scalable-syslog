@@ -3,6 +3,7 @@ package egress_test
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -92,4 +93,16 @@ func (s *SpyWriter) calledWith() []*loggregator_v2.Envelope {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.calledWith_
+}
+
+type SpyAlerter struct {
+	missed_ int64
+}
+
+func (s *SpyAlerter) Alert(missed int) {
+	atomic.AddInt64(&s.missed_, int64(missed))
+}
+
+func (s *SpyAlerter) missed() int64 {
+	return atomic.LoadInt64(&s.missed_)
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	gendiodes "github.com/cloudfoundry/diodes"
 )
 
 // WriteCloser is the interface for all syslog writers.
@@ -22,7 +23,7 @@ type SyslogConnector struct {
 	ioTimeout      time.Duration
 	dialTimeout    time.Duration
 	constructors   map[string]SyslogConstructor
-	alerter        Alerter
+	alerter        gendiodes.Alerter
 }
 
 // NewSyslogConnector configures and returns a new SyslogConnector.

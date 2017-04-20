@@ -4,18 +4,20 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/diodes"
+	gendiodes "github.com/cloudfoundry/diodes"
 )
 
 type DiodeWriter struct {
 	wc    WriteCloser
-	diode *OneToOne
+	diode *diodes.OneToOne
 	done_ chan struct{}
 }
 
-func NewDiodeWriter(wc WriteCloser, alerter Alerter) *DiodeWriter {
+func NewDiodeWriter(wc WriteCloser, alerter gendiodes.Alerter) *DiodeWriter {
 	dw := &DiodeWriter{
 		wc:    wc,
-		diode: NewOneToOne(10000, alerter),
+		diode: diodes.NewOneToOne(10000, alerter),
 		done_: make(chan struct{}),
 	}
 	go dw.start()
