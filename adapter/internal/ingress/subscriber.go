@@ -89,7 +89,6 @@ func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int
 func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteCloser, unsubscribe *int32) error {
 	for {
 		if atomic.LoadInt32(unsubscribe) > 0 {
-			log.Print("Subscriber read/write loop is closing")
 			return nil
 		}
 
