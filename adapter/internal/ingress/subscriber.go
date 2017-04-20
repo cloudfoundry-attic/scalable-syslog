@@ -4,11 +4,17 @@ import (
 	"context"
 	"log"
 	"sync/atomic"
+	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
 	v2 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 )
+
+type MetricEmitter interface {
+	IncCounter(name string, options ...metric.IncrementOpt)
+}
 
 type ClientPool interface {
 	Next() (client v2.EgressClient)
@@ -22,13 +28,15 @@ type SyslogConnector interface {
 type Subscriber struct {
 	pool      ClientPool
 	connector SyslogConnector
+	emitter   MetricEmitter
 }
 
 // NewSubscriber returns a new Subscriber.
-func NewSubscriber(cp ClientPool, connector SyslogConnector) *Subscriber {
+func NewSubscriber(p ClientPool, c SyslogConnector, e MetricEmitter) *Subscriber {
 	return &Subscriber{
-		pool:      cp,
-		connector: connector,
+		pool:      p,
+		connector: c,
+		emitter:   e,
 	}
 }
 
@@ -87,6 +95,9 @@ func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int
 }
 
 func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteCloser, unsubscribe *int32) error {
+	var count uint64
+	lastEmitted := time.Now()
+
 	for {
 		if atomic.LoadInt32(unsubscribe) > 0 {
 			return nil
@@ -98,6 +109,20 @@ func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteClo
 		}
 		if env.GetLog() == nil {
 			continue
+		}
+
+		count++
+		if count >= 1000 || time.Since(lastEmitted) > 5*time.Second {
+			// metric-documentation-v2: (scalablesyslog.adapter.ingress) The number
+			// of received log messages.
+			s.emitter.IncCounter("ingress",
+				metric.WithIncrement(count),
+				metric.WithVersion(2, 0),
+			)
+
+			lastEmitted = time.Now()
+			log.Printf("Ingressed %d envelopes", count)
+			count = 0
 		}
 
 		// We decided to ignore the error from the writer since in most

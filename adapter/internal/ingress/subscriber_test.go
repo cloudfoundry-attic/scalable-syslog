@@ -7,6 +7,7 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
 	v2 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -15,6 +16,7 @@ import (
 var _ = Describe("Subscriber", func() {
 	var (
 		mockClientPool  *mockClientPool
+		spyEmitter      *spyMetricEmitter
 		subscriber      *ingress.Subscriber
 		binding         *v1.Binding
 		syslogConnector *mockSyslogConnector
@@ -22,8 +24,9 @@ var _ = Describe("Subscriber", func() {
 
 	BeforeEach(func() {
 		mockClientPool = newMockClientPool()
+		spyEmitter = newSpyMetricEmitter()
 		syslogConnector = newMockSyslogConnector()
-		subscriber = ingress.NewSubscriber(mockClientPool, syslogConnector)
+		subscriber = ingress.NewSubscriber(mockClientPool, syslogConnector, spyEmitter)
 		binding = &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host-name",
@@ -204,6 +207,43 @@ var _ = Describe("Subscriber", func() {
 		Eventually(closeWriter.writes).Should(HaveLen(1))
 		Consistently(closeWriter.writes).Should(HaveLen(1))
 	})
+
+	It("emits ingress metrics", func() {
+		closeWriter := newSpyCloseWriter()
+		syslogConnector.ConnectOutput.Cw <- closeWriter
+		close(syslogConnector.ConnectOutput.Err)
+
+		client := newMockEgressClient()
+		mockClientPool.NextOutput.Client <- client
+
+		receiverClient := newMockReceiverClient()
+		client.ReceiverOutput.Ret0 <- receiverClient
+		close(client.ReceiverOutput.Ret1)
+		close(receiverClient.CloseSendOutput.Ret0)
+
+		subscriber.Start(binding)
+
+		By("receiving a log message")
+		close(receiverClient.RecvOutput.Ret1)
+		go func() {
+			for {
+				receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
+			}
+		}()
+
+		go func() {
+			// drain the relevant chans
+			for {
+				select {
+				case <-closeWriter.writes:
+				case <-receiverClient.RecvCalled:
+				}
+			}
+		}()
+
+		Eventually(spyEmitter.names).Should(Receive(Equal("ingress")))
+		Expect(spyEmitter.opts).To(Receive(HaveLen(2)))
+	})
 })
 
 type spyCloseWriter struct {
@@ -226,6 +266,23 @@ func (s *spyCloseWriter) Write(env *v2.Envelope) error {
 func (s *spyCloseWriter) Close() error {
 	s.closes <- true
 	return nil
+}
+
+type spyMetricEmitter struct {
+	names chan string
+	opts  chan []metric.IncrementOpt
+}
+
+func newSpyMetricEmitter() *spyMetricEmitter {
+	return &spyMetricEmitter{
+		names: make(chan string, 100),
+		opts:  make(chan []metric.IncrementOpt, 100),
+	}
+}
+
+func (e *spyMetricEmitter) IncCounter(name string, options ...metric.IncrementOpt) {
+	e.names <- name
+	e.opts <- options
 }
 
 func buildLogEnvelope() *v2.Envelope {
