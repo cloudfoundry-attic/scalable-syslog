@@ -48,7 +48,9 @@ var _ = Describe("SyslogConnector", func() {
 	It("returns a writer that doesn't block even if the constructor's writer blocks", func(done Done) {
 		defer close(done)
 		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, egress.MetricEmitter) (egress.WriteCloser, error) {
-			return &BlockedWriteCloser{}, nil
+			return &BlockedWriteCloser{
+				duration: time.Hour,
+			}, nil
 		}
 
 		connector := egress.NewSyslogConnector(
@@ -101,16 +103,50 @@ var _ = Describe("SyslogConnector", func() {
 		_, err := connector.Connect(binding)
 		Expect(err).To(HaveOccurred())
 	})
+
+	It("emits a metric on dropped messages", func() {
+		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, egress.MetricEmitter) (egress.WriteCloser, error) {
+			return &BlockedWriteCloser{
+				duration: time.Millisecond,
+			}, nil
+		}
+
+		connector := egress.NewSyslogConnector(
+			time.Second,
+			time.Second,
+			true,
+			metricEmitter,
+			egress.WithConstructors(map[string]egress.SyslogConstructor{
+				"blocked": blockedConstructor,
+			}))
+
+		binding := &v1.Binding{
+			Drain: "blocked://",
+		}
+		writer, err := connector.Connect(binding)
+		Expect(err).ToNot(HaveOccurred())
+
+		go func(writer egress.WriteCloser) {
+			for {
+				writer.Write(&loggregator_v2.Envelope{
+					SourceId: "test-source-id",
+				})
+			}
+		}(writer)
+
+		Eventually(metricEmitter.name).Should(Receive(Equal("dropped")))
+		Expect(metricEmitter.opts).To(Receive(HaveLen(3)))
+	})
 })
 
 type BlockedWriteCloser struct {
+	duration time.Duration
 	egress.WriteCloser
 }
 
-func (*BlockedWriteCloser) Write(*loggregator_v2.Envelope) error {
-	for {
-		time.Sleep(time.Second)
-	}
+func (b *BlockedWriteCloser) Write(*loggregator_v2.Envelope) error {
+	time.Sleep(b.duration)
+	return nil
 }
 
 type spyMetricEmitter struct {

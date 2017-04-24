@@ -9,7 +9,7 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
-	gendiodes "github.com/cloudfoundry/diodes"
+	"github.com/cloudfoundry/diodes"
 )
 
 // WriteCloser is the interface for all syslog writers.
@@ -24,7 +24,6 @@ type SyslogConnector struct {
 	ioTimeout      time.Duration
 	dialTimeout    time.Duration
 	constructors   map[string]SyslogConstructor
-	alerter        gendiodes.Alerter
 	emitter        MetricEmitter
 }
 
@@ -40,7 +39,6 @@ func NewSyslogConnector(dialTimeout, ioTimeout time.Duration, skipCertVerify boo
 			"syslog":     NewTCPWriter,
 			"syslog-tls": NewTLSWriter,
 		},
-		alerter: logAlerter{},
 	}
 	for _, o := range opts {
 		o(sc)
@@ -78,12 +76,14 @@ func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	dw := NewDiodeWriter(writer, w.alerter)
+	dw := NewDiodeWriter(writer, diodes.AlertFunc(func(missed int) {
+		w.emitter.IncCounter(
+			"dropped",
+			metric.WithIncrement(uint64(missed)),
+			metric.WithVersion(2, 0),
+			metric.WithTag("drain-protocol", url.Scheme),
+		)
+		log.Printf("Dropped %d %s logs", missed, url.Scheme)
+	}))
 	return dw, nil
-}
-
-type logAlerter struct{}
-
-func (logAlerter) Alert(missed int) {
-	log.Printf("Dropped %d logs", missed)
 }
