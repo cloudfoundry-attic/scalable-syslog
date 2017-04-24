@@ -24,6 +24,11 @@ var _ = Describe("Config", func() {
 				"--ca", "default-string",
 				"--cert", "default-string",
 				"--key", "default-string",
+				"--metric-ingress-addr", "default-string",
+				"--metric-ingress-ca", "default-string",
+				"--metric-ingress-cert", "default-string",
+				"--metric-ingress-cn", "default-string",
+				"--metric-ingress-key", "default-string",
 				"--blacklist-ranges", blacklist,
 			}
 			config, err := app.LoadConfig(args)
@@ -50,6 +55,11 @@ var _ = Describe("Config", func() {
 				"--ca", "default-string",
 				"--cert", "default-string",
 				"--key", "default-string",
+				"--metric-ingress-addr", "default-string",
+				"--metric-ingress-ca", "default-string",
+				"--metric-ingress-cert", "default-string",
+				"--metric-ingress-cn", "default-string",
+				"--metric-ingress-key", "default-string",
 			}
 			_, err := app.LoadConfig(args)
 			Expect(err).ToNot(HaveOccurred())

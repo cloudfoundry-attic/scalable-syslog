@@ -6,6 +6,7 @@ import (
 	"time"
 
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
@@ -16,11 +17,13 @@ var _ = Describe("Orchestrator", func() {
 	var (
 		healthEmitter  *SpyHealthEmitter
 		adapterService *SpyAdapterService
+		metricEmitter  *spyMetricEmitter
 	)
 
 	BeforeEach(func() {
 		healthEmitter = &SpyHealthEmitter{}
 		adapterService = &SpyAdapterService{}
+		metricEmitter = newSpyMetricEmitter()
 	})
 
 	It("writes syslog bindings to the writer", func() {
@@ -34,7 +37,12 @@ var _ = Describe("Orchestrator", func() {
 			},
 		}
 
-		o := egress.NewOrchestrator(reader, adapterService, healthEmitter)
+		o := egress.NewOrchestrator(
+			reader,
+			adapterService,
+			healthEmitter,
+			metricEmitter,
+		)
 		go o.Run(1 * time.Millisecond)
 
 		Eventually(adapterService.CreateDeltaActual).Should(HaveLen(0))
@@ -49,7 +57,12 @@ var _ = Describe("Orchestrator", func() {
 			err: errors.New("Nope!"),
 		}
 
-		o := egress.NewOrchestrator(reader, adapterService, healthEmitter)
+		o := egress.NewOrchestrator(
+			reader,
+			adapterService,
+			healthEmitter,
+			metricEmitter,
+		)
 		go o.Run(1 * time.Millisecond)
 
 		Consistently(adapterService.CreateDeltaCalled).Should(BeFalse())
@@ -61,12 +74,57 @@ var _ = Describe("Orchestrator", func() {
 			Err: errors.New("an error"),
 		}
 
-		o := egress.NewOrchestrator(reader, adapterService, healthEmitter)
+		o := egress.NewOrchestrator(
+			reader,
+			adapterService,
+			healthEmitter,
+			metricEmitter,
+		)
 		go o.Run(1 * time.Millisecond)
 
 		Consistently(adapterService.CreateDeltaCalled).Should(BeFalse())
 	})
+
+	It("emits a metric for the number of drains", func() {
+		reader := &SpyReader{
+			drains: ingress.Bindings{
+				v1.Binding{
+					AppId:    "app-id",
+					Drain:    "syslog://my-app-drain",
+					Hostname: "org.space.app",
+				},
+			},
+		}
+
+		o := egress.NewOrchestrator(
+			reader,
+			adapterService,
+			healthEmitter,
+			metricEmitter,
+		)
+		go o.Run(1 * time.Millisecond)
+
+		Eventually(metricEmitter.name).Should(Receive(Equal("drains")))
+		Expect(metricEmitter.opts).To(Receive(HaveLen(2)))
+	})
 })
+
+type spyMetricEmitter struct {
+	name chan string
+	opts chan []metric.IncrementOpt
+}
+
+func newSpyMetricEmitter() *spyMetricEmitter {
+	return &spyMetricEmitter{
+		name: make(chan string, 10),
+		opts: make(chan []metric.IncrementOpt, 10),
+	}
+}
+
+func (e *spyMetricEmitter) IncCounter(name string, options ...metric.IncrementOpt) {
+	e.name <- name
+	e.opts <- options
+}
 
 type SpyReader struct {
 	drains ingress.Bindings

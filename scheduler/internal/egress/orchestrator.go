@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 )
 
@@ -27,15 +28,21 @@ type Orchestrator struct {
 	reader  BindingReader
 	service AdapterService
 	health  HealthEmitter
+	emitter MetricEmitter
 }
 
 // NewOrchestrator creates a new orchestrator.
-func NewOrchestrator(r BindingReader, s AdapterService, h HealthEmitter) *Orchestrator {
+func NewOrchestrator(r BindingReader, s AdapterService, h HealthEmitter, m MetricEmitter) *Orchestrator {
 	return &Orchestrator{
 		reader:  r,
 		service: s,
 		health:  h,
+		emitter: m,
 	}
+}
+
+type MetricEmitter interface {
+	IncCounter(name string, options ...metric.IncrementOpt)
 }
 
 // Run starts the orchestrator.
@@ -51,6 +58,12 @@ func (o *Orchestrator) Run(interval time.Duration) {
 			"drainCount":                   len(expected),
 			"blacklistedOrInvalidUrlCount": invalid,
 		})
+
+		o.emitter.IncCounter(
+			"drains",
+			metric.WithIncrement(uint64(len(expected))),
+			metric.WithVersion(2, 0),
+		)
 
 		actual, err := o.service.List()
 		if err != nil {

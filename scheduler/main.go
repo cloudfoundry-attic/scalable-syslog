@@ -6,10 +6,14 @@ import (
 	"os"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
 	"net/http"
 	_ "net/http/pprof"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 )
 
@@ -40,10 +44,30 @@ func main() {
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
 
+	metricIngressTLS, err := api.NewMutualTLSConfig(
+		cfg.MetricIngressCertFile,
+		cfg.MetricIngressKeyFile,
+		cfg.MetricIngressCAFile,
+		cfg.MetricIngressCN,
+	)
+	if err != nil {
+		log.Fatalf("Invalid Metric Ingress TLS config: %s", err)
+	}
+
+	emitter, err := metric.New(
+		metric.WithGrpcDialOpts(grpc.WithTransportCredentials(credentials.NewTLS(metricIngressTLS))),
+		metric.WithOrigin("scalablesyslog.scheduler"),
+		metric.WithAddr(cfg.MetricIngressAddr),
+	)
+	if err != nil {
+		log.Printf("Failed to connect to metric ingress: %s", err)
+	}
+
 	scheduler := app.NewScheduler(
 		cfg.APIURL,
 		cfg.AdapterAddrs,
 		adapterTLSConfig,
+		emitter,
 		app.WithOptIn(cfg.RequireOptIn),
 		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithHTTPClient(api.NewHTTPSClient(apiTLSConfig, 5*time.Second)),

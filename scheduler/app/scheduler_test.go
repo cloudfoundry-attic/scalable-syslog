@@ -15,6 +15,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
@@ -333,6 +334,7 @@ func startScheduler(dataSourceURL string, opts []app.SchedulerOption) (string, *
 		dataSourceURL,
 		[]string{lis.Addr().String()},
 		tlsConfig,
+		&metric.Emitter{},
 		opts...,
 	)
 	return scheduler.Start(), testAdapterServer

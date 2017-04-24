@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/health"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
 
@@ -24,6 +25,7 @@ type Scheduler struct {
 
 	healthAddr string
 	health     *health.Health
+	emitter    *metric.Emitter
 	client     *http.Client
 	interval   time.Duration
 
@@ -38,6 +40,7 @@ func NewScheduler(
 	apiURL string,
 	adapterAddrs []string,
 	adapterTLSConfig *tls.Config,
+	emitter *metric.Emitter,
 	opts ...SchedulerOption,
 ) *Scheduler {
 	s := &Scheduler{
@@ -49,6 +52,7 @@ func NewScheduler(
 		interval:         15 * time.Second,
 		blacklist:        &ingress.IPRanges{},
 		health:           health.NewHealth(),
+		emitter:          emitter,
 	}
 	for _, o := range opts {
 		o(s)
@@ -130,7 +134,7 @@ func (s *Scheduler) startEgress() {
 
 	pool := egress.NewAdapterPool(s.adapterAddrs, grpc.WithTransportCredentials(creds))
 	s.adapterService = egress.NewAdapterService(pool, s.health)
-	orchestrator := egress.NewOrchestrator(s.fetcher, s.adapterService, s.health)
+	orchestrator := egress.NewOrchestrator(s.fetcher, s.adapterService, s.health, s.emitter)
 	go orchestrator.Run(s.interval)
 }
 
