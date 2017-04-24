@@ -6,15 +6,24 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("SyslogConnector", func() {
+	var (
+		metricEmitter *spyMetricEmitter
+	)
+
+	BeforeEach(func() {
+		metricEmitter = newSpyMetricEmitter()
+	})
+
 	It("connects to the passed syslog scheme", func() {
 		var called bool
-		constructor := func(*v1.Binding, time.Duration, time.Duration, bool) (egress.WriteCloser, error) {
+		constructor := func(*v1.Binding, time.Duration, time.Duration, bool, egress.MetricEmitter) (egress.WriteCloser, error) {
 			called = true
 			return nil, nil
 		}
@@ -23,6 +32,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			time.Second,
 			true,
+			metricEmitter,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
 				"foo": constructor,
 			}))
@@ -37,7 +47,7 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("returns a writer that doesn't block even if the constructor's writer blocks", func(done Done) {
 		defer close(done)
-		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool) (egress.WriteCloser, error) {
+		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, egress.MetricEmitter) (egress.WriteCloser, error) {
 			return &BlockedWriteCloser{}, nil
 		}
 
@@ -45,6 +55,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			time.Second,
 			true,
+			metricEmitter,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
 				"blocked": blockedConstructor,
 			}))
@@ -65,6 +76,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			time.Second,
 			true,
+			metricEmitter,
 		)
 
 		binding := &v1.Binding{
@@ -79,6 +91,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			time.Second,
 			true,
+			metricEmitter,
 		)
 
 		binding := &v1.Binding{
@@ -98,4 +111,21 @@ func (*BlockedWriteCloser) Write(*loggregator_v2.Envelope) error {
 	for {
 		time.Sleep(time.Second)
 	}
+}
+
+type spyMetricEmitter struct {
+	name chan string
+	opts chan []metric.IncrementOpt
+}
+
+func newSpyMetricEmitter() *spyMetricEmitter {
+	return &spyMetricEmitter{
+		name: make(chan string, 10),
+		opts: make(chan []metric.IncrementOpt, 10),
+	}
+}
+
+func (e *spyMetricEmitter) IncCounter(name string, options ...metric.IncrementOpt) {
+	e.name <- name
+	e.opts <- options
 }

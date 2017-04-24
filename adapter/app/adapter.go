@@ -137,6 +137,7 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 		a.syslogDialTimeout,
 		a.syslogIOTimeout,
 		a.skipCertVerify,
+		a.emitter,
 	)
 	subscriber := ingress.NewSubscriber(clientManager, syslogConnector, a.emitter)
 	manager := binding.NewBindingManager(subscriber)

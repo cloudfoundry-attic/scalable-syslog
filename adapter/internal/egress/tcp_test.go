@@ -23,6 +23,7 @@ var _ = Describe("TCPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
+		metricEmitter *spyMetricEmitter
 	)
 
 	BeforeEach(func() {
@@ -30,6 +31,7 @@ var _ = Describe("TCPWriter", func() {
 		listener, err = net.Listen("tcp", ":0")
 		Expect(err).ToNot(HaveOccurred())
 		binding.Drain = fmt.Sprintf("syslog://%s", listener.Addr())
+		metricEmitter = newSpyMetricEmitter()
 	})
 
 	AfterEach(func() {
@@ -46,6 +48,7 @@ var _ = Describe("TCPWriter", func() {
 				time.Second,
 				time.Second,
 				false,
+				metricEmitter,
 			)
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -123,6 +126,18 @@ var _ = Describe("TCPWriter", func() {
 			expected := "87 <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [APP/2] - - just a test\n"
 			Expect(actual).To(Equal(expected))
 		})
+
+		It("emits an egress metric for each message", func() {
+			go func(writer egress.WriteCloser) {
+				for {
+					env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
+					writer.Write(env)
+				}
+			}(writer)
+
+			Eventually(metricEmitter.name).Should(Receive(Equal("egress")))
+			Expect(metricEmitter.opts).To(Receive(HaveLen(3)))
+		})
 	})
 
 	Describe("Close()", func() {
@@ -139,6 +154,7 @@ var _ = Describe("TCPWriter", func() {
 					time.Second,
 					time.Second,
 					false,
+					metricEmitter,
 				)
 				Expect(err).ToNot(HaveOccurred())
 

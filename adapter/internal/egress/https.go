@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -13,15 +14,24 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 	"github.com/crewjam/rfc5424"
 )
 
 type HTTPSWriter struct {
-	binding *v1.Binding
-	client  *http.Client
+	binding        *v1.Binding
+	client         *http.Client
+	emitter        MetricEmitter
+	metricThrottle *metricThrottler
 }
 
-func NewHTTPSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (WriteCloser, error) {
+func NewHTTPSWriter(
+	binding *v1.Binding,
+	dialTimeout,
+	ioTimeout time.Duration,
+	skipCertVerify bool,
+	emitter MetricEmitter,
+) (WriteCloser, error) {
 	u, _ := url.Parse(binding.Drain)
 
 	if u.Scheme != "https" {
@@ -31,8 +41,10 @@ func NewHTTPSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, s
 	client := httpClient(dialTimeout, ioTimeout, skipCertVerify)
 
 	return &HTTPSWriter{
-		binding: binding,
-		client:  client,
+		binding:        binding,
+		client:         client,
+		emitter:        emitter,
+		metricThrottle: NewMetricThrottler(),
 	}, nil
 }
 
@@ -64,6 +76,16 @@ func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
 	}
 
 	io.Copy(ioutil.Discard, resp.Body)
+
+	w.metricThrottle.Emit(func(metricCount int) {
+		w.emitter.IncCounter(
+			"egress",
+			metric.WithIncrement(uint64(metricCount)),
+			metric.WithVersion(2, 0),
+			metric.WithTag("drain-protocol", "https"),
+		)
+		log.Printf("Egressed %d https messages", metricCount)
+	})
 
 	return nil
 }

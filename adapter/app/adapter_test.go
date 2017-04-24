@@ -17,6 +17,7 @@ import (
 	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
 	v2 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -36,10 +37,12 @@ var _ = Describe("Adapter", func() {
 		binding            *v1.Binding
 		egressServer       *MockEgressServer
 		syslogTCPServer    *SyslogTCPServer
+		metricEmitter      *metric.Emitter
 	)
 
 	BeforeEach(func() {
 		egressServer, logsAPIAddr = startLogsAPIServer()
+		metricEmitter = &metric.Emitter{}
 
 		var err error
 		rlpTLSConfig, err = api.NewMutualTLSConfig(
@@ -65,7 +68,7 @@ var _ = Describe("Adapter", func() {
 				logsAPIAddr,
 				rlpTLSConfig,
 				tlsConfig,
-				nil,
+				metricEmitter,
 				app.WithHealthAddr("localhost:0"),
 				app.WithAdapterServerAddr("localhost:0"),
 				app.WithLogsEgressAPIConnCount(1),
@@ -139,7 +142,7 @@ var _ = Describe("Adapter", func() {
 					logsAPIAddr,
 					rlpTLSConfig,
 					tlsConfig,
-					nil,
+					metricEmitter,
 					app.WithHealthAddr("localhost:0"),
 					app.WithAdapterServerAddr("localhost:0"),
 					app.WithLogsEgressAPIConnCount(1),
@@ -184,7 +187,7 @@ var _ = Describe("Adapter", func() {
 					logsAPIAddr,
 					rlpTLSConfig,
 					tlsConfig,
-					nil,
+					metricEmitter,
 					app.WithHealthAddr("localhost:0"),
 					app.WithAdapterServerAddr("localhost:0"),
 					app.WithLogsEgressAPIConnCount(1),

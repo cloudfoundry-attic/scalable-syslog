@@ -18,6 +18,7 @@ import (
 
 var _ = Describe("TLSWriter", func() {
 	It("speaks TLS", func() {
+		metricEmitter := newSpyMetricEmitter()
 		certFile := test_util.Cert("adapter-rlp.crt")
 		keyFile := test_util.Cert("adapter-rlp.key")
 		tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -35,7 +36,7 @@ var _ = Describe("TLSWriter", func() {
 			Hostname: "test-hostname",
 			Drain:    fmt.Sprintf("syslog-tls://%s", listener.Addr()),
 		}
-		writer, err := egress.NewTLSWriter(binding, time.Second, time.Second, true)
+		writer, err := egress.NewTLSWriter(binding, time.Second, time.Second, true, metricEmitter)
 		Expect(err).ToNot(HaveOccurred())
 		defer writer.Close()
 
@@ -60,5 +61,9 @@ var _ = Describe("TLSWriter", func() {
 
 		expected := fmt.Sprintf("87 <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [APP/2] - - just a test\n")
 		Expect(actual).To(Equal(expected))
+
+		By("emit an egress metric for each message")
+		Eventually(metricEmitter.name).Should(Receive(Equal("egress")))
+		Expect(metricEmitter.opts).To(Receive(HaveLen(3)))
 	})
 })

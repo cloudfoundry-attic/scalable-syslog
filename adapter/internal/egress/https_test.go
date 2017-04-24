@@ -16,11 +16,19 @@ import (
 )
 
 var _ = Describe("HTTPWriter", func() {
+	var (
+		metricEmitter *spyMetricEmitter
+	)
+
+	BeforeEach(func() {
+		metricEmitter = newSpyMetricEmitter()
+	})
+
 	It("does not accept schemes other than http", func() {
 		b := &v1.Binding{
 			Drain: "syslog://example.com:1123",
 		}
-		_, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true)
+		_, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, metricEmitter)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -32,7 +40,7 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, false)
+		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, false, metricEmitter)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -47,7 +55,7 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id-012345678901234567890012345678901234567890",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true)
+		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, metricEmitter)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -63,7 +71,7 @@ var _ = Describe("HTTPWriter", func() {
 			Hostname: "test-hostname",
 		}
 
-		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true)
+		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, metricEmitter)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -78,7 +86,7 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true)
+		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, metricEmitter)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -86,6 +94,28 @@ var _ = Describe("HTTPWriter", func() {
 
 		Expect(drain.messages).To(HaveLen(1))
 		Expect(drain.messages[0].AppName).To(Equal("test-app-id"))
+	})
+
+	It("emits an egress metric for each message", func() {
+		drain := newMockOKDrain()
+
+		b := &v1.Binding{
+			Drain:    drain.URL,
+			AppId:    "test-app-id",
+			Hostname: "test-hostname",
+		}
+		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, metricEmitter)
+		Expect(err).ToNot(HaveOccurred())
+
+		go func() {
+			for {
+				env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
+				writer.Write(env)
+			}
+		}()
+
+		Eventually(metricEmitter.name, 2).Should(Receive(Equal("egress")))
+		Expect(metricEmitter.opts).To(Receive(HaveLen(3)))
 	})
 })
 

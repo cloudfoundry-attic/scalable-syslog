@@ -14,7 +14,7 @@ type TLSWriter struct {
 	TCPWriter
 }
 
-func NewTLSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) (WriteCloser, error) {
+func NewTLSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool, emitter MetricEmitter) (WriteCloser, error) {
 	drainURL, err := url.Parse(binding.Drain)
 	// TODO: remove parsing/error from here
 	if err != nil {
@@ -30,12 +30,18 @@ func NewTLSWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, ski
 		})
 	}
 
-	w := &TLSWriter{}
-	w.url = drainURL
-	w.appID = binding.AppId
-	w.hostname = binding.Hostname
-	w.ioTimeout = ioTimeout
-	w.dialFunc = df
+	w := &TLSWriter{
+		TCPWriter{
+			emitter:        emitter,
+			url:            drainURL,
+			appID:          binding.AppId,
+			hostname:       binding.Hostname,
+			ioTimeout:      ioTimeout,
+			dialFunc:       df,
+			metricThrottle: &metricThrottler{},
+			scheme:         "syslog-tls",
+		},
+	}
 	go w.connect()
 
 	return w, nil
