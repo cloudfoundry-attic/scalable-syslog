@@ -145,7 +145,12 @@ var _ = Describe("Subscriber", func() {
 
 		go func() {
 			for {
-				receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
+				select {
+				case receiverClient.RecvOutput.Ret0 <- buildLogEnvelope():
+					// Do nothing
+				default:
+					return
+				}
 			}
 		}()
 
