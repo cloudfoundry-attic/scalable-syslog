@@ -26,7 +26,6 @@ type Config struct {
 	CertFile           string
 	KeyFile            string
 	AdapterCommonName  string
-	AdapterIPs         string
 	AdapterPort        string
 	AdapterAddrs       []string
 	Blacklist          *ingress.IPRanges
@@ -55,7 +54,9 @@ func LoadConfig(args []string) (*Config, error) {
 
 	flags.StringVar(&cfg.AdapterCommonName, "adapter-cn", "", "The common name used for the TLS config")
 	flags.StringVar(&cfg.AdapterPort, "adapter-port", "", "The port of the adapter API")
-	flags.StringVar(&cfg.AdapterIPs, "adapter-ips", "", "Comma separated list of adapter IP addresses")
+
+	var addrList string
+	flags.StringVar(&addrList, "adapter-addrs", "", "Comma separated list of adapter addresses")
 
 	var blacklist string
 	flags.StringVar(&blacklist, "blacklist-ranges", "", "Comma separated list of blacklist IP ranges")
@@ -79,7 +80,7 @@ func LoadConfig(args []string) (*Config, error) {
 	}
 
 	var err error
-	cfg.AdapterAddrs, err = parseAddrs(cfg.AdapterIPs, cfg.AdapterPort)
+	cfg.AdapterAddrs, err = parseAddrs(addrList, cfg.AdapterPort)
 	if err != nil {
 		return nil, fmt.Errorf("No adapter addresses: %s", err)
 	}
@@ -117,21 +118,24 @@ func parseBlacklist(blacklist string) (*ingress.IPRanges, error) {
 
 }
 
-func parseAddrs(ips, port string) ([]string, error) {
+func parseAddrs(addrList, port string) ([]string, error) {
 	var hostports []string
 
-	if len(ips) == 0 {
-		return nil, errors.New("no IP addresses provided")
+	if len(addrList) == 0 {
+		return nil, errors.New("no address is provided")
 	}
 
-	hosts := strings.Split(ips, ",")
+	hosts := strings.Split(addrList, ",")
 
 	for _, h := range hosts {
-		if net.ParseIP(h) == nil {
-			return nil, fmt.Errorf("invalid IP format: %s", h)
+		resolved, err := net.LookupIP(h)
+		if err != nil {
+			return nil, err
 		}
-		hp := fmt.Sprintf("%s:%s", h, port)
-		hostports = append(hostports, hp)
+
+		for _, h := range resolved {
+			hostports = append(hostports, fmt.Sprintf("%s:%s", h, port))
+		}
 	}
 
 	return hostports, nil
