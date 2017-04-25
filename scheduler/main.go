@@ -45,9 +45,9 @@ func main() {
 	}
 
 	metricIngressTLS, err := api.NewMutualTLSConfig(
-		cfg.MetricIngressCertFile,
-		cfg.MetricIngressKeyFile,
-		cfg.MetricIngressCAFile,
+		cfg.CertFile,
+		cfg.KeyFile,
+		cfg.CAFile,
 		cfg.MetricIngressCN,
 	)
 	if err != nil {

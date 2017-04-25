@@ -30,11 +30,8 @@ type Config struct {
 	AdapterAddrs       []string
 	Blacklist          *ingress.IPRanges
 
-	MetricIngressAddr     string
-	MetricIngressCAFile   string
-	MetricIngressCertFile string
-	MetricIngressKeyFile  string
-	MetricIngressCN       string
+	MetricIngressAddr string
+	MetricIngressCN   string
 }
 
 func LoadConfig(args []string) (*Config, error) {
@@ -65,9 +62,6 @@ func LoadConfig(args []string) (*Config, error) {
 	flags.StringVar(&addrList, "adapter-addrs", "", "Comma separated list of adapter addresses")
 
 	flags.StringVar(&cfg.MetricIngressAddr, "metric-ingress-addr", "", "The ingress address for the metrics ingress API")
-	flags.StringVar(&cfg.MetricIngressCAFile, "metric-ingress-ca", "", "The file path for the metrics ingress CA cert")
-	flags.StringVar(&cfg.MetricIngressCertFile, "metric-ingress-cert", "", "The file path for the metrics ingress cert")
-	flags.StringVar(&cfg.MetricIngressKeyFile, "metric-ingress-key", "", "The file path for the metrics ingress key")
 	flags.StringVar(&cfg.MetricIngressCN, "metric-ingress-cn", "", "The TLS common name for metrics ingress API")
 
 	var blacklist string
