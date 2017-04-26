@@ -11,7 +11,7 @@ import (
 
 	"testing"
 
-	app "tools/smokes/http_drain"
+	app "."
 )
 
 func TestHttpDrain(t *testing.T) {
