@@ -108,13 +108,13 @@ var _ = Describe("HTTPWriter", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		go func() {
+			env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
 			for {
-				env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
 				writer.Write(env)
 			}
 		}()
 
-		Eventually(metricEmitter.name, 2).Should(Receive(Equal("egress")))
+		Eventually(metricEmitter.name, 5).Should(Receive(Equal("egress")))
 		Expect(metricEmitter.opts).To(Receive(HaveLen(3)))
 	})
 })
