@@ -2,7 +2,7 @@
 set -ex
 
 for i in `seq 1 $NUM_APPS`; do
-    cf delete drainspinner-$i -r -f
+    cf delete drainspinner-${DRAIN_TYPE}-$i -r -f
     rm "output-$i.txt" || true
 done;
 

@@ -20,7 +20,7 @@ pushd ../logspinner
     GOOS=linux go build
 
     for i in `seq 1 $NUM_APPS`; do
-        cf push drainspinner-$i -c ./logspinner -b binary_buildpack
-        cf bind-service drainspinner-$i ss-smoke-syslog-${DRAIN_TYPE}-drain-${DRAIN_VERSION}
+        cf push drainspinner-${DRAIN_TYPE}-$i -c ./logspinner -b binary_buildpack
+        cf bind-service drainspinner-${DRAIN_TYPE}-$i ss-smoke-syslog-${DRAIN_TYPE}-drain-${DRAIN_VERSION}
     done;
 popd
