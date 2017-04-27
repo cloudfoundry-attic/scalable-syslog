@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -exu
 
-cf login -a api.$CF_SYSTEM_DOMAIN -u $CF_USERNAME -p $CF_PASSWORD -s $CF_SPACE -o $CF_ORG --skip-ssl-validation
+cf login -a api."$CF_SYSTEM_DOMAIN" -u "$CF_USERNAME" -p "$CF_PASSWORD" -s "$CF_SPACE" -o "$CF_ORG" --skip-ssl-validation
+
+app_name=${DRAIN_TYPE}-drain
+if cf app "$app_name"; then
+    exit 0
+fi
 
 pushd ./${DRAIN_TYPE}_drain
     GOOS=linux go build
-    app_name=${DRAIN_TYPE}-drain
     cf push $app_name -c ./${DRAIN_TYPE}_drain -b binary_buildpack --no-route
     if [ "$DRAIN_TYPE" == "syslog" ]; then
         cf map-route $app_name $CF_APP_DOMAIN --random-port
