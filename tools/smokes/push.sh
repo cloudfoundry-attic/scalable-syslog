@@ -16,9 +16,9 @@ if cf app "$job_name"; then
 fi
 
 # push the drain app (reader)
-pushd "./$DRAIN_TYPE_drain"
+pushd "./${DRAIN_TYPE}_drain"
     GOOS=linux go build
-    cf push "$job_name" -c "./$DRAIN_TYPE_drain" -b binary_buildpack --no-route
+    cf push "$job_name" -c "./${DRAIN_TYPE}_drain" -b binary_buildpack --no-route
     if [ "$DRAIN_TYPE" = "syslog" ]; then
         cf map-route "$job_name" "$CF_APP_DOMAIN" --random-port
     else
