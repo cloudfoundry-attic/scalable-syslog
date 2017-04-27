@@ -67,17 +67,23 @@ var _ = Describe("DefaultAdapterService", func() {
 		))
 	})
 
+	It("issues one delete request", func() {})
+
 	Context("List", func() {
-		It("gets a list of bindings from all adapters", func() {
+		It("gets a list of de-duped bindings from all adapters", func() {
 			client := &SpyClient{}
+			binding := &v1.Binding{
+				AppId:    "app-id",
+				Hostname: "hostname",
+				Drain:    "drain",
+			}
+			duplicate := &v1.Binding{
+				AppId:    "app-id",
+				Hostname: "hostname",
+				Drain:    "drain",
+			}
 			client.listBindingsResponse_ = &v1.ListBindingsResponse{
-				Bindings: []*v1.Binding{
-					{
-						AppId:    binding.AppId,
-						Hostname: binding.Hostname,
-						Drain:    binding.Drain,
-					},
-				},
+				Bindings: []*v1.Binding{binding, duplicate},
 			}
 
 			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
@@ -87,7 +93,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			Expect(client.listCalled()).To(Equal(true))
 			Expect(err).ToNot(HaveOccurred())
 			Expect(len(bindings)).To(Equal(1))
-			Expect(bindings[0]).To(Equal(binding))
+			Expect(bindings[0]).To(Equal(*binding))
 		})
 
 		It("returns no bindings when list fails", func() {

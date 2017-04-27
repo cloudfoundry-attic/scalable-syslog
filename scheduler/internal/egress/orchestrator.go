@@ -48,7 +48,7 @@ type MetricEmitter interface {
 // Run starts the orchestrator.
 func (o *Orchestrator) Run(interval time.Duration) {
 	for range time.Tick(interval) {
-		expected, invalid, err := o.reader.FetchBindings()
+		expected, blacklisted, err := o.reader.FetchBindings()
 		if err != nil {
 			log.Printf("fetch bindings failed with error: %s", err)
 			continue
@@ -56,7 +56,7 @@ func (o *Orchestrator) Run(interval time.Duration) {
 
 		o.health.SetCounter(map[string]int{
 			"drainCount":                   len(expected),
-			"blacklistedOrInvalidUrlCount": invalid,
+			"blacklistedOrInvalidUrlCount": blacklisted,
 		})
 
 		o.emitter.IncCounter(

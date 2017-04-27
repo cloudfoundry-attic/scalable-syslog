@@ -85,18 +85,31 @@ func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected in
 
 func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
 	request := &v1.ListBindingsRequest{}
-
-	var bindings ingress.Bindings
-
+	bindings := make(map[v1.Binding]bool)
 	for _, client := range d.pool {
 		resp, err := client.ListBindings(context.Background(), request)
 		if err != nil {
 			continue
 		}
 		for _, b := range resp.Bindings {
-			bindings = append(bindings, *b)
+			if d.alreadyAdded(*b, bindings) {
+				continue
+			}
+
+			bindings[*b] = true
 		}
 	}
 
-	return bindings, nil
+	var deduped ingress.Bindings
+	for k, _ := range bindings {
+		deduped = append(deduped, k)
+	}
+	return deduped, nil
+}
+
+func (d *DefaultAdapterService) alreadyAdded(newBinding v1.Binding, list map[v1.Binding]bool) bool {
+	if ok, _ := list[newBinding]; ok {
+		return true
+	}
+	return false
 }
