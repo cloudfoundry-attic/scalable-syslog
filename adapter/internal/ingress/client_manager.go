@@ -3,9 +3,9 @@ package ingress
 import (
 	"io"
 	"log"
+	"sync"
 	"sync/atomic"
 	"time"
-	"unsafe"
 
 	v2 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
 )
@@ -23,9 +23,10 @@ type connection struct {
 type ClientManager struct {
 	connector     ConnectionBuilder
 	connectionTTL time.Duration
-	connections   []unsafe.Pointer
+	connections   []*connection
 	nextIdx       uint64
 	retryWait     time.Duration
+	mu            sync.RWMutex
 }
 
 type ClientManagerOpts func(*ClientManager)
@@ -42,7 +43,7 @@ func NewClientManager(connector ConnectionBuilder, connCount int, ttl time.Durat
 	c := &ClientManager{
 		connector:     connector,
 		connectionTTL: ttl,
-		connections:   make([]unsafe.Pointer, connCount),
+		connections:   make([]*connection, connCount),
 		retryWait:     2 * time.Second,
 	}
 
@@ -66,10 +67,12 @@ func (c *ClientManager) Next() v2.EgressClient {
 		idx := atomic.AddUint64(&c.nextIdx, 1)
 		actualIdx := int(idx % uint64(len(c.connections)))
 
-		conn := (*connection)(atomic.LoadPointer(&c.connections[actualIdx]))
+		c.mu.RLock()
+		conn := c.connections[actualIdx]
 		if conn != nil && conn.client != nil {
 			return conn.client
 		}
+		c.mu.RUnlock()
 
 		c.openNewConnection(actualIdx)
 		time.Sleep(c.retryWait)
@@ -79,11 +82,12 @@ func (c *ClientManager) Next() v2.EgressClient {
 func (c *ClientManager) monitorConnectionsForRolling() {
 	for range time.Tick(c.connectionTTL) {
 		for i := 0; i < len(c.connections); i++ {
-			conn := (*connection)(atomic.LoadPointer(&c.connections[i]))
-
+			c.mu.Lock()
+			conn := c.connections[i]
 			if conn != nil && conn.closer != nil {
 				conn.closer.Close()
 			}
+			c.mu.Unlock()
 
 			c.openNewConnection(i)
 		}
@@ -91,18 +95,18 @@ func (c *ClientManager) monitorConnectionsForRolling() {
 }
 
 func (c *ClientManager) openNewConnection(idx int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	closer, client, err := c.connector.Connect()
 	if err != nil {
 		log.Printf("Failed to connect to loggregator API: %s", err)
-
-		var nilConn *connection
-		atomic.SwapPointer(&c.connections[idx], unsafe.Pointer(nilConn))
+		c.connections[idx] = nil
 
 		return
 	}
 
-	atomic.SwapPointer(&c.connections[idx], unsafe.Pointer(&connection{
+	c.connections[idx] = &connection{
 		closer: closer,
 		client: client,
-	}))
+	}
 }
