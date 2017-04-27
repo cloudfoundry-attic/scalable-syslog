@@ -3,7 +3,8 @@ set -exu
 
 cf login -a api."$CF_SYSTEM_DOMAIN" -u "$CF_USERNAME" -p "$CF_PASSWORD" -s "$CF_SPACE" -o "$CF_ORG" --skip-ssl-validation
 
-app_name=${DRAIN_TYPE}-drain
+# default app_name to $DRAIN_TYPE-drain
+app_name="${APP_NAME:-$DRAIN_TYPE-drain}"
 if cf app "$app_name"; then
     exit 0
 fi
