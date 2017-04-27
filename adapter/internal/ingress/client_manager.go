@@ -64,11 +64,14 @@ func NewClientManager(connector ConnectionBuilder, connCount int, ttl time.Durat
 func (c *ClientManager) Next() v2.EgressClient {
 	for {
 		idx := atomic.AddUint64(&c.nextIdx, 1)
-		conn := (*connection)(atomic.LoadPointer(&c.connections[idx%uint64(len(c.connections))]))
-		if conn.client != nil {
+		actualIdx := int(idx % uint64(len(c.connections)))
+
+		conn := (*connection)(atomic.LoadPointer(&c.connections[actualIdx]))
+		if conn != nil && conn.client != nil {
 			return conn.client
 		}
 
+		c.openNewConnection(actualIdx)
 		time.Sleep(c.retryWait)
 	}
 }
@@ -78,7 +81,7 @@ func (c *ClientManager) monitorConnectionsForRolling() {
 		for i := 0; i < len(c.connections); i++ {
 			conn := (*connection)(atomic.LoadPointer(&c.connections[i]))
 
-			if conn.closer != nil {
+			if conn != nil && conn.closer != nil {
 				conn.closer.Close()
 			}
 
@@ -93,7 +96,7 @@ func (c *ClientManager) openNewConnection(idx int) {
 		log.Printf("Failed to connect to loggregator API: %s", err)
 
 		var nilConn *connection
-		atomic.SwapPointer(&c.connections[idx], unsafe.Pointer(&nilConn))
+		atomic.SwapPointer(&c.connections[idx], unsafe.Pointer(nilConn))
 
 		return
 	}
