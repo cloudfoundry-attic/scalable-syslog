@@ -13,20 +13,20 @@ drain_domain=$(cf app ${DRAIN_TYPE}-drain | grep urls | awk '{print $2}')
 drain_count=$(curl $drain_domain/count)
 
 currenttime=$(date +%s)
-app_name="${APP_NAME:-$DRAIN_TYPE-drain}"
+job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
 
 curl -X POST -H "Content-type: application/json" \
 -d "$(cat <<JSON
 {
     "series": [{
         "metric": "smoke_test.ss.loggregator.msg_count",
-        "points": [[${currenttime}, ${msg_count}]],
+        "points": [[$currenttime, $msg_count]],
         "type": "gauge",
-        "host": "${CF_SYSTEM_DOMAIN}",
+        "host": "$CF_SYSTEM_DOMAIN",
         "tags": [
-            "drain_version:${DRAIN_VERSION}",
-            "drain_type:${DRAIN_TYPE}",
-            "app_name:${app_name}"
+            "drain_version:$DRAIN_VERSION",
+            "drain_type:$DRAIN_TYPE",
+            "job_nae:$job_name"
         ]
     }]
 }
@@ -39,13 +39,13 @@ curl -X POST -H "Content-type: application/json" \
 {
     "series" : [{
         "metric": "smoke_test.ss.loggregator.drain_msg_count",
-        "points": [[${currenttime}, ${drain_count}]],
+        "points": [[$currenttime}, $drain_count}]],
         "type": "gauge",
-        "host": "${CF_SYSTEM_DOMAIN}",
+        "host": "$CF_SYSTEM_DOMAIN",
         "tags": [
-            "drain_version:${DRAIN_VERSION}",
-            "drain_type:${DRAIN_TYPE}",
-            "app_name:${app_name}"
+            "drain_version:$DRAIN_VERSION",
+            "drain_type:$DRAIN_TYPE",
+            "job_name:$job_name"
         ]
     }]
 }
@@ -58,13 +58,13 @@ curl -X POST -H "Content-type: application/json" \
 {
     "series": [{
         "metric": "smoke_test.ss.loggregator.delay",
-        "points": [[${currenttime}, ${DELAY_US}]],
+        "points": [[$currenttime, $DELAY_US]],
         "type": "gauge",
-        "host": "${CF_SYSTEM_DOMAIN}",
+        "host": "$CF_SYSTEM_DOMAIN",
         "tags": [
-            "drain_version:${DRAIN_VERSION}",
-            "drain_type:${DRAIN_TYPE}",
-            "app_name:${app_name}"
+            "drain_version:$DRAIN_VERSION",
+            "drain_type:$DRAIN_TYPE",
+            "job_name:$job_name"
         ]
     }]
 }
@@ -77,13 +77,13 @@ curl -X POST -H "Content-type: application/json" \
 {
     "series": [{
         "metric": "smoke_test.ss.loggregator.cycles",
-        "points": [[${currenttime}, $(expr $CYCLES \* $NUM_APPS)]],
+        "points": [[$currenttime, $(expr $CYCLES \* $NUM_APPS)]],
         "type": "gauge",
-        "host": "${CF_SYSTEM_DOMAIN}",
+        "host": "$CF_SYSTEM_DOMAIN",
         "tags": [
-            "drain_version:${DRAIN_VERSION}",
-            "drain_type:${DRAIN_TYPE}",
-            "app_name:${app_name}"
+            "drain_version:$DRAIN_VERSION",
+            "drain_type:$DRAIN_TYPE",
+            "job_name:$job_name"
         ]
     }]
 }
