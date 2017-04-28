@@ -3,17 +3,18 @@ set -exu
 
 pkill cf || true
 
+job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
+
 msg_count=0
 for i in `seq 1 $NUM_APPS`; do
     c=$(cat output-$i.txt | grep -c 'msg')
     : $(( msg_count = $msg_count + $c ))
 done;
 
-drain_domain=$(cf app ${DRAIN_TYPE}-drain | grep urls | awk '{print $2}')
+drain_domain=$(cf app "$job_name" | grep urls | awk '{print $2}')
 drain_count=$(curl $drain_domain/count)
 
 currenttime=$(date +%s)
-job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
 
 curl -X POST -H "Content-type: application/json" \
 -d "$(cat <<JSON
