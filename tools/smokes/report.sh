@@ -27,7 +27,7 @@ curl -X POST -H "Content-type: application/json" \
         "tags": [
             "drain_version:$DRAIN_VERSION",
             "drain_type:$DRAIN_TYPE",
-            "job_nae:$job_name"
+            "job_name:$job_name"
         ]
     }]
 }
