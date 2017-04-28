@@ -39,7 +39,7 @@ curl -X POST -H "Content-type: application/json" \
 {
     "series" : [{
         "metric": "smoke_test.ss.loggregator.drain_msg_count",
-        "points": [[$currenttime}, $drain_count}]],
+        "points": [[$currenttime, $drain_count]],
         "type": "gauge",
         "host": "$CF_SYSTEM_DOMAIN",
         "tags": [
