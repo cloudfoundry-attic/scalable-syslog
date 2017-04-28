@@ -95,8 +95,6 @@ func (c *ClientManager) monitorConnectionsForRolling() {
 }
 
 func (c *ClientManager) openNewConnection(idx int) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	closer, client, err := c.connector.Connect()
 	if err != nil {
 		log.Printf("Failed to connect to loggregator API: %s", err)
@@ -104,7 +102,9 @@ func (c *ClientManager) openNewConnection(idx int) {
 
 		return
 	}
-
+	
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.connections[idx] = &connection{
 		closer: closer,
 		client: client,
