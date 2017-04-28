@@ -1,20 +1,6 @@
 #!/usr/bin/env bash
 set -exu
 
-cf login \
-    -a api."$CF_SYSTEM_DOMAIN" \
-    -u "$CF_USERNAME" \
-    -p "$CF_PASSWORD" \
-    -s "$CF_SPACE" \
-    -o "$CF_ORG" \
-    --skip-ssl-validation # TODO: consider passing this in as a param
-
-# default job_name to $DRAIN_TYPE-drain
-job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
-
-ensure_drain_app
-ensure_spinner_apps
-
 function ensure_drain_app {
     if ! cf app "$job_name"; then
         push_drain_app
@@ -56,3 +42,23 @@ function push_spinner_app {
             "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION"
     popd
 }
+
+function login {
+    cf login \
+        -a api."$CF_SYSTEM_DOMAIN" \
+        -u "$CF_USERNAME" \
+        -p "$CF_PASSWORD" \
+        -s "$CF_SPACE" \
+        -o "$CF_ORG" \
+        --skip-ssl-validation # TODO: consider passing this in as a param
+}
+
+function main {
+    # default job_name to $DRAIN_TYPE-drain
+    job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
+
+    login
+    ensure_drain_app
+    ensure_spinner_apps
+}
+main
