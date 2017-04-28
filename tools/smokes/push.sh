@@ -5,6 +5,9 @@ function ensure_drain_app {
     if ! cf app "$job_name"; then
         push_drain_app
     fi
+    if ! cf service "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION"; then
+        create_drain_service
+    fi
 }
 
 function ensure_spinner_apps {
@@ -17,18 +20,23 @@ function ensure_spinner_apps {
 
 function push_drain_app {
     pushd "./${DRAIN_TYPE}_drain"
-        GOOS=linux go build
+        if ! [ -e "./${DRAIN_TYPE}_drain" ]; then
+            GOOS=linux go build
+        fi
         cf push "$job_name" -c "./${DRAIN_TYPE}_drain" -b binary_buildpack --no-route
         if [ "$DRAIN_TYPE" = "syslog" ]; then
             cf map-route "$job_name" "$CF_APP_DOMAIN" --random-port
         else
             cf map-route "$job_name" "$CF_APP_DOMAIN" --hostname "$job_name"
         fi
-        drain_domain=$(cf app "$job_name" | grep urls | awk '{print $2}')
-        cf create-user-provided-service \
-            "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION" \
-            -l "$DRAIN_TYPE://$drain_domain/drain?drain-version=$DRAIN_VERSION" || true
     popd
+}
+
+function create_drain_service {
+    drain_domain=$(cf app "$job_name" | grep urls | awk '{print $2}')
+    cf create-user-provided-service \
+        "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION" \
+        -l "$DRAIN_TYPE://$drain_domain/drain?drain-version=$DRAIN_VERSION" || true
 }
 
 function push_spinner_app {
