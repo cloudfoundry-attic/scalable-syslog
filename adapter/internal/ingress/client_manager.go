@@ -65,14 +65,15 @@ func NewClientManager(connector ConnectionBuilder, connCount int, ttl time.Durat
 func (c *ClientManager) Next() v2.EgressClient {
 	for {
 		idx := atomic.AddUint64(&c.nextIdx, 1)
-		actualIdx := int(idx % uint64(len(c.connections)))
 
 		c.mu.RLock()
+		actualIdx := int(idx % uint64(len(c.connections)))
 		conn := c.connections[actualIdx]
+		c.mu.RUnlock()
+
 		if conn != nil && conn.client != nil {
 			return conn.client
 		}
-		c.mu.RUnlock()
 
 		c.openNewConnection(actualIdx)
 		time.Sleep(c.retryWait)
@@ -82,12 +83,13 @@ func (c *ClientManager) Next() v2.EgressClient {
 func (c *ClientManager) monitorConnectionsForRolling() {
 	for range time.Tick(c.connectionTTL) {
 		for i := 0; i < len(c.connections); i++ {
-			c.mu.Lock()
+			c.mu.RLock()
 			conn := c.connections[i]
+			c.mu.RUnlock()
+
 			if conn != nil && conn.closer != nil {
 				conn.closer.Close()
 			}
-			c.mu.Unlock()
 
 			c.openNewConnection(i)
 		}
@@ -98,11 +100,14 @@ func (c *ClientManager) openNewConnection(idx int) {
 	closer, client, err := c.connector.Connect()
 	if err != nil {
 		log.Printf("Failed to connect to loggregator API: %s", err)
+
+		c.mu.Lock()
 		c.connections[idx] = nil
+		c.mu.Unlock()
 
 		return
 	}
-	
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.connections[idx] = &connection{
