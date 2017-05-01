@@ -2,19 +2,19 @@
 set -exu
 
 function ensure_drain_app {
-    if ! cf app "$job_name"; then
+    if ! cf app "$job_name" > /dev/null; then
         push_drain_app
     else
         restart_drain_app
     fi
-    if ! cf service "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION"; then
+    if ! cf service "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION" 2> /dev/null; then
         create_drain_service
     fi
 }
 
 function ensure_spinner_apps {
     for i in $(seq 1 "$NUM_APPS"); do
-        if ! cf app "drainspinner-$job_name-$i"; then
+        if ! cf app "drainspinner-$job_name-$i" 2> /dev/null; then
             push_spinner_app "$i"
         else
             restart_spinner_app "$i"
