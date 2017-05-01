@@ -78,7 +78,12 @@ func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int
 	ctx, cancel := context.WithCancel(context.Background())
 	receiver, err := client.Receiver(ctx, &v2.EgressRequest{
 		ShardId: buildShardId(binding),
-		Filter:  &v2.Filter{SourceId: binding.AppId},
+		Filter: &v2.Filter{
+			SourceId: binding.AppId,
+			Message: &v2.Filter_Log{
+				Log: &v2.LogFilter{},
+			},
+		},
 	})
 	if err != nil {
 		return true

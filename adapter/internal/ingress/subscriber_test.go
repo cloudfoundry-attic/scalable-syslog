@@ -50,7 +50,8 @@ var _ = Describe("Subscriber", func() {
 
 		var request *v2.EgressRequest
 		Eventually(client.ReceiverInput.In).Should(Receive(&request))
-		Expect(request.Filter).To(Equal(&v2.Filter{binding.AppId}))
+		Expect(request.Filter.GetSourceId()).To(Equal(binding.AppId))
+		Expect(request.Filter.GetLog()).ToNot(BeNil())
 		Expect(request.ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
 
 		Eventually(receiverClient.RecvCalled).Should(Receive())
