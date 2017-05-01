@@ -65,9 +65,9 @@ func NewClientManager(connector ConnectionBuilder, connCount int, ttl time.Durat
 func (c *ClientManager) Next() v2.EgressClient {
 	for {
 		idx := atomic.AddUint64(&c.nextIdx, 1)
+		actualIdx := int(idx % uint64(len(c.connections)))
 
 		c.mu.RLock()
-		actualIdx := int(idx % uint64(len(c.connections)))
 		conn := c.connections[actualIdx]
 		c.mu.RUnlock()
 
@@ -75,7 +75,6 @@ func (c *ClientManager) Next() v2.EgressClient {
 			return conn.client
 		}
 
-		c.openNewConnection(actualIdx)
 		time.Sleep(c.retryWait)
 	}
 }
