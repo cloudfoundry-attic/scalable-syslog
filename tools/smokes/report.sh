@@ -11,7 +11,7 @@ for i in `seq 1 $NUM_APPS`; do
     : $(( msg_count = $msg_count + $c ))
 done;
 
-drain_domain=$(cf app "$job_name" | grep urls | awk '{print $2}')
+drain_domain=$(cf app "$job_name" | grep routes | awk '{print $2}')
 drain_count=$(curl $drain_domain/count)
 
 currenttime=$(date +%s)
