@@ -4,6 +4,8 @@ set -exu
 function ensure_drain_app {
     if ! cf app "$job_name"; then
         push_drain_app
+    else
+        restart_drain_app
     fi
     if ! cf service "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION"; then
         create_drain_service
@@ -14,6 +16,8 @@ function ensure_spinner_apps {
     for i in $(seq 1 "$NUM_APPS"); do
         if ! cf app "drainspinner-$job_name-$i"; then
             push_spinner_app "$i"
+        else
+            restart_spinner_app "$i"
         fi
     done
 }
@@ -30,6 +34,10 @@ function push_drain_app {
             cf map-route "$job_name" "$CF_APP_DOMAIN" --hostname "$job_name"
         fi
     popd
+}
+
+function restart_drain_app {
+    cf restart "$job_name"
 }
 
 function create_drain_service {
@@ -49,6 +57,10 @@ function push_spinner_app {
             "drainspinner-$job_name-$1" \
             "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION"
     popd
+}
+
+function restart_spinner_app {
+    cf restart "drainspinner-$job_name-$1"
 }
 
 function login {
