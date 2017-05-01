@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -exu
 
+source shared.sh
+
 function ensure_counter_app {
     if ! cf app "$counter_name" > /dev/null; then
         push_counter_app
@@ -48,12 +50,16 @@ function push_drain_app {
         if ! [ -e "./${DRAIN_TYPE}_drain" ]; then
             GOOS=linux go build
         fi
-        cf push "$job_name" -c "./${DRAIN_TYPE}_drain" -b binary_buildpack --no-route
+        cf push "$job_name" -c "./${DRAIN_TYPE}_drain" -b binary_buildpack --no-route --no-start
+        cf set-env "$job_name" COUNTER_URL $(app_url $counter_name)
+
         if [ "$DRAIN_TYPE" = "syslog" ]; then
             cf map-route "$job_name" "$CF_APP_DOMAIN" --random-port
         else
             cf map-route "$job_name" "$CF_APP_DOMAIN" --hostname "$job_name"
         fi
+
+        cf start "$job_name"
     popd
 }
 
