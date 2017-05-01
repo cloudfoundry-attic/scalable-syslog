@@ -1,6 +1,27 @@
 #!/usr/bin/env bash
 set -exu
 
+function ensure_counter_app {
+    if ! cf app "$counter_name" > /dev/null; then
+        push_counter_app
+    else
+        restart_counter_app
+    fi
+}
+
+function push_counter_app {
+    pushd counter
+        if ! [ -e ./counter ]; then
+            GOOS=linux go build
+        fi
+        cf push "$counter_name" -c ./counter -b binary_buildpack
+    popd
+}
+
+function restart_counter_app {
+    cf restart "$counter_name"
+}
+
 function ensure_drain_app {
     if ! cf app "$job_name" > /dev/null; then
         push_drain_app
@@ -76,8 +97,10 @@ function login {
 function main {
     # default job_name to $DRAIN_TYPE-drain
     job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
+    counter_name="$job_name-counter"
 
     login
+    ensure_counter_app
     ensure_drain_app
     ensure_spinner_apps
 }

@@ -20,6 +20,7 @@ function app_url {
 }
 
 job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
+counter_name="$job_name-counter"
 
 msg_count=0
 for i in `seq 1 $NUM_APPS`; do
@@ -27,7 +28,7 @@ for i in `seq 1 $NUM_APPS`; do
     : $(( msg_count = $msg_count + $c ))
 done;
 
-drain_count=$(curl $(app_url "$job_name")/count)
+drain_count=$(curl $(app_url "$counter_name")/get)
 currenttime=$(date +%s)
 
 curl -X POST -H "Content-type: application/json" \
