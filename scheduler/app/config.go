@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 )
 
 type Config struct {

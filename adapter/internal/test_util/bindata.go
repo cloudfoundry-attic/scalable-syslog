@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 )
+
 type asset struct {
 	bytes []byte
 	info  os.FileInfo
@@ -879,24 +880,24 @@ func AssetNames() []string {
 
 // _bindata is a table, holding each asset generator, mapped to its name.
 var _bindata = map[string]func() (*asset, error){
-	"adapter-rlp.crt": adapterRlpCrt,
-	"adapter-rlp.csr": adapterRlpCsr,
-	"adapter-rlp.key": adapterRlpKey,
-	"adapter.crt": adapterCrt,
-	"adapter.csr": adapterCsr,
-	"adapter.key": adapterKey,
-	"fake-log-provider.crt": fakeLogProviderCrt,
-	"fake-log-provider.csr": fakeLogProviderCsr,
-	"fake-log-provider.key": fakeLogProviderKey,
-	"loggregator-ca.crl": loggregatorCaCrl,
-	"loggregator-ca.crt": loggregatorCaCrt,
-	"loggregator-ca.key": loggregatorCaKey,
+	"adapter-rlp.crt":        adapterRlpCrt,
+	"adapter-rlp.csr":        adapterRlpCsr,
+	"adapter-rlp.key":        adapterRlpKey,
+	"adapter.crt":            adapterCrt,
+	"adapter.csr":            adapterCsr,
+	"adapter.key":            adapterKey,
+	"fake-log-provider.crt":  fakeLogProviderCrt,
+	"fake-log-provider.csr":  fakeLogProviderCsr,
+	"fake-log-provider.key":  fakeLogProviderKey,
+	"loggregator-ca.crl":     loggregatorCaCrl,
+	"loggregator-ca.crt":     loggregatorCaCrt,
+	"loggregator-ca.key":     loggregatorCaKey,
 	"scalable-syslog-ca.crl": scalableSyslogCaCrl,
 	"scalable-syslog-ca.crt": scalableSyslogCaCrt,
 	"scalable-syslog-ca.key": scalableSyslogCaKey,
-	"scheduler.crt": schedulerCrt,
-	"scheduler.csr": schedulerCsr,
-	"scheduler.key": schedulerKey,
+	"scheduler.crt":          schedulerCrt,
+	"scheduler.csr":          schedulerCsr,
+	"scheduler.key":          schedulerKey,
 }
 
 // AssetDir returns the file names below a certain
@@ -938,25 +939,26 @@ type bintree struct {
 	Func     func() (*asset, error)
 	Children map[string]*bintree
 }
+
 var _bintree = &bintree{nil, map[string]*bintree{
-	"adapter-rlp.crt": &bintree{adapterRlpCrt, map[string]*bintree{}},
-	"adapter-rlp.csr": &bintree{adapterRlpCsr, map[string]*bintree{}},
-	"adapter-rlp.key": &bintree{adapterRlpKey, map[string]*bintree{}},
-	"adapter.crt": &bintree{adapterCrt, map[string]*bintree{}},
-	"adapter.csr": &bintree{adapterCsr, map[string]*bintree{}},
-	"adapter.key": &bintree{adapterKey, map[string]*bintree{}},
-	"fake-log-provider.crt": &bintree{fakeLogProviderCrt, map[string]*bintree{}},
-	"fake-log-provider.csr": &bintree{fakeLogProviderCsr, map[string]*bintree{}},
-	"fake-log-provider.key": &bintree{fakeLogProviderKey, map[string]*bintree{}},
-	"loggregator-ca.crl": &bintree{loggregatorCaCrl, map[string]*bintree{}},
-	"loggregator-ca.crt": &bintree{loggregatorCaCrt, map[string]*bintree{}},
-	"loggregator-ca.key": &bintree{loggregatorCaKey, map[string]*bintree{}},
+	"adapter-rlp.crt":        &bintree{adapterRlpCrt, map[string]*bintree{}},
+	"adapter-rlp.csr":        &bintree{adapterRlpCsr, map[string]*bintree{}},
+	"adapter-rlp.key":        &bintree{adapterRlpKey, map[string]*bintree{}},
+	"adapter.crt":            &bintree{adapterCrt, map[string]*bintree{}},
+	"adapter.csr":            &bintree{adapterCsr, map[string]*bintree{}},
+	"adapter.key":            &bintree{adapterKey, map[string]*bintree{}},
+	"fake-log-provider.crt":  &bintree{fakeLogProviderCrt, map[string]*bintree{}},
+	"fake-log-provider.csr":  &bintree{fakeLogProviderCsr, map[string]*bintree{}},
+	"fake-log-provider.key":  &bintree{fakeLogProviderKey, map[string]*bintree{}},
+	"loggregator-ca.crl":     &bintree{loggregatorCaCrl, map[string]*bintree{}},
+	"loggregator-ca.crt":     &bintree{loggregatorCaCrt, map[string]*bintree{}},
+	"loggregator-ca.key":     &bintree{loggregatorCaKey, map[string]*bintree{}},
 	"scalable-syslog-ca.crl": &bintree{scalableSyslogCaCrl, map[string]*bintree{}},
 	"scalable-syslog-ca.crt": &bintree{scalableSyslogCaCrt, map[string]*bintree{}},
 	"scalable-syslog-ca.key": &bintree{scalableSyslogCaKey, map[string]*bintree{}},
-	"scheduler.crt": &bintree{schedulerCrt, map[string]*bintree{}},
-	"scheduler.csr": &bintree{schedulerCsr, map[string]*bintree{}},
-	"scheduler.key": &bintree{schedulerKey, map[string]*bintree{}},
+	"scheduler.crt":          &bintree{schedulerCrt, map[string]*bintree{}},
+	"scheduler.csr":          &bintree{schedulerCsr, map[string]*bintree{}},
+	"scheduler.key":          &bintree{schedulerKey, map[string]*bintree{}},
 }}
 
 // RestoreAsset restores an asset under the given directory
@@ -1005,4 +1007,3 @@ func _filePath(dir, name string) string {
 	cannonicalName := strings.Replace(name, "\\", "/", -1)
 	return filepath.Join(append([]string{dir}, strings.Split(cannonicalName, "/")...)...)
 }
-

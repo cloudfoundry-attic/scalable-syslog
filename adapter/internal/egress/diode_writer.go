@@ -3,8 +3,8 @@ package egress
 import (
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/diodes"
+	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
+	"code.cloudfoundry.org/scalable-syslog/internal/diodes"
 	gendiodes "github.com/cloudfoundry/diodes"
 )
 

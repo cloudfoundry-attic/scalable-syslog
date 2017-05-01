@@ -3,7 +3,7 @@ package egress_test
 import (
 	"fmt"
 
-	egress "github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
+	egress "code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

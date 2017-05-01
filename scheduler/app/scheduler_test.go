@@ -13,11 +13,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+	"code.cloudfoundry.org/scalable-syslog/internal/api"
+	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
+	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/scheduler/app"
+	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

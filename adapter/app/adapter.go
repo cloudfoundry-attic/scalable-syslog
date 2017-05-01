@@ -6,12 +6,12 @@ import (
 	"net"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/binding"
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/health"
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/binding"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
+	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
+	"code.cloudfoundry.org/scalable-syslog/internal/health"
+	"code.cloudfoundry.org/scalable-syslog/internal/metric"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

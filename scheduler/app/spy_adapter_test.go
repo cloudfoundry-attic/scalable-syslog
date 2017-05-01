@@ -5,7 +5,7 @@ import (
 
 	"golang.org/x/net/context"
 
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
 func NewTestAdapterServer() *testAdapterServer {

@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 )
 
 type BindingReader interface {

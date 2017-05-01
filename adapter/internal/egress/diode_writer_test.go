@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/egress"
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
+	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 )
 
 var _ = Describe("DiodeWriter", func() {

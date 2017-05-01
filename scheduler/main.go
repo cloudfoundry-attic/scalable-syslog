@@ -12,9 +12,9 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api"
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/app"
+	"code.cloudfoundry.org/scalable-syslog/internal/api"
+	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/scheduler/app"
 )
 
 func main() {

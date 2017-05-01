@@ -1,7 +1,7 @@
 package diodes
 
 import (
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
+	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	gendiodes "github.com/cloudfoundry/diodes"
 )
 

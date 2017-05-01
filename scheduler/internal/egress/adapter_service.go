@@ -4,8 +4,8 @@ import (
 	"context"
 	"log"
 
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
+	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 )
 
 type DefaultAdapterService struct {

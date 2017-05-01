@@ -11,7 +11,7 @@ type metricThrottler struct {
 func NewMetricThrottler() *metricThrottler {
 	return &metricThrottler{
 		emitTime: time.Now(),
-		duration: 5*time.Second,
+		duration: 5 * time.Second,
 	}
 }
 

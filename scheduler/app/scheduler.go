@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/health"
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/egress"
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+	"code.cloudfoundry.org/scalable-syslog/internal/health"
+	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/egress"
+	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"

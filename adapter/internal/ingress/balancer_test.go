@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"net"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/adapter/internal/ingress"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

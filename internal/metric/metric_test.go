@@ -5,8 +5,8 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
+	"code.cloudfoundry.org/scalable-syslog/internal/metric"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

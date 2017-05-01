@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	"github.com/cloudfoundry-incubator/scalable-syslog/internal/api/loggregator/v2"
+	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 

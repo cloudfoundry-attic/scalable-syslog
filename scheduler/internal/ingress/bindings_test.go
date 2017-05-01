@@ -1,11 +1,11 @@
 package ingress_test
 
 import (
-	"github.com/cloudfoundry-incubator/scalable-syslog/scheduler/internal/ingress"
+	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	v1 "github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1"
+	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
 var _ = Describe("Binding List", func() {

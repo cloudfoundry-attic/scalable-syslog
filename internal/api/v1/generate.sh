@@ -18,7 +18,7 @@ go get github.com/golang/protobuf/{proto,protoc-gen-go}
 tmp_dir=$(mktemp -d)
 mkdir -p $tmp_dir/scalable-syslog
 
-cp $GOPATH/src/github.com/cloudfoundry-incubator/scalable-syslog/internal/api/v1/*proto $tmp_dir/scalable-syslog
+cp $GOPATH/src/code.cloudfoundry.org/scalable-syslog/internal/api/v1/*proto $tmp_dir/scalable-syslog
 cp *.proto $tmp_dir/scalable-syslog
 
 protoc $tmp_dir/scalable-syslog/*.proto --go_out=plugins=grpc:. --proto_path=$tmp_dir/scalable-syslog
