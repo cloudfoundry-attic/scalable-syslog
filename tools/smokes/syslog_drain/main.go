@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -33,10 +34,15 @@ func main() {
 }
 
 func handleRequest(conn net.Conn) {
+	defer conn.Close()
+
 	var msg rfc5424.Message
 	for {
 		_, err := msg.ReadFrom(conn)
 		if err != nil {
+			if err == io.EOF {
+				return
+			}
 			log.Printf("ReadFrom err: %s", err)
 			break
 		}
@@ -47,5 +53,4 @@ func handleRequest(conn net.Conn) {
 	if err != nil {
 		log.Printf("Write err: %s", err)
 	}
-	conn.Close()
 }
