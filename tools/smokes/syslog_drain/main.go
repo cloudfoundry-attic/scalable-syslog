@@ -38,13 +38,14 @@ func handleRequest(conn net.Conn) {
 		_, err := msg.ReadFrom(conn)
 		if err != nil {
 			log.Printf("ReadFrom err: %s", err)
-			_, err := conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\nLocation: http://who.cares.com\nContent-Type: application/json; charset=UTF-8\n\n%d", atomic.LoadUint64(&count))))
-			if err != nil {
-				log.Printf("Write err: %s", err)
-			}
-			continue
+			break
 		}
 
 		atomic.AddUint64(&count, 1)
 	}
+	_, err := conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\nLocation: http://who.cares.com\nContent-Type: application/json; charset=UTF-8\n\n%d", atomic.LoadUint64(&count))))
+	if err != nil {
+		log.Printf("Write err: %s", err)
+	}
+	conn.Close()
 }
