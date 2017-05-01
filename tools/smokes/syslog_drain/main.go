@@ -5,8 +5,11 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
+	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/crewjam/rfc5424"
 )
@@ -22,6 +25,8 @@ func main() {
 
 	log.Print("Listening on " + os.Getenv("PORT"))
 
+	go reportCount()
+
 	for {
 		conn, err := l.Accept()
 		if err != nil {
@@ -30,6 +35,28 @@ func main() {
 		}
 
 		go handleRequest(conn)
+	}
+}
+
+func reportCount() {
+	url := os.Getenv("COUNTER_URL") + "/set"
+	if url == "" {
+		log.Fatalf("Missing COUNTER_URL environment variable")
+	}
+
+	for range time.Tick(time.Second) {
+		newCount := atomic.LoadUint64(&count)
+		log.Printf("Updating count on counter app to %d", newCount)
+
+		countStr := fmt.Sprint(newCount)
+		resp, err := http.Post(url, "text/plain", strings.NewReader(countStr))
+		if err != nil {
+			log.Println("Failed to write count: %s", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			log.Println("Failed to write count: expected 200 got %d", resp.StatusCode)
+		}
 	}
 }
 
@@ -48,9 +75,5 @@ func handleRequest(conn net.Conn) {
 		}
 
 		atomic.AddUint64(&count, 1)
-	}
-	_, err := conn.Write([]byte(fmt.Sprintf("HTTP/1.1 200 OK\nLocation: http://who.cares.com\nContent-Type: application/json; charset=UTF-8\n\n%d", atomic.LoadUint64(&count))))
-	if err != nil {
-		log.Printf("Write err: %s", err)
 	}
 }
