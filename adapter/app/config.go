@@ -47,7 +47,7 @@ func LoadConfig() *Config {
 
 	flag.DurationVar(&cfg.SyslogDialTimeout, "syslog-dial-timeout", 5*time.Second, "The timeout for dialing to syslog drains")
 	flag.DurationVar(&cfg.SyslogIOTimeout, "syslog-io-timeout", 60*time.Second, "The timeout for writing to syslog drains")
-	flag.BoolVar(&cfg.SyslogSkipCertVerify, "syslog-skip-cert-verify", true, "The option to not verify syslog TLS certs")
+	flag.BoolVar(&cfg.SyslogSkipCertVerify, "syslog-skip-cert-verify", false, "The option to not verify syslog TLS certs")
 
 	flag.StringVar(&cfg.LogsAPIAddr, "logs-api-addr", "", "The address for the logs API")
 	flag.StringVar(&cfg.MetricIngressAddr, "metric-ingress-addr", "", "The ingress address for the metrics API")
