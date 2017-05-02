@@ -38,7 +38,9 @@ var _ = Describe("Emitter Client", func() {
 
 		client.NewCounterMetric("some-name")
 		Eventually(grpcServer.senders).Should(HaveLen(1))
-		Eventually(grpcServer.envelopes).Should(BeNumerically(">", 1))
+		Eventually(func() int {
+			return len(grpcServer.envelopes)
+		}).Should(BeNumerically(">", 1))
 
 		grpcServer.stop()
 
