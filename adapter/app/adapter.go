@@ -132,6 +132,7 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 		connector,
 		a.logsAPIConnCount,
 		a.logsAPIConnTTL,
+		time.Second,
 	)
 	syslogConnector := egress.NewSyslogConnector(
 		a.syslogDialTimeout,

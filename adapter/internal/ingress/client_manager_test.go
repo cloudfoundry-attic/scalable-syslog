@@ -24,21 +24,14 @@ var _ = Describe("Client Manager", func() {
 			ingress.NewClientManager(
 				mockConnector,
 				5,
+				10*time.Millisecond,
 				1*time.Millisecond,
 				ingress.WithRetryWait(10*time.Millisecond),
 			)
 
-			Eventually(func() int {
-				return mockConnector.GetSuccessfulConnections()
-			}).Should(Equal(5))
-
-			Eventually(func() int {
-				return mockConnector.GetCloseCalled()
-			}).Should(BeNumerically(">", 5))
-
-			Eventually(func() int {
-				return mockConnector.GetSuccessfulConnections()
-			}).Should(Equal(5))
+			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
+			Eventually(mockConnector.GetCloseCalled).Should(BeNumerically(">", 5))
+			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
 		})
 	})
 
@@ -48,13 +41,12 @@ var _ = Describe("Client Manager", func() {
 			cm := ingress.NewClientManager(
 				mockConnector,
 				5,
+				10*time.Millisecond,
 				1*time.Millisecond,
 				ingress.WithRetryWait(10*time.Millisecond),
 			)
 
-			Eventually(func() int {
-				return mockConnector.GetSuccessfulConnections()
-			}).Should(Equal(5))
+			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
 
 			r1 := cm.Next()
 			r2 := cm.Next()
@@ -62,21 +54,41 @@ var _ = Describe("Client Manager", func() {
 			Expect(r1).ToNot(BeIdenticalTo(r2))
 		})
 
-		It("does not return a nil client", func() {
-			mockConnector := NewMockConnector()
+		Context("when connector fails", func() {
+			It("does not return a nil client", func() {
+				mockConnector := NewMockConnector()
 
-			for i := 0; i < 15; i++ {
-				mockConnector.connectErrors <- errors.New("an-error")
-			}
-			cm := ingress.NewClientManager(
-				mockConnector,
-				5,
-				1*time.Millisecond,
-				ingress.WithRetryWait(10*time.Millisecond),
-			)
+				for i := 0; i < 15; i++ {
+					mockConnector.connectErrors <- errors.New("an-error")
+				}
+				cm := ingress.NewClientManager(
+					mockConnector,
+					5,
+					10*time.Millisecond,
+					1*time.Millisecond,
+					ingress.WithRetryWait(10*time.Millisecond),
+				)
 
-			r1 := cm.Next()
-			Expect(r1).ToNot(BeNil())
+				r1 := cm.Next()
+				Expect(r1).ToNot(BeNil())
+			})
+
+			It("it attempts to reconnect", func() {
+				mockConnector := NewMockConnector()
+
+				for i := 0; i < 15; i++ {
+					mockConnector.connectErrors <- errors.New("an-error")
+				}
+				ingress.NewClientManager(
+					mockConnector,
+					5,
+					time.Hour,
+					1*time.Millisecond,
+					ingress.WithRetryWait(10*time.Millisecond),
+				)
+
+				Eventually(mockConnector.GetConnectCalled).Should(BeNumerically(">", 5))
+			})
 		})
 	})
 })
@@ -132,6 +144,13 @@ func (m *MockConnector) GetCloseCalled() int {
 	defer m.mu.Unlock()
 
 	return m.closeCalled
+}
+
+func (m *MockConnector) GetConnectCalled() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.connectCalled
 }
 
 type MockReceiver struct {

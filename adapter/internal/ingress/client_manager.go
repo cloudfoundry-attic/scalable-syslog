@@ -15,18 +15,21 @@ type ConnectionBuilder interface {
 }
 
 type connection struct {
-	closer io.Closer
-	client v2.EgressClient
+	closer    io.Closer
+	client    v2.EgressClient
+	createdAt time.Time
 }
 
 // ClientManager manages loggregator egress clients and connections.
 type ClientManager struct {
-	connector     ConnectionBuilder
+	checkInterval time.Duration
 	connectionTTL time.Duration
-	connections   []*connection
+	connector     ConnectionBuilder
 	nextIdx       uint64
 	retryWait     time.Duration
-	mu            sync.RWMutex
+
+	mu          sync.RWMutex
+	connections []*connection
 }
 
 type ClientManagerOpts func(*ClientManager)
@@ -39,12 +42,19 @@ func WithRetryWait(d time.Duration) func(*ClientManager) {
 
 // NewClientManager returns a ClientManager after opening the specified number
 // of connections.
-func NewClientManager(connector ConnectionBuilder, connCount int, ttl time.Duration, opts ...ClientManagerOpts) *ClientManager {
+func NewClientManager(
+	connector ConnectionBuilder,
+	connCount int,
+	ttl time.Duration,
+	check time.Duration,
+	opts ...ClientManagerOpts,
+) *ClientManager {
 	c := &ClientManager{
 		connector:     connector,
 		connectionTTL: ttl,
 		connections:   make([]*connection, connCount),
 		retryWait:     2 * time.Second,
+		checkInterval: check,
 	}
 
 	for _, opt := range opts {
@@ -80,17 +90,21 @@ func (c *ClientManager) Next() v2.EgressClient {
 }
 
 func (c *ClientManager) monitorConnectionsForRolling() {
-	for range time.Tick(c.connectionTTL) {
+	for range time.Tick(c.checkInterval) {
 		for i := 0; i < len(c.connections); i++ {
 			c.mu.RLock()
 			conn := c.connections[i]
 			c.mu.RUnlock()
 
-			if conn != nil && conn.closer != nil {
-				conn.closer.Close()
+			if conn == nil {
+				c.openNewConnection(i)
+				continue
 			}
 
-			c.openNewConnection(i)
+			if time.Since(conn.createdAt) >= c.connectionTTL {
+				conn.closer.Close()
+				c.openNewConnection(i)
+			}
 		}
 	}
 }
@@ -110,7 +124,8 @@ func (c *ClientManager) openNewConnection(idx int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.connections[idx] = &connection{
-		closer: closer,
-		client: client,
+		closer:    closer,
+		client:    client,
+		createdAt: time.Now(),
 	}
 }
