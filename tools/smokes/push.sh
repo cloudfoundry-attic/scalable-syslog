@@ -16,7 +16,7 @@ function push_counter_app {
         if ! [ -e ./counter ]; then
             GOOS=linux go build
         fi
-        cf push "$counter_name" -c ./counter -b binary_buildpack
+        cf push "$counter_name" -c ./counter -b binary_buildpack -m 128M
     popd
 }
 
@@ -50,7 +50,7 @@ function push_drain_app {
         if ! [ -e "./${DRAIN_TYPE}_drain" ]; then
             GOOS=linux go build
         fi
-        cf push "$job_name" -c "./${DRAIN_TYPE}_drain" -b binary_buildpack --no-route --no-start
+        cf push "$job_name" -c "./${DRAIN_TYPE}_drain" -b binary_buildpack --no-route --no-start -m 128M
         cf set-env "$job_name" COUNTER_URL $(app_url $counter_name)
 
         if [ "$DRAIN_TYPE" = "syslog" ]; then
@@ -79,7 +79,7 @@ function push_spinner_app {
         if ! [ -e ./logspinner ]; then
             GOOS=linux go build
         fi
-        cf push "drainspinner-$job_name-$1" -c ./logspinner -b binary_buildpack
+        cf push "drainspinner-$job_name-$1" -c ./logspinner -b binary_buildpack -m 128M
         cf bind-service \
             "drainspinner-$job_name-$1" \
             "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION"
