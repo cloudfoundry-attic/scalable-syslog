@@ -38,7 +38,7 @@ var _ = Describe("Emitter Client", func() {
 
 		client.NewCounterMetric("some-name")
 		Eventually(grpcServer.senders).Should(HaveLen(1))
-		Eventually(grpcServer.envelopes).Should(HaveLen(1))
+		Eventually(grpcServer.envelopes).Should(BeNumerically(">", 1))
 
 		grpcServer.stop()
 
@@ -68,7 +68,7 @@ var _ = Describe("Emitter Client", func() {
 		Eventually(grpcServer.senders).Should(HaveLen(1))
 	})
 
-	Context("with a metric", func() {
+	Context("with a counter metric", func() {
 		It("emits a zero value on an interval", func() {
 			grpcServer := newgRPCServer()
 			defer grpcServer.stop()
