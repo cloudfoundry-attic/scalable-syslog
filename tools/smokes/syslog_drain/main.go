@@ -51,11 +51,11 @@ func reportCount() {
 		countStr := fmt.Sprint(newCount)
 		resp, err := http.Post(url, "text/plain", strings.NewReader(countStr))
 		if err != nil {
-			log.Println("Failed to write count: %s", err)
+			log.Printf("Failed to write count: %s", err)
 		}
 
 		if resp.StatusCode != http.StatusOK {
-			log.Println("Failed to write count: expected 200 got %d", resp.StatusCode)
+			log.Printf("Failed to write count: expected 200 got %d", resp.StatusCode)
 		}
 	}
 }

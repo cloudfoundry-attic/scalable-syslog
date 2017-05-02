@@ -51,7 +51,7 @@ function push_drain_app {
             GOOS=linux go build
         fi
         cf push "$job_name" -c "./${DRAIN_TYPE}_drain" -b binary_buildpack --no-route --no-start -m 128M
-        cf set-env "$job_name" COUNTER_URL $(app_url $counter_name)
+        cf set-env "$job_name" COUNTER_URL "https://$(app_url $counter_name)"
 
         if [ "$DRAIN_TYPE" = "syslog" ]; then
             cf map-route "$job_name" "$CF_APP_DOMAIN" --random-port
