@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 )
 
@@ -25,24 +25,28 @@ type AdapterService interface {
 
 // Orchestrator manages writes to a number of adapters.
 type Orchestrator struct {
-	reader  BindingReader
-	service AdapterService
-	health  HealthEmitter
-	emitter MetricEmitter
+	reader       BindingReader
+	service      AdapterService
+	health       HealthEmitter
+	egressClient *metricemitter.CounterMetric
 }
 
 // NewOrchestrator creates a new orchestrator.
-func NewOrchestrator(r BindingReader, s AdapterService, h HealthEmitter, m MetricEmitter) *Orchestrator {
+func NewOrchestrator(
+	r BindingReader,
+	s AdapterService,
+	h HealthEmitter,
+	m metricemitter.MetricClient,
+) *Orchestrator {
 	return &Orchestrator{
 		reader:  r,
 		service: s,
 		health:  h,
-		emitter: m,
+		egressClient: m.NewCounterMetric(
+			"drains",
+			metricemitter.WithVersion(2, 0),
+		),
 	}
-}
-
-type MetricEmitter interface {
-	IncCounter(name string, options ...metric.IncrementOpt)
 }
 
 // Run starts the orchestrator.
@@ -59,11 +63,7 @@ func (o *Orchestrator) Run(interval time.Duration) {
 			"blacklistedOrInvalidUrlCount": blacklisted,
 		})
 
-		o.emitter.IncCounter(
-			"drains",
-			metric.WithIncrement(uint64(len(expected))),
-			metric.WithVersion(2, 0),
-		)
+		o.egressClient.Increment(uint64(len(expected)))
 
 		actual, err := o.service.List()
 		if err != nil {

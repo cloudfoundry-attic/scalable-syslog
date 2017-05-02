@@ -6,7 +6,6 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 
@@ -189,21 +188,4 @@ type BlockedWriteCloser struct {
 func (b *BlockedWriteCloser) Write(*loggregator_v2.Envelope) error {
 	time.Sleep(b.duration)
 	return nil
-}
-
-type spyMetricEmitter struct {
-	name chan string
-	opts chan []metric.IncrementOpt
-}
-
-func newSpyMetricEmitter() *spyMetricEmitter {
-	return &spyMetricEmitter{
-		name: make(chan string, 10),
-		opts: make(chan []metric.IncrementOpt, 10),
-	}
-}
-
-func (e *spyMetricEmitter) IncCounter(name string, options ...metric.IncrementOpt) {
-	e.name <- name
-	e.opts <- options
 }

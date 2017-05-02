@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/scalable-syslog/internal/health"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 
@@ -25,7 +25,7 @@ type Scheduler struct {
 
 	healthAddr string
 	health     *health.Health
-	emitter    *metric.Emitter
+	emitter    metricemitter.MetricClient
 	client     *http.Client
 	interval   time.Duration
 
@@ -40,7 +40,7 @@ func NewScheduler(
 	apiURL string,
 	adapterAddrs []string,
 	adapterTLSConfig *tls.Config,
-	emitter *metric.Emitter,
+	emitter metricemitter.MetricClient,
 	opts ...SchedulerOption,
 ) *Scheduler {
 	s := &Scheduler{

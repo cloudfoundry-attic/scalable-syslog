@@ -13,7 +13,7 @@ import (
 	_ "net/http/pprof"
 
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/app"
 )
 
@@ -54,20 +54,22 @@ func main() {
 		log.Fatalf("Invalid Metric Ingress TLS config: %s", err)
 	}
 
-	emitter, err := metric.New(
-		metric.WithGrpcDialOpts(grpc.WithTransportCredentials(credentials.NewTLS(metricIngressTLS))),
-		metric.WithOrigin("scalablesyslog.scheduler"),
-		metric.WithAddr(cfg.MetricIngressAddr),
+	// metric-documentation-v2: setup function
+	metricClient, err := metricemitter.NewClient(
+		cfg.MetricIngressAddr,
+		metricemitter.WithGRPCDialOptions(grpc.WithTransportCredentials(credentials.NewTLS(metricIngressTLS))),
+		metricemitter.WithOrigin("scalablesyslog.scheduler"),
+		metricemitter.WithPulseInterval(cfg.MetricEmitterInterval),
 	)
 	if err != nil {
-		log.Printf("Failed to connect to metric ingress: %s", err)
+		log.Fatalf("Couldn't connect to metric emitter: %s", err)
 	}
 
 	scheduler := app.NewScheduler(
 		cfg.APIURL,
 		cfg.AdapterAddrs,
 		adapterTLSConfig,
-		emitter,
+		metricClient,
 		app.WithOptIn(cfg.RequireOptIn),
 		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithHTTPClient(api.NewHTTPSClient(apiTLSConfig, 5*time.Second)),

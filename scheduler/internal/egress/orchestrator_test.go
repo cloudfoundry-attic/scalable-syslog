@@ -6,7 +6,7 @@ import (
 	"time"
 
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"
@@ -17,13 +17,13 @@ var _ = Describe("Orchestrator", func() {
 	var (
 		healthEmitter  *SpyHealthEmitter
 		adapterService *SpyAdapterService
-		metricEmitter  *spyMetricEmitter
+		metricEmitter  *testhelper.SpyMetricClient
 	)
 
 	BeforeEach(func() {
 		healthEmitter = &SpyHealthEmitter{}
 		adapterService = &SpyAdapterService{}
-		metricEmitter = newSpyMetricEmitter()
+		metricEmitter = testhelper.NewMetricClient()
 	})
 
 	It("writes syslog bindings to the writer", func() {
@@ -104,27 +104,11 @@ var _ = Describe("Orchestrator", func() {
 		)
 		go o.Run(1 * time.Millisecond)
 
-		Eventually(metricEmitter.name).Should(Receive(Equal("drains")))
-		Expect(metricEmitter.opts).To(Receive(HaveLen(2)))
+		Eventually(func() uint64 {
+			return metricEmitter.GetDelta("drains")
+		}).Should(BeNumerically(">", 1))
 	})
 })
-
-type spyMetricEmitter struct {
-	name chan string
-	opts chan []metric.IncrementOpt
-}
-
-func newSpyMetricEmitter() *spyMetricEmitter {
-	return &spyMetricEmitter{
-		name: make(chan string, 10),
-		opts: make(chan []metric.IncrementOpt, 10),
-	}
-}
-
-func (e *spyMetricEmitter) IncCounter(name string, options ...metric.IncrementOpt) {
-	e.name <- name
-	e.opts <- options
-}
 
 type SpyReader struct {
 	drains ingress.Bindings

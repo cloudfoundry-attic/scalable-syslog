@@ -8,13 +8,8 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 )
-
-type MetricEmitter interface {
-	IncCounter(name string, options ...metric.IncrementOpt)
-}
 
 type ClientPool interface {
 	Next() (client v2.EgressClient)

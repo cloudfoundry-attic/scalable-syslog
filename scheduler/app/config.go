@@ -30,8 +30,9 @@ type Config struct {
 	AdapterAddrs       []string
 	Blacklist          *ingress.IPRanges
 
-	MetricIngressAddr string
-	MetricIngressCN   string
+	MetricIngressAddr     string
+	MetricIngressCN       string
+	MetricEmitterInterval time.Duration
 }
 
 func LoadConfig(args []string) (*Config, error) {
@@ -63,6 +64,7 @@ func LoadConfig(args []string) (*Config, error) {
 
 	flags.StringVar(&cfg.MetricIngressAddr, "metric-ingress-addr", "", "The ingress address for the metrics ingress API")
 	flags.StringVar(&cfg.MetricIngressCN, "metric-ingress-cn", "", "The TLS common name for metrics ingress API")
+	flags.DurationVar(&cfg.MetricEmitterInterval, "metric-emitter-interval", time.Minute, "The interval to send batched metrics to metron")
 
 	var blacklist string
 	flags.StringVar(&blacklist, "blacklist-ranges", "", "Comma separated list of blacklist IP ranges")
