@@ -144,12 +144,14 @@ var _ = Describe("Subscriber", func() {
 
 		Eventually(mockClientPool.NextCalled).Should(Receive())
 
+		done := make(chan struct{})
+		defer close(done)
 		go func() {
 			for {
 				select {
 				case receiverClient.RecvOutput.Ret0 <- buildLogEnvelope():
 					// Do nothing
-				default:
+				case <-done:
 					return
 				}
 			}
