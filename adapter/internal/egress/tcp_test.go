@@ -10,6 +10,7 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -23,7 +24,7 @@ var _ = Describe("TCPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
-		metricEmitter *spyMetricEmitter
+		metricEmitter *testhelper.SpyMetricClient
 	)
 
 	BeforeEach(func() {
@@ -31,7 +32,7 @@ var _ = Describe("TCPWriter", func() {
 		listener, err = net.Listen("tcp", ":0")
 		Expect(err).ToNot(HaveOccurred())
 		binding.Drain = fmt.Sprintf("syslog://%s", listener.Addr())
-		metricEmitter = newSpyMetricEmitter()
+		metricEmitter = testhelper.NewMetricClient()
 	})
 
 	AfterEach(func() {
@@ -128,15 +129,10 @@ var _ = Describe("TCPWriter", func() {
 		})
 
 		It("emits an egress metric for each message", func() {
-			go func(writer egress.WriteCloser) {
-				for {
-					env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
-					writer.Write(env)
-				}
-			}(writer)
+			env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
+			writer.Write(env)
 
-			Eventually(metricEmitter.name).Should(Receive(Equal("egress")))
-			Expect(metricEmitter.opts).To(Receive(HaveLen(3)))
+			Expect(metricEmitter.GetDelta("egress")).To(Equal(uint64(1)))
 		})
 	})
 

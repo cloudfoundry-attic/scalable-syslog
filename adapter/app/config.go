@@ -24,8 +24,9 @@ type Config struct {
 	SyslogIOTimeout      time.Duration
 	SyslogSkipCertVerify bool
 
-	MetricIngressAddr string
-	MetricIngressCN   string
+	MetricIngressAddr     string
+	MetricIngressCN       string
+	MetricEmitterInterval time.Duration
 }
 
 func LoadConfig() *Config {
@@ -46,12 +47,13 @@ func LoadConfig() *Config {
 	flag.StringVar(&cfg.RLPCommonName, "rlp-cn", "", "The common name for the Loggregator egress API")
 
 	flag.DurationVar(&cfg.SyslogDialTimeout, "syslog-dial-timeout", 5*time.Second, "The timeout for dialing to syslog drains")
-	flag.DurationVar(&cfg.SyslogIOTimeout, "syslog-io-timeout", 60*time.Second, "The timeout for writing to syslog drains")
+	flag.DurationVar(&cfg.SyslogIOTimeout, "syslog-io-timeout", time.Minute, "The timeout for writing to syslog drains")
 	flag.BoolVar(&cfg.SyslogSkipCertVerify, "syslog-skip-cert-verify", false, "The option to not verify syslog TLS certs")
 
 	flag.StringVar(&cfg.LogsAPIAddr, "logs-api-addr", "", "The address for the logs API")
 	flag.StringVar(&cfg.MetricIngressAddr, "metric-ingress-addr", "", "The ingress address for the metrics API")
 	flag.StringVar(&cfg.MetricIngressCN, "metric-ingress-cn", "", "The TLS common name for metrics ingress API")
+	flag.DurationVar(&cfg.MetricEmitterInterval, "metric-emitter-interval", time.Minute, "The interval to send batched metrics to metron")
 
 	flag.Parse()
 

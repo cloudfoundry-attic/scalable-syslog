@@ -4,12 +4,12 @@ import (
 	"context"
 	"log"
 	"sync/atomic"
-	"time"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 )
 
 type MetricEmitter interface {
@@ -26,17 +26,20 @@ type SyslogConnector interface {
 
 // Subscriber streams loggregator egress to the syslog drain.
 type Subscriber struct {
-	pool      ClientPool
-	connector SyslogConnector
-	emitter   MetricEmitter
+	pool          ClientPool
+	connector     SyslogConnector
+	ingressMetric *metricemitter.CounterMetric
 }
 
 // NewSubscriber returns a new Subscriber.
-func NewSubscriber(p ClientPool, c SyslogConnector, e MetricEmitter) *Subscriber {
+func NewSubscriber(p ClientPool, c SyslogConnector, e metricemitter.MetricClient) *Subscriber {
 	return &Subscriber{
 		pool:      p,
 		connector: c,
-		emitter:   e,
+		ingressMetric: e.NewCounterMetric(
+			"ingress",
+			metricemitter.WithVersion(2, 0),
+		),
 	}
 }
 
@@ -100,9 +103,6 @@ func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int
 }
 
 func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteCloser, unsubscribe *int32) error {
-	var count uint64
-	lastEmitted := time.Now()
-
 	for {
 		if atomic.LoadInt32(unsubscribe) > 0 {
 			return nil
@@ -116,20 +116,7 @@ func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteClo
 			continue
 		}
 
-		count++
-		if count >= 1000 || time.Since(lastEmitted) > 5*time.Second {
-			// metric-documentation-v2: (scalablesyslog.adapter.ingress) The number
-			// of received log messages.
-			s.emitter.IncCounter("ingress",
-				metric.WithIncrement(count),
-				metric.WithVersion(2, 0),
-			)
-
-			lastEmitted = time.Now()
-			log.Printf("Ingressed %d envelopes", count)
-			count = 0
-		}
-
+		s.ingressMetric.Increment(1)
 		// We decided to ignore the error from the writer since in most
 		// situations the connector will provide a diode writer and the diode
 		// writer never returns an error.

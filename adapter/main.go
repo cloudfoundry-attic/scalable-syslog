@@ -12,7 +12,7 @@ import (
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/app"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 )
 
 func main() {
@@ -48,20 +48,22 @@ func main() {
 		log.Fatalf("Invalid Metric Ingress TLS config: %s", err)
 	}
 
-	emitter, err := metric.New(
-		metric.WithGrpcDialOpts(grpc.WithTransportCredentials(credentials.NewTLS(metricIngressTLS))),
-		metric.WithOrigin("scalablesyslog.adapter"),
-		metric.WithAddr(cfg.MetricIngressAddr),
+	// metric-documentation-v2: setup function
+	metricClient, err := metricemitter.NewClient(
+		cfg.MetricIngressAddr,
+		metricemitter.WithGRPCDialOptions(grpc.WithTransportCredentials(credentials.NewTLS(metricIngressTLS))),
+		metricemitter.WithOrigin("scalablesyslog.adapter"),
+		metricemitter.WithPulseInterval(cfg.MetricEmitterInterval),
 	)
 	if err != nil {
-		log.Printf("Failed to connect to metric ingress: %s", err)
+		log.Fatalf("Couldn't connect to metric emitter: %s", err)
 	}
 
 	adapter := app.NewAdapter(
 		cfg.LogsAPIAddr,
 		rlpTlsConfig,
 		tlsConfig,
-		emitter,
+		metricClient,
 		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithAdapterServerAddr(cfg.AdapterHostport),
 		app.WithSyslogDialTimeout(cfg.SyslogDialTimeout),

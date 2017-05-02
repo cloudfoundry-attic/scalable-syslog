@@ -13,7 +13,7 @@ import (
 
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"github.com/crewjam/rfc5424"
 )
 
@@ -33,12 +33,16 @@ type TCPWriter struct {
 	conn   net.Conn
 	closed bool
 
-	emitter        MetricEmitter
-	metricThrottle *metricThrottler
+	egressMetric *metricemitter.CounterMetric
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
-func NewTCPWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, skipCertVerify bool, emitter MetricEmitter) (WriteCloser, error) {
+func NewTCPWriter(
+	binding *v1.Binding,
+	dialTimeout, ioTimeout time.Duration,
+	skipCertVerify bool,
+	metricClient metricemitter.MetricClient,
+) (WriteCloser, error) {
 	drainURL, err := url.Parse(binding.Drain)
 	// TODO: remove parsing/error from here
 	if err != nil {
@@ -53,15 +57,19 @@ func NewTCPWriter(binding *v1.Binding, dialTimeout, ioTimeout time.Duration, ski
 	}
 
 	w := &TCPWriter{
-		url:            drainURL,
-		appID:          binding.AppId,
-		hostname:       binding.Hostname,
-		ioTimeout:      ioTimeout,
-		dialFunc:       df,
-		emitter:        emitter,
-		metricThrottle: NewMetricThrottler(),
-		scheme:         "syslog",
+		url:       drainURL,
+		appID:     binding.AppId,
+		hostname:  binding.Hostname,
+		ioTimeout: ioTimeout,
+		dialFunc:  df,
+		scheme:    "syslog",
 	}
+
+	w.egressMetric = metricClient.NewCounterMetric(
+		"egress",
+		metricemitter.WithVersion(2, 0),
+		metricemitter.WithTags(map[string]string{"drain-protocol": w.scheme}),
+	)
 
 	return w, nil
 }
@@ -156,15 +164,7 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 		return err
 	}
 
-	w.metricThrottle.Emit(func(metricCount int) {
-		w.emitter.IncCounter(
-			"egress",
-			metric.WithIncrement(uint64(metricCount)),
-			metric.WithVersion(2, 0),
-			metric.WithTag("drain-protocol", w.scheme),
-		)
-		log.Printf("Egressed %d %s messages", metricCount, w.scheme)
-	})
+	w.egressMetric.Increment(1)
 
 	return nil
 }

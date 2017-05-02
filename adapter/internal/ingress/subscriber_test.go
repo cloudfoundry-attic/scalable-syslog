@@ -7,7 +7,7 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,7 +16,7 @@ import (
 var _ = Describe("Subscriber", func() {
 	var (
 		mockClientPool  *mockClientPool
-		spyEmitter      *spyMetricEmitter
+		spyEmitter      *testhelper.SpyMetricClient
 		subscriber      *ingress.Subscriber
 		binding         *v1.Binding
 		syslogConnector *mockSyslogConnector
@@ -24,7 +24,7 @@ var _ = Describe("Subscriber", func() {
 
 	BeforeEach(func() {
 		mockClientPool = newMockClientPool()
-		spyEmitter = newSpyMetricEmitter()
+		spyEmitter = testhelper.NewMetricClient()
 		syslogConnector = newMockSyslogConnector()
 		subscriber = ingress.NewSubscriber(mockClientPool, syslogConnector, spyEmitter)
 		binding = &v1.Binding{
@@ -231,24 +231,11 @@ var _ = Describe("Subscriber", func() {
 
 		By("receiving a log message")
 		close(receiverClient.RecvOutput.Ret1)
-		go func() {
-			for {
-				receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
-			}
-		}()
+		receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
 
-		go func() {
-			// drain the relevant chans
-			for {
-				select {
-				case <-closeWriter.writes:
-				case <-receiverClient.RecvCalled:
-				}
-			}
-		}()
-
-		Eventually(spyEmitter.names).Should(Receive(Equal("ingress")))
-		Expect(spyEmitter.opts).To(Receive(HaveLen(2)))
+		Eventually(func() uint64 {
+			return spyEmitter.GetDelta("ingress")
+		}).Should(Equal(uint64(1)))
 	})
 })
 
@@ -272,23 +259,6 @@ func (s *spyCloseWriter) Write(env *v2.Envelope) error {
 func (s *spyCloseWriter) Close() error {
 	s.closes <- true
 	return nil
-}
-
-type spyMetricEmitter struct {
-	names chan string
-	opts  chan []metric.IncrementOpt
-}
-
-func newSpyMetricEmitter() *spyMetricEmitter {
-	return &spyMetricEmitter{
-		names: make(chan string, 100),
-		opts:  make(chan []metric.IncrementOpt, 100),
-	}
-}
-
-func (e *spyMetricEmitter) IncCounter(name string, options ...metric.IncrementOpt) {
-	e.names <- name
-	e.opts <- options
 }
 
 func buildLogEnvelope() *v2.Envelope {

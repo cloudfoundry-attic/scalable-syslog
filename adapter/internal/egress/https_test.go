@@ -11,17 +11,18 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("HTTPWriter", func() {
 	var (
-		metricEmitter *spyMetricEmitter
+		metricEmitter *testhelper.SpyMetricClient
 	)
 
 	BeforeEach(func() {
-		metricEmitter = newSpyMetricEmitter()
+		metricEmitter = testhelper.NewMetricClient()
 	})
 
 	It("does not accept schemes other than http", func() {
@@ -107,15 +108,10 @@ var _ = Describe("HTTPWriter", func() {
 		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, metricEmitter)
 		Expect(err).ToNot(HaveOccurred())
 
-		go func() {
-			env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
-			for {
-				writer.Write(env)
-			}
-		}()
+		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
+		writer.Write(env)
 
-		Eventually(metricEmitter.name, 5).Should(Receive(Equal("egress")))
-		Expect(metricEmitter.opts).To(Receive(HaveLen(3)))
+		Expect(metricEmitter.GetDelta("egress")).To(Equal(uint64(1)))
 	})
 })
 

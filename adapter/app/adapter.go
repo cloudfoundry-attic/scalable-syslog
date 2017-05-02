@@ -11,7 +11,7 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/health"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -29,7 +29,7 @@ type Adapter struct {
 	syslogIOTimeout        time.Duration
 	skipCertVerify         bool
 	health                 *health.Health
-	emitter                *metric.Emitter
+	metricClient           metricemitter.MetricClient
 }
 
 // AdapterOption is a type that will manipulate a config
@@ -94,7 +94,7 @@ func NewAdapter(
 	logsEgressAPIAddr string,
 	logsEgressAPITLSConfig *tls.Config,
 	adapterServerTLSConfig *tls.Config,
-	emitter *metric.Emitter,
+	metricClient metricemitter.MetricClient,
 	opts ...AdapterOption,
 ) *Adapter {
 	adapter := &Adapter{
@@ -109,7 +109,7 @@ func NewAdapter(
 		syslogIOTimeout:        60 * time.Second,
 		skipCertVerify:         true,
 		health:                 health.NewHealth(),
-		emitter:                emitter,
+		metricClient:           metricClient,
 	}
 
 	for _, o := range opts {
@@ -137,9 +137,9 @@ func (a *Adapter) Start() (actualHealth, actualService string) {
 		a.syslogDialTimeout,
 		a.syslogIOTimeout,
 		a.skipCertVerify,
-		a.emitter,
+		a.metricClient,
 	)
-	subscriber := ingress.NewSubscriber(clientManager, syslogConnector, a.emitter)
+	subscriber := ingress.NewSubscriber(clientManager, syslogConnector, a.metricClient)
 	manager := binding.NewBindingManager(subscriber)
 
 	actualHealth = health.StartServer(a.health, a.healthAddr)

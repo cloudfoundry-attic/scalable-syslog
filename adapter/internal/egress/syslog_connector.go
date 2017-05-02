@@ -8,7 +8,7 @@ import (
 
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metric"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"github.com/cloudfoundry/diodes"
 )
 
@@ -23,21 +23,47 @@ type SyslogConnector struct {
 	skipCertVerify bool
 	ioTimeout      time.Duration
 	dialTimeout    time.Duration
+	metricClient   metricemitter.MetricClient
 	constructors   map[string]SyslogConstructor
-	emitter        MetricEmitter
+	droppedMetrics map[string]*metricemitter.CounterMetric
 }
 
 // NewSyslogConnector configures and returns a new SyslogConnector.
-func NewSyslogConnector(dialTimeout, ioTimeout time.Duration, skipCertVerify bool, emitter MetricEmitter, opts ...ConnectorOption) *SyslogConnector {
+func NewSyslogConnector(
+	dialTimeout, ioTimeout time.Duration,
+	skipCertVerify bool,
+	metricClient metricemitter.MetricClient,
+	opts ...ConnectorOption,
+) *SyslogConnector {
+	httpsDroppedMetric := metricClient.NewCounterMetric("dropped",
+		metricemitter.WithVersion(2, 0),
+		metricemitter.WithTags(map[string]string{"drain-protocol": "https"}),
+	)
+
+	syslogDroppedMetric := metricClient.NewCounterMetric("dropped",
+		metricemitter.WithVersion(2, 0),
+		metricemitter.WithTags(map[string]string{"drain-protocol": "syslog"}),
+	)
+
+	syslogTLSDroppedMetric := metricClient.NewCounterMetric("dropped",
+		metricemitter.WithVersion(2, 0),
+		metricemitter.WithTags(map[string]string{"drain-protocol": "syslog-tls"}),
+	)
+
 	sc := &SyslogConnector{
-		emitter:        emitter,
 		ioTimeout:      ioTimeout,
 		dialTimeout:    dialTimeout,
 		skipCertVerify: skipCertVerify,
+		metricClient:   metricClient,
 		constructors: map[string]SyslogConstructor{
 			"https":      NewHTTPSWriter,
 			"syslog":     NewTCPWriter,
 			"syslog-tls": NewTLSWriter,
+		},
+		droppedMetrics: map[string]*metricemitter.CounterMetric{
+			"https":      httpsDroppedMetric,
+			"syslog":     syslogDroppedMetric,
+			"syslog-tls": syslogTLSDroppedMetric,
 		},
 	}
 	for _, o := range opts {
@@ -46,17 +72,18 @@ func NewSyslogConnector(dialTimeout, ioTimeout time.Duration, skipCertVerify boo
 	return sc
 }
 
-type MetricEmitter interface {
-	IncCounter(name string, options ...metric.IncrementOpt)
-}
-
-type SyslogConstructor func(*v1.Binding, time.Duration, time.Duration, bool, MetricEmitter) (WriteCloser, error)
-
+type SyslogConstructor func(*v1.Binding, time.Duration, time.Duration, bool, metricemitter.MetricClient) (WriteCloser, error)
 type ConnectorOption func(*SyslogConnector)
 
-func WithConstructors(constructors map[string]SyslogConstructor) func(*SyslogConnector) {
+func WithConstructors(constructors map[string]SyslogConstructor) ConnectorOption {
 	return func(sc *SyslogConnector) {
 		sc.constructors = constructors
+	}
+}
+
+func WithDroppedMetrics(metrics map[string]*metricemitter.CounterMetric) ConnectorOption {
+	return func(sc *SyslogConnector) {
+		sc.droppedMetrics = metrics
 	}
 }
 
@@ -68,22 +95,23 @@ func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
 		return nil, err
 	}
 
+	droppedMetric := w.droppedMetrics[url.Scheme]
 	constructor, ok := w.constructors[url.Scheme]
 	if !ok {
 		return nil, errors.New("unsupported scheme")
 	}
-	writer, err := constructor(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify, w.emitter)
+	writer, err := constructor(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify, w.metricClient)
 	if err != nil {
 		return nil, err
 	}
+
 	dw := NewDiodeWriter(writer, diodes.AlertFunc(func(missed int) {
-		w.emitter.IncCounter(
-			"dropped",
-			metric.WithIncrement(uint64(missed)),
-			metric.WithVersion(2, 0),
-			metric.WithTag("drain-protocol", url.Scheme),
-		)
+		if droppedMetric != nil {
+			droppedMetric.Increment(uint64(missed))
+		}
+
 		log.Printf("Dropped %d %s logs", missed, url.Scheme)
 	}))
+
 	return dw, nil
 }
