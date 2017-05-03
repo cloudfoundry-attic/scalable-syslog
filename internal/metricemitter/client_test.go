@@ -13,19 +13,6 @@ import (
 )
 
 var _ = Describe("Emitter Client", func() {
-	It("maintains a gRPC connection", func() {
-		grpcServer := newgRPCServer()
-		defer grpcServer.stop()
-
-		_, err := metricemitter.NewClient(
-			grpcServer.addr,
-			metricemitter.WithGRPCDialOptions(grpc.WithInsecure()),
-			metricemitter.WithPulseInterval(50*time.Millisecond),
-		)
-
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	It("reconnects if the connection is lost", func() {
 		grpcServer := newgRPCServer()
 
@@ -55,7 +42,7 @@ var _ = Describe("Emitter Client", func() {
 		}, 3).Should(BeNumerically(">", envelopeCount))
 	})
 
-	It("creates a new metric", func() {
+	It("emits a zero value on an interval", func() {
 		grpcServer := newgRPCServer()
 		defer grpcServer.stop()
 
@@ -63,15 +50,68 @@ var _ = Describe("Emitter Client", func() {
 			grpcServer.addr,
 			metricemitter.WithGRPCDialOptions(grpc.WithInsecure()),
 			metricemitter.WithPulseInterval(50*time.Millisecond),
+			metricemitter.WithSourceID("a-source"),
 		)
 		Expect(err).ToNot(HaveOccurred())
 
 		client.NewCounterMetric("some-name")
 		Eventually(grpcServer.senders).Should(HaveLen(1))
+
+		var env *v2.Envelope
+		Consistently(func() uint64 {
+			Eventually(grpcServer.envelopes).Should(Receive(&env))
+			Expect(env.SourceId).To(Equal("a-source"))
+			Expect(env.Timestamp).To(BeNumerically(">", 0))
+
+			counter := env.GetCounter()
+			Expect(counter.Name).To(Equal("some-name"))
+
+			return env.GetCounter().GetDelta()
+		}).Should(Equal(uint64(0)))
+	})
+
+	It("always combines the tags from the client and the metric", func() {
+		grpcServer := newgRPCServer()
+		defer grpcServer.stop()
+
+		client, err := metricemitter.NewClient(
+			grpcServer.addr,
+			metricemitter.WithGRPCDialOptions(grpc.WithInsecure()),
+			metricemitter.WithPulseInterval(50*time.Millisecond),
+			metricemitter.WithSourceID("a-source"),
+			metricemitter.WithOrigin("a-origin"),
+			metricemitter.WithDeployment("a-deployment", "a-job", "a-index"),
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		client.NewCounterMetric("some-name",
+			metricemitter.WithVersion(2, 0),
+			metricemitter.WithTags(map[string]string{
+				"unicorn": "another-unicorn",
+			}),
+		)
+		Eventually(grpcServer.senders).Should(HaveLen(1))
+
+		var env *v2.Envelope
+		text := func(s string) *v2.Value {
+			return &v2.Value{Data: &v2.Value_Text{Text: s}}
+		}
+
+		Eventually(grpcServer.envelopes).Should(Receive(&env))
+		Expect(env.Tags).To(Equal(map[string]*v2.Value{
+			//client tags
+			"origin":     text("a-origin"),
+			"deployment": text("a-deployment"),
+			"job":        text("a-job"),
+			"index":      text("a-index"),
+			//metric tags
+			"metric_version": text("2.0"),
+			"unicorn":        text("another-unicorn"),
+		}))
 	})
 
 	Context("with a counter metric", func() {
-		It("emits a zero value on an interval", func() {
+		It("emits that value, followed by zero values", func() {
 			grpcServer := newgRPCServer()
 			defer grpcServer.stop()
 
@@ -79,98 +119,27 @@ var _ = Describe("Emitter Client", func() {
 				grpcServer.addr,
 				metricemitter.WithGRPCDialOptions(grpc.WithInsecure()),
 				metricemitter.WithPulseInterval(50*time.Millisecond),
-				metricemitter.WithSourceID("a-source"),
 			)
 			Expect(err).ToNot(HaveOccurred())
 
-			client.NewCounterMetric("some-name")
+			metric := client.NewCounterMetric("some-name")
 			Eventually(grpcServer.senders).Should(HaveLen(1))
 
+			metric.Increment(5)
+
 			var env *v2.Envelope
-			Consistently(func() uint64 {
+			Eventually(func() uint64 {
 				Eventually(grpcServer.envelopes).Should(Receive(&env))
-				Expect(env.SourceId).To(Equal("a-source"))
-				Expect(env.Timestamp).To(BeNumerically(">", 0))
-
-				counter := env.GetCounter()
-				Expect(counter.Name).To(Equal("some-name"))
-
 				return env.GetCounter().GetDelta()
-			}).Should(Equal(uint64(0)))
-		})
-
-		It("always combines the tags from the client and the metric", func() {
-			grpcServer := newgRPCServer()
-			defer grpcServer.stop()
-
-			client, err := metricemitter.NewClient(
-				grpcServer.addr,
-				metricemitter.WithGRPCDialOptions(grpc.WithInsecure()),
-				metricemitter.WithPulseInterval(50*time.Millisecond),
-				metricemitter.WithSourceID("a-source"),
-				metricemitter.WithOrigin("a-origin"),
-				metricemitter.WithDeployment("a-deployment", "a-job", "a-index"),
-			)
-			Expect(err).ToNot(HaveOccurred())
-
-			client.NewCounterMetric("some-name",
-				metricemitter.WithVersion(2, 0),
-				metricemitter.WithTags(map[string]string{
-					"unicorn": "another-unicorn",
-				}),
-			)
-			Eventually(grpcServer.senders).Should(HaveLen(1))
-
-			var env *v2.Envelope
-			text := func(s string) *v2.Value {
-				return &v2.Value{Data: &v2.Value_Text{Text: s}}
-			}
+			}).Should(Equal(uint64(5)))
 
 			Eventually(grpcServer.envelopes).Should(Receive(&env))
-			Expect(env.Tags).To(Equal(map[string]*v2.Value{
-				//client tags
-				"origin":     text("a-origin"),
-				"deployment": text("a-deployment"),
-				"job":        text("a-job"),
-				"index":      text("a-index"),
-				//metric tags
-				"metric_version": text("2.0"),
-				"unicorn":        text("another-unicorn"),
-			}))
-		})
-
-		Context("when the metric is incremented", func() {
-			It("emits that value, followed by zero values", func() {
-				grpcServer := newgRPCServer()
-				defer grpcServer.stop()
-
-				client, err := metricemitter.NewClient(
-					grpcServer.addr,
-					metricemitter.WithGRPCDialOptions(grpc.WithInsecure()),
-					metricemitter.WithPulseInterval(50*time.Millisecond),
-				)
-				Expect(err).ToNot(HaveOccurred())
-
-				metric := client.NewCounterMetric("some-name")
-				Eventually(grpcServer.senders).Should(HaveLen(1))
-
-				metric.Increment(5)
-				metric.Increment(6)
-
-				var env *v2.Envelope
-				Eventually(func() uint64 {
-					Eventually(grpcServer.envelopes).Should(Receive(&env))
-					return env.GetCounter().GetDelta()
-				}).Should(Equal(uint64(11)))
-
-				Eventually(grpcServer.envelopes).Should(Receive(&env))
-				Expect(env.GetCounter().GetDelta()).To(Equal(uint64(0)))
-			})
+			Expect(env.GetCounter().GetDelta()).To(Equal(uint64(0)))
 		})
 	})
 
 	Context("with a guage metric", func() {
-		It("emits the guage value on interval", func() {
+		It("emits the gauge value on interval with tags", func() {
 			grpcServer := newgRPCServer()
 			defer grpcServer.stop()
 
