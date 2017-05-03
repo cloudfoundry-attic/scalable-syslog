@@ -25,7 +25,7 @@ type Scheduler struct {
 
 	healthAddr string
 	health     *health.Health
-	emitter    metricemitter.MetricClient
+	emitter    Emitter
 	client     *http.Client
 	interval   time.Duration
 
@@ -35,12 +35,16 @@ type Scheduler struct {
 	blacklist *ingress.IPRanges
 }
 
+type Emitter interface {
+	NewGaugeMetric(name, unit string, opts ...metricemitter.MetricOption) *metricemitter.GaugeMetric
+}
+
 // NewScheduler returns a new unstarted scheduler.
 func NewScheduler(
 	apiURL string,
 	adapterAddrs []string,
 	adapterTLSConfig *tls.Config,
-	emitter metricemitter.MetricClient,
+	e Emitter,
 	opts ...SchedulerOption,
 ) *Scheduler {
 	s := &Scheduler{
@@ -52,7 +56,7 @@ func NewScheduler(
 		interval:         15 * time.Second,
 		blacklist:        &ingress.IPRanges{},
 		health:           health.NewHealth(),
-		emitter:          emitter,
+		emitter:          e,
 	}
 	for _, o := range opts {
 		o(s)

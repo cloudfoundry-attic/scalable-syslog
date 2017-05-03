@@ -25,10 +25,14 @@ type AdapterService interface {
 
 // Orchestrator manages writes to a number of adapters.
 type Orchestrator struct {
-	reader       BindingReader
-	service      AdapterService
-	health       HealthEmitter
-	egressClient *metricemitter.CounterMetric
+	reader     BindingReader
+	service    AdapterService
+	health     HealthEmitter
+	drainGauge *metricemitter.GaugeMetric
+}
+
+type MetricEmitter interface {
+	NewGaugeMetric(name, unit string, opts ...metricemitter.MetricOption) *metricemitter.GaugeMetric
 }
 
 // NewOrchestrator creates a new orchestrator.
@@ -36,14 +40,15 @@ func NewOrchestrator(
 	r BindingReader,
 	s AdapterService,
 	h HealthEmitter,
-	m metricemitter.MetricClient,
+	m MetricEmitter,
 ) *Orchestrator {
 	return &Orchestrator{
 		reader:  r,
 		service: s,
 		health:  h,
-		egressClient: m.NewCounterMetric(
+		drainGauge: m.NewGaugeMetric(
 			"drains",
+			"count",
 			metricemitter.WithVersion(2, 0),
 		),
 	}
@@ -63,7 +68,7 @@ func (o *Orchestrator) Run(interval time.Duration) {
 			"blacklistedOrInvalidUrlCount": blacklisted,
 		})
 
-		o.egressClient.Increment(uint64(len(expected)))
+		o.drainGauge.Set(int64(len(expected)))
 
 		actual, err := o.service.List()
 		if err != nil {

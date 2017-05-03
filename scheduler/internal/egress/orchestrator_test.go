@@ -5,12 +5,15 @@ import (
 	"sync"
 	"time"
 
+	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 var _ = Describe("Orchestrator", func() {
@@ -43,7 +46,7 @@ var _ = Describe("Orchestrator", func() {
 			healthEmitter,
 			metricEmitter,
 		)
-		go o.Run(1 * time.Millisecond)
+		go o.Run(time.Millisecond)
 
 		Eventually(adapterService.CreateDeltaActual).Should(HaveLen(0))
 		Eventually(adapterService.CreateDeltaExpected).Should(HaveLen(1))
@@ -63,7 +66,7 @@ var _ = Describe("Orchestrator", func() {
 			healthEmitter,
 			metricEmitter,
 		)
-		go o.Run(1 * time.Millisecond)
+		go o.Run(time.Millisecond)
 
 		Consistently(adapterService.CreateDeltaCalled).Should(BeFalse())
 	})
@@ -80,7 +83,7 @@ var _ = Describe("Orchestrator", func() {
 			healthEmitter,
 			metricEmitter,
 		)
-		go o.Run(1 * time.Millisecond)
+		go o.Run(time.Millisecond)
 
 		Consistently(adapterService.CreateDeltaCalled).Should(BeFalse())
 	})
@@ -102,11 +105,37 @@ var _ = Describe("Orchestrator", func() {
 			healthEmitter,
 			metricEmitter,
 		)
-		go o.Run(1 * time.Millisecond)
+		go o.Run(time.Millisecond)
 
-		Eventually(func() uint64 {
-			return metricEmitter.GetDelta("drains")
-		}).Should(BeNumerically(">", 1))
+		f := func() v2.Envelope {
+			var actualEnvelope *v2.Envelope
+			metricEmitter.GaugeMetric.SendWith(func(e *v2.Envelope) error {
+				actualEnvelope = e
+
+				return nil
+			})
+			return *actualEnvelope
+		}
+		Eventually(f).Should(MatchFields(IgnoreExtras, Fields{
+			"SourceId": Equal("spy-client"),
+			"Tags": Equal(map[string]*v2.Value{
+				"metric_version": {
+					Data: &v2.Value_Text{
+						Text: "2.0",
+					},
+				},
+			}),
+			"Message": Equal(&v2.Envelope_Gauge{
+				Gauge: &v2.Gauge{
+					Metrics: map[string]*v2.GaugeValue{
+						"drains": {
+							Unit:  "count",
+							Value: 1,
+						},
+					},
+				},
+			}),
+		}))
 	})
 })
 
