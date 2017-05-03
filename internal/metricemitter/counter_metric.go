@@ -16,7 +16,7 @@ type CounterMetric struct {
 	delta    uint64
 }
 
-type MetricOption func(*CounterMetric)
+type MetricOption func(taggedMetric)
 
 func NewCounterMetric(name, sourceID string, opts ...MetricOption) *CounterMetric {
 	m := &CounterMetric{
@@ -67,20 +67,28 @@ func (m *CounterMetric) toEnvelope(delta uint64) *v2.Envelope {
 	}
 }
 
+func (m *CounterMetric) setTag(k, v string) {
+	m.tags[k] = &v2.Value{
+		Data: &v2.Value_Text{
+			Text: v,
+		},
+	}
+}
+
 func WithVersion(major, minor uint) MetricOption {
 	return WithTags(map[string]string{
 		"metric_version": fmt.Sprintf("%d.%d", major, minor),
 	})
 }
 
+type taggedMetric interface {
+	setTag(key, value string)
+}
+
 func WithTags(tags map[string]string) MetricOption {
-	return func(m *CounterMetric) {
+	return func(t taggedMetric) {
 		for k, v := range tags {
-			m.tags[k] = &v2.Value{
-				Data: &v2.Value_Text{
-					Text: v,
-				},
-			}
+			t.setTag(k, v)
 		}
 	}
 }

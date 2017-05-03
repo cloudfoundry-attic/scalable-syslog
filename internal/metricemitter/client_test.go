@@ -168,6 +168,57 @@ var _ = Describe("Emitter Client", func() {
 			})
 		})
 	})
+
+	Context("with a guage metric", func() {
+		It("emits the guage value on interval", func() {
+			grpcServer := newgRPCServer()
+			defer grpcServer.stop()
+
+			client, err := metricemitter.NewClient(
+				grpcServer.addr,
+				metricemitter.WithGRPCDialOptions(grpc.WithInsecure()),
+				metricemitter.WithPulseInterval(50*time.Millisecond),
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			metric := client.NewGaugeMetric(
+				"some-name",
+				"some-unit",
+				metricemitter.WithTags(map[string]string{
+					"some-tag": "some-value",
+				}),
+			)
+			Eventually(grpcServer.senders).Should(HaveLen(1))
+
+			metric.Set(5)
+
+			var env *v2.Envelope
+			Eventually(func() map[string]*v2.GaugeValue {
+				Eventually(grpcServer.envelopes).Should(Receive(&env))
+				return env.GetGauge().Metrics
+			}).Should(Equal(map[string]*v2.GaugeValue{
+				"some-name": &v2.GaugeValue{
+					Unit:  "some-unit",
+					Value: float64(5),
+				},
+			}))
+
+			Eventually(grpcServer.envelopes).Should(Receive(&env))
+			Expect(env.GetGauge().Metrics).To(Equal(map[string]*v2.GaugeValue{
+				"some-name": &v2.GaugeValue{
+					Unit:  "some-unit",
+					Value: 5.0,
+				},
+			}))
+			Expect(env.Tags).To(Equal(map[string]*v2.Value{
+				"some-tag": &v2.Value{
+					Data: &v2.Value_Text{
+						Text: "some-value",
+					},
+				},
+			}))
+		})
+	})
 })
 
 func newgRPCServer() *SpyIngressServer {

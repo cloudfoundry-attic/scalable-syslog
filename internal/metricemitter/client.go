@@ -21,10 +21,6 @@ type client struct {
 	tags          map[string]string
 }
 
-type sendable interface {
-	WithEnvelope(func(*v2.Envelope) error) error
-}
-
 type ClientOption func(*client)
 
 func WithGRPCDialOptions(opts ...grpc.DialOption) ClientOption {
@@ -85,6 +81,18 @@ func (c *client) NewCounterMetric(name string, opts ...MetricOption) *CounterMet
 	go c.pulse(m)
 
 	return m
+}
+
+func (c *client) NewGaugeMetric(name, unit string, opts ...MetricOption) *GaugeMetric {
+	opts = append(opts, WithTags(c.tags))
+	g := NewGaugeMetric(name, unit, c.sourceID, opts...)
+	go c.pulse(g)
+
+	return g
+}
+
+type sendable interface {
+	WithEnvelope(func(*v2.Envelope) error) error
 }
 
 func (c *client) pulse(s sendable) {
