@@ -20,7 +20,7 @@ var _ = Describe("GaugeMetric", func() {
 			return nil
 		}
 
-		err := g.WithEnvelope(fn)
+		err := g.SendWith(fn)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(actualEnvelope.GetGauge().Metrics).To(Equal(map[string]*v2.GaugeValue{
@@ -40,7 +40,7 @@ var _ = Describe("GaugeMetric", func() {
 			return nil
 		}
 
-		err := g.WithEnvelope(fn)
+		err := g.SendWith(fn)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(actualEnvelope.SourceId).To(Equal("source-id"))
@@ -55,7 +55,7 @@ var _ = Describe("GaugeMetric", func() {
 			return nil
 		}
 
-		err := g.WithEnvelope(fn)
+		err := g.SendWith(fn)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(actualEnvelope.Timestamp).To(BeNumerically(">", int64(0)))
@@ -77,7 +77,7 @@ var _ = Describe("GaugeMetric", func() {
 			return nil
 		}
 
-		err := g.WithEnvelope(fn)
+		err := g.SendWith(fn)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(actualEnvelope.Tags).To(Equal(map[string]*v2.Value{

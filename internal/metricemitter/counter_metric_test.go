@@ -11,13 +11,13 @@ import (
 )
 
 var _ = Describe("CounterMetric", func() {
-	Context("WithEnvelope", func() {
+	Context("SendWith", func() {
 		It("decrements it value on success", func() {
 			metric := metricemitter.NewCounterMetric("name", "source-id")
 
 			metric.Increment(10)
 
-			err := metric.WithEnvelope(func(_ *v2.Envelope) error {
+			err := metric.SendWith(func(_ *v2.Envelope) error {
 				return nil
 			})
 			Expect(err).ToNot(HaveOccurred())
@@ -30,7 +30,7 @@ var _ = Describe("CounterMetric", func() {
 
 			metric.Increment(10)
 
-			err := metric.WithEnvelope(func(_ *v2.Envelope) error {
+			err := metric.SendWith(func(_ *v2.Envelope) error {
 				return errors.New("some error")
 			})
 			Expect(err).To(HaveOccurred())

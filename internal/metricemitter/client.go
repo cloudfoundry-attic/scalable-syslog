@@ -92,7 +92,7 @@ func (c *client) NewGaugeMetric(name, unit string, opts ...MetricOption) *GaugeM
 }
 
 type sendable interface {
-	WithEnvelope(func(*v2.Envelope) error) error
+	SendWith(func(*v2.Envelope) error) error
 }
 
 func (c *client) pulse(s sendable) {
@@ -106,7 +106,7 @@ func (c *client) pulse(s sendable) {
 			}
 		}
 
-		err := s.WithEnvelope(func(env *v2.Envelope) error {
+		err := s.SendWith(func(env *v2.Envelope) error {
 			return senderClient.Send(env)
 		})
 

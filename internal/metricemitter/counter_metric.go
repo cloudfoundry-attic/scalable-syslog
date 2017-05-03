@@ -40,7 +40,7 @@ func (m *CounterMetric) GetDelta() uint64 {
 	return atomic.LoadUint64(&m.delta)
 }
 
-func (m *CounterMetric) WithEnvelope(fn func(*v2.Envelope) error) error {
+func (m *CounterMetric) SendWith(fn func(*v2.Envelope) error) error {
 	d := atomic.SwapUint64(&m.delta, 0)
 
 	if err := fn(m.toEnvelope(d)); err != nil {

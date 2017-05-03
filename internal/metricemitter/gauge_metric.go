@@ -34,7 +34,7 @@ func (g *GaugeMetric) Set(number int64) {
 	atomic.SwapInt64(&g.value, number)
 }
 
-func (g *GaugeMetric) WithEnvelope(fn func(*v2.Envelope) error) error {
+func (g *GaugeMetric) SendWith(fn func(*v2.Envelope) error) error {
 	return fn(g.toEnvelope())
 }
 
