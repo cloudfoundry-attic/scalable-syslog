@@ -79,7 +79,9 @@ function push_spinner_app {
         if ! [ -e ./logspinner ]; then
             GOOS=linux go build
         fi
-        cf push "drainspinner-$job_name-$1" -c ./logspinner -b binary_buildpack -m 128M
+        for i in {1..5}; do
+            cf push "drainspinner-$job_name-$1" -c ./logspinner -b binary_buildpack -m 128M && break || sleep 5
+        done
         cf bind-service \
             "drainspinner-$job_name-$1" \
             "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION"
