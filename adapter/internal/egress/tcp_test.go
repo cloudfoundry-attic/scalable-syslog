@@ -92,7 +92,7 @@ var _ = Describe("TCPWriter", func() {
 			Expect(actual).To(Equal(expected))
 		},
 			Entry("app source type", "app/foo/bar", "26", "APP/FOO/BAR/26", 96),
-			Entry("other source type", "other", "1", "OTHER", 87),
+			Entry("other source type", "other", "1", "OTHER/1", 89),
 		)
 
 		It("strips null termination char from message", func() {
@@ -106,7 +106,7 @@ var _ = Describe("TCPWriter", func() {
 			actual, err := buf.ReadString('\n')
 			Expect(err).ToNot(HaveOccurred())
 
-			expected := fmt.Sprintf("93 <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [OTHER] - - no null `` please\n")
+			expected := fmt.Sprintf("95 <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [OTHER/1] - - no null `` please\n")
 			Expect(actual).To(Equal(expected))
 		})
 

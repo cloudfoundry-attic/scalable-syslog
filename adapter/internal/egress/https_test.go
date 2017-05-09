@@ -90,11 +90,41 @@ var _ = Describe("HTTPWriter", func() {
 		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, metricEmitter)
 		Expect(err).ToNot(HaveOccurred())
 
-		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
-		Expect(writer.Write(env)).To(Succeed())
+		env1 := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
+		Expect(writer.Write(env1)).To(Succeed())
+		env2 := buildLogEnvelope("CELL", "5", "log from cell", loggregator_v2.Log_ERR)
+		Expect(writer.Write(env2)).To(Succeed())
+		env3 := buildLogEnvelope("CELL", "", "log from cell", loggregator_v2.Log_ERR)
+		Expect(writer.Write(env3)).To(Succeed())
 
-		Expect(drain.messages).To(HaveLen(1))
-		Expect(drain.messages[0].AppName).To(Equal("test-app-id"))
+		Expect(drain.messages).To(HaveLen(3))
+		expected := &rfc5424.Message{
+			AppName:   "test-app-id",
+			Hostname:  "test-hostname",
+			Priority:  rfc5424.Priority(14),
+			ProcessID: "[APP/1]",
+			Message:   []byte("just a test\n"),
+		}
+		Expect(drain.messages[0].AppName).To(Equal(expected.AppName))
+		Expect(drain.messages[0].Hostname).To(Equal(expected.Hostname))
+		Expect(drain.messages[0].Priority).To(BeEquivalentTo(expected.Priority))
+		Expect(drain.messages[0].ProcessID).To(Equal(expected.ProcessID))
+		Expect(drain.messages[0].Message).To(Equal(expected.Message))
+
+		expected = &rfc5424.Message{
+			AppName:   "test-app-id",
+			Hostname:  "test-hostname",
+			Priority:  rfc5424.Priority(11),
+			ProcessID: "[CELL/5]",
+			Message:   []byte("log from cell\n"),
+		}
+		Expect(drain.messages[1].AppName).To(Equal(expected.AppName))
+		Expect(drain.messages[1].Hostname).To(Equal(expected.Hostname))
+		Expect(drain.messages[1].Priority).To(BeEquivalentTo(expected.Priority))
+		Expect(drain.messages[1].ProcessID).To(Equal(expected.ProcessID))
+		Expect(drain.messages[1].Message).To(Equal(expected.Message))
+
+		Expect(drain.messages[2].ProcessID).To(Equal("[CELL]"))
 	})
 
 	It("emits an egress metric for each message", func() {

@@ -193,8 +193,9 @@ func generatePriority(logType loggregator_v2.Log_Type) rfc5424.Priority {
 
 func generateProcessID(sourceType, sourceInstance string) string {
 	sourceType = strings.ToUpper(sourceType)
-	if strings.HasPrefix(sourceType, "APP") {
+	if sourceInstance != "" {
 		return fmt.Sprintf("[%s/%s]", sourceType, sourceInstance)
 	}
+
 	return fmt.Sprintf("[%s]", sourceType)
 }
