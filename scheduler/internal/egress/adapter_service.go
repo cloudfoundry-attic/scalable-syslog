@@ -3,6 +3,7 @@ package egress
 import (
 	"context"
 	"log"
+	"time"
 
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
@@ -84,32 +85,25 @@ func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected in
 }
 
 func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
+	var allBindings ingress.Bindings
 	request := &v1.ListBindingsRequest{}
-	bindings := make(map[v1.Binding]bool)
+
 	for _, client := range d.pool {
-		resp, err := client.ListBindings(context.Background(), request)
+		ctx, _ := context.WithTimeout(context.Background(), time.Second)
+		resp, err := client.ListBindings(ctx, request)
 		if err != nil {
 			continue
 		}
+		bindings := make(map[v1.Binding]struct{})
 		for _, b := range resp.Bindings {
-			if d.alreadyAdded(*b, bindings) {
+			_, ok := bindings[*b]
+			if ok {
 				continue
 			}
-
-			bindings[*b] = true
+			bindings[*b] = struct{}{}
+			allBindings = append(allBindings, *b)
 		}
 	}
 
-	var deduped ingress.Bindings
-	for k, _ := range bindings {
-		deduped = append(deduped, k)
-	}
-	return deduped, nil
-}
-
-func (d *DefaultAdapterService) alreadyAdded(newBinding v1.Binding, list map[v1.Binding]bool) bool {
-	if ok, _ := list[newBinding]; ok {
-		return true
-	}
-	return false
+	return allBindings, nil
 }

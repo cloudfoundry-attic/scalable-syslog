@@ -209,6 +209,34 @@ var _ = Describe("Scheduler", func() {
 			Drain:    "syslog://14.15.16.22/",
 		}))
 	})
+
+	It("sends a binding to only two adapters", func() {
+		dataSource := httptest.NewServer(&fakeCC{
+			results: results{
+				"9be15160-4845-4f05-b089-40e827ba61f1": appBindings{
+					Hostname: "org.space.name",
+					Drains: []string{
+						"syslog://1.1.1.1/?drain-version=2.0",
+					},
+				},
+			},
+		})
+		_, spyAdapterServers := startScheduler(dataSource.URL, 3, defaultOps())
+		var createCount int
+		f := func() int {
+			select {
+			case <-spyAdapterServers[0].ActualCreateBindingRequest:
+			case <-spyAdapterServers[1].ActualCreateBindingRequest:
+			case <-spyAdapterServers[2].ActualCreateBindingRequest:
+			default:
+				return createCount
+			}
+			createCount++
+			return createCount
+		}
+		Eventually(f).Should(Equal(2))
+		Consistently(f).Should(Equal(2))
+	})
 })
 
 type results map[string]appBindings
