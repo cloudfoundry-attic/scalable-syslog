@@ -73,7 +73,7 @@ var _ = Describe("Scheduler", func() {
 		Expect(err).ToNot(HaveOccurred())
 		opts := defaultOps()
 		opts = append(opts, app.WithBlacklist(blacklistIPs))
-		_, testAdapterServer := startScheduler(dataSource.URL, opts)
+		_, spyAdapterServer := startScheduler(dataSource.URL, opts)
 
 		expectedRequests := []*v1.CreateBindingRequest{
 			{
@@ -85,13 +85,13 @@ var _ = Describe("Scheduler", func() {
 			},
 		}
 		lenCheck := func() int {
-			return len(testAdapterServer.ActualCreateBindingRequest)
+			return len(spyAdapterServer.ActualCreateBindingRequest)
 		}
 		Eventually(lenCheck).Should(Equal(1))
 		var actualRequests []*v1.CreateBindingRequest
 		f := func() []*v1.CreateBindingRequest {
 			select {
-			case req := <-testAdapterServer.ActualCreateBindingRequest:
+			case req := <-spyAdapterServer.ActualCreateBindingRequest:
 				actualRequests = append(actualRequests, req)
 			default:
 			}
@@ -113,7 +113,7 @@ var _ = Describe("Scheduler", func() {
 			},
 		})
 		opts := append(defaultOps(), app.WithOptIn(true))
-		_, testAdapterServer := startScheduler(dataSource.URL, opts)
+		_, spyAdapterServer := startScheduler(dataSource.URL, opts)
 		expectedRequests := []*v1.CreateBindingRequest{
 			{
 				Binding: &v1.Binding{
@@ -124,13 +124,13 @@ var _ = Describe("Scheduler", func() {
 			},
 		}
 		lenCheck := func() int {
-			return len(testAdapterServer.ActualCreateBindingRequest)
+			return len(spyAdapterServer.ActualCreateBindingRequest)
 		}
 		Eventually(lenCheck).Should(Equal(1))
 		var actualRequests []*v1.CreateBindingRequest
 		f := func() []*v1.CreateBindingRequest {
 			select {
-			case req := <-testAdapterServer.ActualCreateBindingRequest:
+			case req := <-spyAdapterServer.ActualCreateBindingRequest:
 				actualRequests = append(actualRequests, req)
 			default:
 			}
@@ -152,7 +152,7 @@ var _ = Describe("Scheduler", func() {
 				},
 			},
 		})
-		_, testAdapterServer := startScheduler(dataSource.URL, defaultOps())
+		_, spyAdapterServer := startScheduler(dataSource.URL, defaultOps())
 		expectedRequests := []*v1.DeleteBindingRequest{
 			{
 				Binding: &v1.Binding{
@@ -169,11 +169,11 @@ var _ = Describe("Scheduler", func() {
 				},
 			},
 		}
-		Eventually(testAdapterServer.ActualDeleteBindingRequest).Should(HaveLen(2))
+		Eventually(spyAdapterServer.ActualDeleteBindingRequest).Should(HaveLen(2))
 		var actualRequests []*v1.DeleteBindingRequest
 		f := func() []*v1.DeleteBindingRequest {
 			select {
-			case req := <-testAdapterServer.ActualDeleteBindingRequest:
+			case req := <-spyAdapterServer.ActualDeleteBindingRequest:
 				actualRequests = append(actualRequests, req)
 			default:
 			}
@@ -186,23 +186,23 @@ var _ = Describe("Scheduler", func() {
 		dataSource := httptest.NewServer(&fakeCC{
 			withRenamedApps: true,
 		})
-		_, testAdapterServer := startScheduler(dataSource.URL, defaultOps())
+		_, spyAdapterServer := startScheduler(dataSource.URL, defaultOps())
 
-		createReq := <-testAdapterServer.ActualCreateBindingRequest
+		createReq := <-spyAdapterServer.ActualCreateBindingRequest
 		Expect(createReq.Binding).To(Equal(&v1.Binding{
 			AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
 			Hostname: "org.space.original",
 			Drain:    "syslog://14.15.16.22/",
 		}))
 
-		deleteReq := <-testAdapterServer.ActualDeleteBindingRequest
+		deleteReq := <-spyAdapterServer.ActualDeleteBindingRequest
 		Expect(deleteReq.Binding).To(Equal(&v1.Binding{
 			AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
 			Hostname: "org.space.original",
 			Drain:    "syslog://14.15.16.22/",
 		}))
 
-		createReq = <-testAdapterServer.ActualCreateBindingRequest
+		createReq = <-spyAdapterServer.ActualCreateBindingRequest
 		Expect(createReq.Binding).To(Equal(&v1.Binding{
 			AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
 			Hostname: "org.space.new",
@@ -300,7 +300,7 @@ func defaultOps() []app.SchedulerOption {
 	}
 }
 
-func startScheduler(dataSourceURL string, opts []app.SchedulerOption) (string, *testAdapterServer) {
+func startScheduler(dataSourceURL string, opts []app.SchedulerOption) (string, *spyAdapterServer) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	Expect(err).ToNot(HaveOccurred())
 
@@ -314,11 +314,11 @@ func startScheduler(dataSourceURL string, opts []app.SchedulerOption) (string, *
 		log.Fatalf("Invalid TLS config: %s", err)
 	}
 
-	testAdapterServer := NewTestAdapterServer()
+	spyAdapterServer := newSpyAdapterServer()
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(adapterTLSConfig)),
 	)
-	v1.RegisterAdapterServer(grpcServer, testAdapterServer)
+	v1.RegisterAdapterServer(grpcServer, spyAdapterServer)
 
 	go grpcServer.Serve(lis)
 
@@ -337,5 +337,5 @@ func startScheduler(dataSourceURL string, opts []app.SchedulerOption) (string, *
 		testhelper.NewMetricClient(),
 		opts...,
 	)
-	return scheduler.Start(), testAdapterServer
+	return scheduler.Start(), spyAdapterServer
 }
