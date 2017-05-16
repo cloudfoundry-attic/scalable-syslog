@@ -2,7 +2,6 @@ package egress_test
 
 import (
 	"errors"
-	"sync"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -30,7 +29,7 @@ var _ = Describe("DefaultAdapterService", func() {
 	})
 
 	It("makes a call to remove drain", func() {
-		client := &SpyClient{}
+		client := &spyClient{}
 		s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
 
 		actual := ingress.Bindings{binding}
@@ -42,13 +41,13 @@ var _ = Describe("DefaultAdapterService", func() {
 			Hostname: "org.space.app",
 			Drain:    "syslog://my-drain-url",
 		}
-		Expect(client.deleteBindingRequest()).To(Equal(
+		Expect(client.deleteBindingRequest).To(Equal(
 			&v1.DeleteBindingRequest{Binding: expectedToBeDeleted},
 		))
 	})
 
 	It("remove drains on hostname rename", func() {
-		client := &SpyClient{}
+		client := &spyClient{}
 		s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
 
 		actual := ingress.Bindings{binding}
@@ -62,16 +61,16 @@ var _ = Describe("DefaultAdapterService", func() {
 			Hostname: "org.space.app",
 			Drain:    "syslog://my-drain-url",
 		}
-		Expect(client.deleteBindingRequest()).To(Equal(
+		Expect(client.deleteBindingRequest).To(Equal(
 			&v1.DeleteBindingRequest{Binding: expectedToBeDeleted},
 		))
 	})
 
 	Context("List", func() {
 		It("gets a list of unique bindings per adapter", func() {
-			clientA := &SpyClient{}
-			clientB := &SpyClient{}
-			clientC := &SpyClient{}
+			clientA := &spyClient{}
+			clientB := &spyClient{}
+			clientC := &spyClient{}
 
 			binding := &v1.Binding{
 				AppId:    "app-id",
@@ -83,13 +82,13 @@ var _ = Describe("DefaultAdapterService", func() {
 				Hostname: "hostname",
 				Drain:    "drain",
 			}
-			clientA.listBindingsResponse_ = &v1.ListBindingsResponse{
+			clientA.listBindingsResponse = &v1.ListBindingsResponse{
 				Bindings: []*v1.Binding{binding, duplicate},
 			}
-			clientB.listBindingsResponse_ = &v1.ListBindingsResponse{
+			clientB.listBindingsResponse = &v1.ListBindingsResponse{
 				Bindings: []*v1.Binding{binding, duplicate},
 			}
-			clientC.listBindingsResponse_ = &v1.ListBindingsResponse{
+			clientC.listBindingsResponse = &v1.ListBindingsResponse{
 				Bindings: []*v1.Binding{binding, duplicate},
 			}
 
@@ -101,15 +100,15 @@ var _ = Describe("DefaultAdapterService", func() {
 			bindings, err := s.List()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(clientA.listCalled()).To(BeTrue())
-			Expect(clientB.listCalled()).To(BeTrue())
-			Expect(clientC.listCalled()).To(BeTrue())
+			Expect(clientA.listCalled).To(BeTrue())
+			Expect(clientB.listCalled).To(BeTrue())
+			Expect(clientC.listCalled).To(BeTrue())
 			Expect(len(bindings)).To(Equal(3))
 		})
 
 		It("returns no bindings when list fails", func() {
-			client := &SpyClient{}
-			client.listBindingsError_ = errors.New("list failed")
+			client := &spyClient{}
+			client.listBindingsError = errors.New("list failed")
 
 			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
 
@@ -127,13 +126,13 @@ var _ = Describe("DefaultAdapterService", func() {
 
 		Context("with a single client in the pool", func() {
 			It("creates the binding on the client", func() {
-				client := &SpyClient{}
+				client := &spyClient{}
 				s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
 
 				s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
-				Expect(client.createCalled()).To(Equal(1))
-				Expect(client.createBindingRequest()).To(Equal(
+				Expect(client.createCalled).To(Equal(1))
+				Expect(client.createBindingRequest).To(Equal(
 					&v1.CreateBindingRequest{Binding: &v1.Binding{
 						AppId:    binding.AppId,
 						Hostname: binding.Hostname,
@@ -143,7 +142,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			})
 
 			It("does not create a second binding when the client already has the binding", func() {
-				client := &SpyClient{}
+				client := &spyClient{}
 				s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
 
 				actual := ingress.Bindings{
@@ -156,30 +155,30 @@ var _ = Describe("DefaultAdapterService", func() {
 				expected := ingress.Bindings{appBinding}
 				s.CreateDelta(actual, expected)
 
-				Expect(client.createCalled()).To(Equal(0))
+				Expect(client.createCalled).To(Equal(0))
 			})
 		})
 
 		It("writes both gRPC servers with two clients", func() {
-			firstClient := &SpyClient{}
-			secondClient := &SpyClient{}
+			firstClient := &spyClient{}
+			secondClient := &spyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{firstClient, secondClient}, healthEmitter)
 
 			s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
-			Expect(firstClient.createCalled()).To(Equal(1))
-			Expect(secondClient.createCalled()).To(Equal(1))
+			Expect(firstClient.createCalled).To(Equal(1))
+			Expect(secondClient.createCalled).To(Equal(1))
 		})
 
 		It("writes only to two gRPC servers with many clients", func() {
-			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
+			clients := egress.AdapterPool{&spyClient{}, &spyClient{}, &spyClient{}}
 			s := egress.NewAdapterService(clients, healthEmitter)
 
 			s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
 			createCalled := 0
 			for _, client := range clients {
-				if (client.(*SpyClient)).createCalled() > 0 {
+				if (client.(*spyClient)).createCalled > 0 {
 					createCalled++
 				}
 			}
@@ -187,7 +186,7 @@ var _ = Describe("DefaultAdapterService", func() {
 		})
 
 		It("writes to only one gRPC server when another already has the binding", func() {
-			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
+			clients := egress.AdapterPool{&spyClient{}, &spyClient{}, &spyClient{}}
 			s := egress.NewAdapterService(clients, healthEmitter)
 
 			s.CreateDelta(ingress.Bindings{
@@ -196,7 +195,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			createCalled := 0
 			for _, client := range clients {
-				if (client.(*SpyClient)).createCalled() > 0 {
+				if (client.(*spyClient)).createCalled > 0 {
 					createCalled++
 				}
 			}
@@ -209,7 +208,7 @@ var _ = Describe("DefaultAdapterService", func() {
 				v1.Binding{AppId: "app-id", Drain: "syslog://another-drain", Hostname: "org.space.app"},
 			}
 
-			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}}
+			clients := egress.AdapterPool{&spyClient{}, &spyClient{}}
 			s := egress.NewAdapterService(clients, healthEmitter)
 
 			s.CreateDelta(
@@ -219,7 +218,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			createCalled := 0
 			for _, client := range clients {
-				createCalled += (client.(*SpyClient)).createCalled()
+				createCalled += (client.(*spyClient)).createCalled
 			}
 			Expect(createCalled).To(Equal(4))
 
@@ -235,13 +234,13 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			createCalled = 0
 			for _, client := range clients {
-				createCalled += (client.(*SpyClient)).createCalled()
+				createCalled += (client.(*spyClient)).createCalled
 			}
 			Expect(createCalled).To(Equal(4))
 		})
 
 		It("creates a new drain on hostname rename", func() {
-			client := &SpyClient{}
+			client := &spyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
 
 			actual := ingress.Bindings{binding}
@@ -255,87 +254,48 @@ var _ = Describe("DefaultAdapterService", func() {
 				Hostname: "org.space.other-app",
 				Drain:    "syslog://my-drain-url",
 			}
-			Expect(client.createBindingRequest()).To(Equal(
+			Expect(client.createBindingRequest).To(Equal(
 				&v1.CreateBindingRequest{Binding: expectedToBeCreated},
 			))
 		})
 	})
 })
 
-type SpyClient struct {
-	createCalled_         int
-	createBindingRequest_ *v1.CreateBindingRequest
+type spyClient struct {
+	createCalled         int
+	createBindingRequest *v1.CreateBindingRequest
 
-	deleteCalled_         bool
-	deleteBindingRequest_ *v1.DeleteBindingRequest
+	deleteBindingRequest *v1.DeleteBindingRequest
 
-	listCalled_           bool
-	listBindingsResponse_ *v1.ListBindingsResponse
-	listBindingsError_    error
-	mu                    sync.RWMutex
+	listCalled           bool
+	listBindingsResponse *v1.ListBindingsResponse
+	listBindingsError    error
 }
 
-func (s *SpyClient) createCalled() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.createCalled_
-}
-
-func (s *SpyClient) createBindingRequest() *v1.CreateBindingRequest {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.createBindingRequest_
-}
-
-func (s *SpyClient) deleteCalled() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.deleteCalled_
-}
-
-func (s *SpyClient) deleteBindingRequest() *v1.DeleteBindingRequest {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.deleteBindingRequest_
-}
-
-func (s *SpyClient) listCalled() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.listCalled_
-}
-
-func (s *SpyClient) CreateBinding(
+func (s *spyClient) CreateBinding(
 	ctx context.Context,
 	in *v1.CreateBindingRequest,
 	opts ...grpc.CallOption,
 ) (*v1.CreateBindingResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.createCalled_++
-	s.createBindingRequest_ = in
+	s.createCalled++
+	s.createBindingRequest = in
 	return nil, nil
 }
 
-func (s *SpyClient) DeleteBinding(
+func (s *spyClient) DeleteBinding(
 	ctx context.Context,
 	in *v1.DeleteBindingRequest,
 	opts ...grpc.CallOption,
 ) (*v1.DeleteBindingResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.deleteCalled_ = true
-	s.deleteBindingRequest_ = in
+	s.deleteBindingRequest = in
 	return nil, nil
 }
 
-func (s *SpyClient) ListBindings(
+func (s *spyClient) ListBindings(
 	ctx context.Context,
 	in *v1.ListBindingsRequest,
 	opts ...grpc.CallOption,
 ) (*v1.ListBindingsResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.listCalled_ = true
-	return s.listBindingsResponse_, s.listBindingsError_
+	s.listCalled = true
+	return s.listBindingsResponse, s.listBindingsError
 }

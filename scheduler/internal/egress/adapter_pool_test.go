@@ -76,7 +76,7 @@ var _ = Describe("AdapterPool", func() {
 func startGRPCServer() (string, func()) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	Expect(err).NotTo(HaveOccurred())
-	testServer := NewTestAdapterServer()
+	testServer := newSpyAdapterServer()
 	grpcServer := grpc.NewServer()
 	v1.RegisterAdapterServer(grpcServer, testServer)
 
