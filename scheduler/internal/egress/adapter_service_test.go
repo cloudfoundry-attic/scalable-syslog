@@ -173,6 +173,37 @@ var _ = Describe("DefaultAdapterService", func() {
 				Expect(createCalled).To(Equal(1))
 			})
 
+			It("doesn't write to any adapters when three have the binding", func() {
+				clientA := &SpyClient{}
+				clientB := &SpyClient{}
+				clientC := &SpyClient{}
+
+				clients := egress.AdapterPool{
+					clientA,
+					clientB,
+					clientC,
+				}
+				s := egress.NewAdapterService(clients, healthEmitter)
+
+				actual := ingress.Bindings{
+					appBinding,
+					appBinding,
+					appBinding,
+				}
+				expected := ingress.Bindings{
+					appBinding,
+				}
+				s.CreateDelta(actual, expected)
+
+				createCalled := 0
+				for _, client := range clients {
+					if (client.(*SpyClient)).createCalled() > 0 {
+						createCalled++
+					}
+				}
+				Expect(createCalled).To(Equal(0))
+			})
+
 			It("writes to two adapters for each drain binding only once", func() {
 				appBindings := ingress.Bindings{
 					v1.Binding{AppId: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.app"},

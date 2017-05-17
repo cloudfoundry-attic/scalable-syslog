@@ -34,6 +34,9 @@ func (d *DefaultAdapterService) CreateDelta(actual ingress.Bindings, expected in
 		targetWriteCount := min(maxWriteCount, len(d.pool))
 		drainCount := actual.DrainCount(expectedBinding)
 		actualCreateCount := targetWriteCount - drainCount
+		if actualCreateCount < 1 {
+			continue
+		}
 
 		log.Printf(
 			"creating new binding on adapter index=%d, number of writes=%d",
