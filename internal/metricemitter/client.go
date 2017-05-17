@@ -100,7 +100,8 @@ func (c *client) pulse(s sendable) {
 	for range time.Tick(c.pulseInterval) {
 		if senderClient == nil {
 			var err error
-			senderClient, err = c.ingressClient.Sender(context.Background())
+			ctx, _ := context.WithTimeout(context.Background(), time.Minute)
+			senderClient, err = c.ingressClient.Sender(ctx)
 			if err != nil {
 				continue
 			}
