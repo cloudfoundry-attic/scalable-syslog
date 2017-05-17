@@ -122,15 +122,10 @@ func (s *Scheduler) setupIngress() {
 	)
 
 	if s.enableOptIn {
-		fetcher = ingress.NewVersionFilter(
-			fetcher,
-		)
+		fetcher = ingress.NewVersionFilter(fetcher)
 	}
 
-	s.fetcher = ingress.NewBlacklistFilter(
-		s.blacklist,
-		fetcher,
-	)
+	s.fetcher = ingress.NewBlacklistFilter(s.blacklist, fetcher)
 }
 
 func (s *Scheduler) startEgress() {
