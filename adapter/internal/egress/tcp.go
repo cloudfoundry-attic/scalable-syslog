@@ -65,6 +65,8 @@ func NewTCPWriter(
 		scheme:    "syslog",
 	}
 
+	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
+	// to a syslog drain over syslog.
 	w.egressMetric = metricClient.NewCounterMetric(
 		"egress",
 		metricemitter.WithVersion(2, 0),
@@ -193,8 +195,9 @@ func generatePriority(logType loggregator_v2.Log_Type) rfc5424.Priority {
 
 func generateProcessID(sourceType, sourceInstance string) string {
 	sourceType = strings.ToUpper(sourceType)
-	if strings.HasPrefix(sourceType, "APP") {
+	if sourceInstance != "" {
 		return fmt.Sprintf("[%s/%s]", sourceType, sourceInstance)
 	}
+
 	return fmt.Sprintf("[%s]", sourceType)
 }

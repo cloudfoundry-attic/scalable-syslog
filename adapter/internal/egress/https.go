@@ -38,6 +38,8 @@ func NewHTTPSWriter(
 
 	client := httpClient(dialTimeout, ioTimeout, skipCertVerify)
 
+	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
+	// to a syslog drain over https.
 	egressMetric := metricClient.NewCounterMetric("egress",
 		metricemitter.WithVersion(2, 0),
 		metricemitter.WithTags(map[string]string{"drain-protocol": "https"}),

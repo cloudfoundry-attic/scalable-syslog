@@ -18,15 +18,28 @@ var _ = Describe("AdapterPool", func() {
 		addr, cleanup := startGRPCServer()
 		defer cleanup()
 
-		pool := egress.NewAdapterPool([]string{addr}, grpc.WithInsecure())
+		pool := egress.NewAdapterPool([]string{addr}, nil, grpc.WithInsecure())
+		Expect(pool).To(HaveLen(1))
 		client := pool[0]
 
 		_, err := client.ListBindings(context.Background(), &v1.ListBindingsRequest{})
 		Expect(err).NotTo(HaveOccurred())
 	})
 
+	It("reports adapterCount health metric", func() {
+		addr, cleanup := startGRPCServer()
+		defer cleanup()
+
+		healthEmitter := &spyHealthEmitter{}
+		egress.NewAdapterPool([]string{addr}, healthEmitter, grpc.WithInsecure())
+		counters := healthEmitter.setCounterArg
+		Expect(counters).To(HaveLen(1))
+		Expect(counters["adapterCount"]).To(Equal(1))
+	})
+
 	It("returns a pool with a unconnected client", func() {
-		pool := egress.NewAdapterPool([]string{"0.0.0.0:1234"}, grpc.WithInsecure())
+		pool := egress.NewAdapterPool([]string{"0.0.0.0:1234"}, nil, grpc.WithInsecure())
+		Expect(pool).To(HaveLen(1))
 		client := pool[0]
 
 		_, err := client.ListBindings(context.Background(), &v1.ListBindingsRequest{})
@@ -37,35 +50,35 @@ var _ = Describe("AdapterPool", func() {
 		addr := "1.1.1.1"
 
 		It("returns on client when one is in the pool", func() {
-			pool := egress.NewAdapterPool([]string{addr}, grpc.WithInsecure())
+			pool := egress.NewAdapterPool([]string{addr}, nil, grpc.WithInsecure())
 			subset := pool.Subset(0, 1)
 
 			Expect(len(subset)).To(Equal(1))
 		})
 
 		It("returns two clients when two are in the pool", func() {
-			pool := egress.NewAdapterPool([]string{addr, addr}, grpc.WithInsecure())
+			pool := egress.NewAdapterPool([]string{addr, addr}, nil, grpc.WithInsecure())
 			subset := pool.Subset(0, 2)
 
 			Expect(len(subset)).To(Equal(2))
 		})
 
 		It("returns a subset of the pool when there are many", func() {
-			pool := egress.NewAdapterPool([]string{addr, addr, addr, addr}, grpc.WithInsecure())
+			pool := egress.NewAdapterPool([]string{addr, addr, addr, addr}, nil, grpc.WithInsecure())
 			subset := pool.Subset(1, 2)
 
 			Expect(len(subset)).To(Equal(2))
 		})
 
 		It("wraps back to the first index on overflow", func() {
-			pool := egress.NewAdapterPool([]string{addr, addr, addr}, grpc.WithInsecure())
+			pool := egress.NewAdapterPool([]string{addr, addr, addr}, nil, grpc.WithInsecure())
 			subset := pool.Subset(1, 3)
 
 			Expect(len(subset)).To(Equal(3))
 		})
 
 		It("returns all clients when more are requested than available", func() {
-			pool := egress.NewAdapterPool([]string{addr, addr}, grpc.WithInsecure())
+			pool := egress.NewAdapterPool([]string{addr, addr}, nil, grpc.WithInsecure())
 			subset := pool.Subset(0, 3)
 
 			Expect(len(subset)).To(Equal(2))
@@ -76,7 +89,7 @@ var _ = Describe("AdapterPool", func() {
 func startGRPCServer() (string, func()) {
 	lis, err := net.Listen("tcp", "localhost:0")
 	Expect(err).NotTo(HaveOccurred())
-	testServer := NewTestAdapterServer()
+	testServer := newSpyAdapterServer()
 	grpcServer := grpc.NewServer()
 	v1.RegisterAdapterServer(grpcServer, testServer)
 
@@ -86,4 +99,12 @@ func startGRPCServer() (string, func()) {
 		grpcServer.Stop()
 		lis.Close()
 	}
+}
+
+type spyHealthEmitter struct {
+	setCounterArg map[string]int
+}
+
+func (s *spyHealthEmitter) SetCounter(m map[string]int) {
+	s.setCounterArg = m
 }

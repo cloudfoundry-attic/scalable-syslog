@@ -16,8 +16,7 @@ import (
 
 var _ = Describe("DefaultAdapterService", func() {
 	var (
-		binding       v1.Binding
-		healthEmitter *SpyHealthEmitter
+		binding v1.Binding
 	)
 
 	BeforeEach(func() {
@@ -26,7 +25,6 @@ var _ = Describe("DefaultAdapterService", func() {
 			Hostname: "org.space.app",
 			Drain:    "syslog://my-drain-url",
 		}
-		healthEmitter = &SpyHealthEmitter{}
 	})
 
 	Describe("List", func() {
@@ -46,12 +44,11 @@ var _ = Describe("DefaultAdapterService", func() {
 				Bindings: []*v1.Binding{binding, duplicate},
 			}
 
-			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
+			s := egress.NewAdapterService(egress.AdapterPool{client})
 
-			bindings, err := s.List()
+			bindings := s.List()
 
 			Expect(client.listCalled()).To(Equal(true))
-			Expect(err).ToNot(HaveOccurred())
 			Expect(len(bindings)).To(Equal(1))
 			Expect(bindings[0]).To(Equal(*binding))
 		})
@@ -60,9 +57,9 @@ var _ = Describe("DefaultAdapterService", func() {
 			client := &SpyClient{}
 			client.listBindingsError_ = errors.New("list failed")
 
-			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
+			s := egress.NewAdapterService(egress.AdapterPool{client})
 
-			bindings, _ := s.List()
+			bindings := s.List()
 			Expect(len(bindings)).To(Equal(0))
 		})
 	})
@@ -77,7 +74,7 @@ var _ = Describe("DefaultAdapterService", func() {
 		Context("with a single client in the pool", func() {
 			It("creates the binding on the client", func() {
 				client := &SpyClient{}
-				s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
+				s := egress.NewAdapterService(egress.AdapterPool{client})
 
 				s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
@@ -93,7 +90,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			It("does not create a second binding when the client already has the binding", func() {
 				client := &SpyClient{}
-				s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
+				s := egress.NewAdapterService(egress.AdapterPool{client})
 
 				actual := ingress.Bindings{
 					{
@@ -110,7 +107,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			It("creates a new drain on hostname rename", func() {
 				client := &SpyClient{}
-				s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
+				s := egress.NewAdapterService(egress.AdapterPool{client})
 
 				actual := ingress.Bindings{binding}
 				expected := ingress.Bindings{
@@ -133,7 +130,7 @@ var _ = Describe("DefaultAdapterService", func() {
 			It("writes to both adapters with two clients", func() {
 				firstClient := &SpyClient{}
 				secondClient := &SpyClient{}
-				s := egress.NewAdapterService(egress.AdapterPool{firstClient, secondClient}, healthEmitter)
+				s := egress.NewAdapterService(egress.AdapterPool{firstClient, secondClient})
 
 				s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
@@ -143,7 +140,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			It("writes only to two adapters with many clients", func() {
 				clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
-				s := egress.NewAdapterService(clients, healthEmitter)
+				s := egress.NewAdapterService(clients)
 
 				s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
@@ -158,7 +155,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			It("writes to only one adapter when another already has the binding", func() {
 				clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
-				s := egress.NewAdapterService(clients, healthEmitter)
+				s := egress.NewAdapterService(clients)
 
 				s.CreateDelta(ingress.Bindings{
 					{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
@@ -183,7 +180,7 @@ var _ = Describe("DefaultAdapterService", func() {
 					clientB,
 					clientC,
 				}
-				s := egress.NewAdapterService(clients, healthEmitter)
+				s := egress.NewAdapterService(clients)
 
 				actual := ingress.Bindings{
 					appBinding,
@@ -211,7 +208,7 @@ var _ = Describe("DefaultAdapterService", func() {
 				}
 
 				clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}}
-				s := egress.NewAdapterService(clients, healthEmitter)
+				s := egress.NewAdapterService(clients)
 
 				s.CreateDelta(
 					ingress.Bindings{},
@@ -246,7 +243,7 @@ var _ = Describe("DefaultAdapterService", func() {
 	Describe("Delete", func() {
 		It("makes a call to remove drain", func() {
 			client := &SpyClient{}
-			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
+			s := egress.NewAdapterService(egress.AdapterPool{client})
 
 			actual := ingress.Bindings{binding}
 			expected := ingress.Bindings{}
@@ -265,7 +262,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 		It("remove drains on hostname rename", func() {
 			client := &SpyClient{}
-			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
+			s := egress.NewAdapterService(egress.AdapterPool{client})
 
 			actual := ingress.Bindings{binding}
 			expected := ingress.Bindings{

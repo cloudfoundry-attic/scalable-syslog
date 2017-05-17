@@ -35,16 +35,22 @@ func NewSyslogConnector(
 	metricClient metricemitter.MetricClient,
 	opts ...ConnectorOption,
 ) *SyslogConnector {
+	// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
+	// when sending to a syslog drain over https.
 	httpsDroppedMetric := metricClient.NewCounterMetric("dropped",
 		metricemitter.WithVersion(2, 0),
 		metricemitter.WithTags(map[string]string{"drain-protocol": "https"}),
 	)
 
+	// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
+	// when sending to a syslog drain over syslog.
 	syslogDroppedMetric := metricClient.NewCounterMetric("dropped",
 		metricemitter.WithVersion(2, 0),
 		metricemitter.WithTags(map[string]string{"drain-protocol": "syslog"}),
 	)
 
+	// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
+	// when sending to a syslog drain over syslog-tls.
 	syslogTLSDroppedMetric := metricClient.NewCounterMetric("dropped",
 		metricemitter.WithVersion(2, 0),
 		metricemitter.WithTags(map[string]string{"drain-protocol": "syslog-tls"}),

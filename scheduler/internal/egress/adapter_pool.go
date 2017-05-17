@@ -10,7 +10,7 @@ import (
 
 type AdapterPool []v1.AdapterClient
 
-func NewAdapterPool(addrs []string, opts ...grpc.DialOption) AdapterPool {
+func NewAdapterPool(addrs []string, h HealthEmitter, opts ...grpc.DialOption) AdapterPool {
 	var pool AdapterPool
 
 	for _, addr := range addrs {
@@ -23,6 +23,10 @@ func NewAdapterPool(addrs []string, opts ...grpc.DialOption) AdapterPool {
 		c := v1.NewAdapterClient(conn)
 
 		pool = append(pool, c)
+	}
+
+	if h != nil {
+		h.SetCounter(map[string]int{"adapterCount": len(pool)})
 	}
 
 	return pool
