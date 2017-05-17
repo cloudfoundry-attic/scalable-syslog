@@ -97,8 +97,7 @@ var _ = Describe("DefaultAdapterService", func() {
 				healthEmitter,
 			)
 
-			bindings, err := s.List()
-			Expect(err).ToNot(HaveOccurred())
+			bindings := s.List()
 
 			Expect(clientA.listCalled).To(BeTrue())
 			Expect(clientB.listCalled).To(BeTrue())
@@ -112,7 +111,7 @@ var _ = Describe("DefaultAdapterService", func() {
 
 			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
 
-			bindings, _ := s.List()
+			bindings := s.List()
 			Expect(len(bindings)).To(Equal(0))
 		})
 	})

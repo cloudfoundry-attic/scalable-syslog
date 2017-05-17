@@ -20,7 +20,7 @@ type HealthEmitter interface {
 type AdapterService interface {
 	CreateDelta(actual ingress.Bindings, expected ingress.Bindings)
 	DeleteDelta(actual ingress.Bindings, expected ingress.Bindings)
-	List() (ingress.Bindings, error)
+	List() ingress.Bindings
 }
 
 // Orchestrator manages writes to a number of adapters.
@@ -70,11 +70,7 @@ func (o *Orchestrator) Run(interval time.Duration) {
 
 		o.drainGauge.Set(int64(len(expected)))
 
-		actual, err := o.service.List()
-		if err != nil {
-			log.Printf("failed to get actual bindings: %s", err)
-			continue
-		}
+		actual := o.service.List()
 
 		o.service.DeleteDelta(actual, expected)
 		o.service.CreateDelta(actual, expected)

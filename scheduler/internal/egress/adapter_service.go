@@ -96,7 +96,7 @@ func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected in
 
 // List returns a list of unique bindings per adapter. Duplicate bindings may
 // be returned because there may be multiple adapters with the same binding.
-func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
+func (d *DefaultAdapterService) List() ingress.Bindings {
 	var allBindings ingress.Bindings
 	request := &v1.ListBindingsRequest{}
 
@@ -104,6 +104,7 @@ func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
 		ctx, _ := context.WithTimeout(context.Background(), time.Second)
 		resp, err := client.ListBindings(ctx, request)
 		if err != nil {
+			log.Printf("unable to retrieve bindings: %s", err)
 			continue
 		}
 		bindings := make(map[v1.Binding]struct{})
@@ -117,5 +118,5 @@ func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
 		}
 	}
 
-	return allBindings, nil
+	return allBindings
 }
