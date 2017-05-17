@@ -71,23 +71,6 @@ var _ = Describe("Orchestrator", func() {
 		Consistently(adapterService.CreateDeltaCalled).Should(BeFalse())
 	})
 
-	It("does not write when list fails", func() {
-		reader := &SpyReader{}
-		adapterService := &SpyAdapterService{
-			Err: errors.New("an error"),
-		}
-
-		o := egress.NewOrchestrator(
-			reader,
-			adapterService,
-			healthEmitter,
-			metricEmitter,
-		)
-		go o.Run(time.Millisecond)
-
-		Consistently(adapterService.CreateDeltaCalled).Should(BeFalse())
-	})
-
 	It("emits a metric for the number of drains", func() {
 		reader := &SpyReader{
 			drains: ingress.Bindings{
@@ -153,15 +136,14 @@ type SpyHealthEmitter struct{}
 func (s *SpyHealthEmitter) SetCounter(_ map[string]int) {}
 
 type SpyAdapterService struct {
-	Err                                    error
 	mu                                     sync.Mutex
 	createDeltaActual, createDeltaExpected ingress.Bindings
 	deleteDeltaActual, deleteDeltaExpected ingress.Bindings
 	createDeltaCalled                      bool
 }
 
-func (s *SpyAdapterService) List() (ingress.Bindings, error) {
-	return nil, s.Err
+func (s *SpyAdapterService) List() ingress.Bindings {
+	return nil
 }
 
 func (s *SpyAdapterService) CreateDelta(actual ingress.Bindings, expected ingress.Bindings) {

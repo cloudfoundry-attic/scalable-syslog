@@ -9,6 +9,10 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 )
 
+// DefaultAdapterService is responsible for maintaining the state of the
+// syslog drain bindings for the adapters in the adapter pool. Each syslog
+// drain binding is delegated to two adapters for load balancing and
+// availability purposes.
 type DefaultAdapterService struct {
 	pool           AdapterPool
 	currentPoolIdx int
@@ -18,14 +22,16 @@ type DefaultAdapterService struct {
 // syslog drain bindings
 const maxWriteCount = 2
 
-func NewAdapterService(p AdapterPool, h HealthEmitter) *DefaultAdapterService {
-	h.SetCounter(map[string]int{"adapterCount": len(p)})
-
+// NewAdapterService returns a new DefaultAdapterService initialized with the
+// Adapter pool.
+func NewAdapterService(p AdapterPool) *DefaultAdapterService {
 	return &DefaultAdapterService{
 		pool: p,
 	}
 }
 
+// CreateDelta sends a request to at most two (maxWriteCount) adapters to
+// create new bindings that are expected.
 func (d *DefaultAdapterService) CreateDelta(actual ingress.Bindings, expected ingress.Bindings) {
 	for _, expectedBinding := range expected {
 		request := &v1.CreateBindingRequest{
@@ -61,6 +67,8 @@ func min(a, b int) int {
 	return b
 }
 
+// DeleteDelta sends a request to delete the bindings that are no longer
+// expected.
 func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected ingress.Bindings) {
 	var toDelete ingress.Bindings
 	for _, binding := range actual {
@@ -84,7 +92,9 @@ func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected in
 	}
 }
 
-func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
+// List returns a list of unique bindings per adapter. Duplicate bindings may
+// be returned because there may be multiple adapters with the same binding.
+func (d *DefaultAdapterService) List() ingress.Bindings {
 	var allBindings ingress.Bindings
 	request := &v1.ListBindingsRequest{}
 
@@ -92,6 +102,7 @@ func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
 		ctx, _ := context.WithTimeout(context.Background(), time.Second)
 		resp, err := client.ListBindings(ctx, request)
 		if err != nil {
+			log.Printf("unable to retrieve bindings: %s", err)
 			continue
 		}
 		bindings := make(map[v1.Binding]struct{})
@@ -105,5 +116,5 @@ func (d *DefaultAdapterService) List() (ingress.Bindings, error) {
 		}
 	}
 
-	return allBindings, nil
+	return allBindings
 }

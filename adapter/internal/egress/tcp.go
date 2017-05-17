@@ -65,6 +65,8 @@ func NewTCPWriter(
 		scheme:    "syslog",
 	}
 
+	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
+	// to a syslog drain over syslog.
 	w.egressMetric = metricClient.NewCounterMetric(
 		"egress",
 		metricemitter.WithVersion(2, 0),
