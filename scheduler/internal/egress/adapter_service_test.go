@@ -29,47 +29,7 @@ var _ = Describe("DefaultAdapterService", func() {
 		healthEmitter = &SpyHealthEmitter{}
 	})
 
-	It("makes a call to remove drain", func() {
-		client := &SpyClient{}
-		s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
-
-		actual := ingress.Bindings{binding}
-		expected := ingress.Bindings{}
-		s.DeleteDelta(actual, expected)
-
-		expectedToBeDeleted := &v1.Binding{
-			AppId:    "app-id",
-			Hostname: "org.space.app",
-			Drain:    "syslog://my-drain-url",
-		}
-		Expect(client.deleteBindingRequest()).To(Equal(
-			&v1.DeleteBindingRequest{Binding: expectedToBeDeleted},
-		))
-	})
-
-	It("remove drains on hostname rename", func() {
-		client := &SpyClient{}
-		s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
-
-		actual := ingress.Bindings{binding}
-		expected := ingress.Bindings{
-			v1.Binding{AppId: "app-id", Hostname: "org.space.other-app", Drain: "syslog://my-drain-url"},
-		}
-		s.DeleteDelta(actual, expected)
-
-		expectedToBeDeleted := &v1.Binding{
-			AppId:    "app-id",
-			Hostname: "org.space.app",
-			Drain:    "syslog://my-drain-url",
-		}
-		Expect(client.deleteBindingRequest()).To(Equal(
-			&v1.DeleteBindingRequest{Binding: expectedToBeDeleted},
-		))
-	})
-
-	It("issues one delete request", func() {})
-
-	Context("List", func() {
+	Describe("List", func() {
 		It("gets a list of de-duped bindings from all adapters", func() {
 			client := &SpyClient{}
 			binding := &v1.Binding{
@@ -107,7 +67,7 @@ var _ = Describe("DefaultAdapterService", func() {
 		})
 	})
 
-	Context("Create", func() {
+	Describe("Create", func() {
 		appBinding := v1.Binding{
 			AppId:    "app-id",
 			Drain:    "syslog://my-drain-url",
@@ -147,105 +107,148 @@ var _ = Describe("DefaultAdapterService", func() {
 
 				Expect(client.createCalled()).To(Equal(0))
 			})
-		})
 
-		It("writes both gRPC servers with two clients", func() {
-			firstClient := &SpyClient{}
-			secondClient := &SpyClient{}
-			s := egress.NewAdapterService(egress.AdapterPool{firstClient, secondClient}, healthEmitter)
+			It("creates a new drain on hostname rename", func() {
+				client := &SpyClient{}
+				s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
 
-			s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
-
-			Expect(firstClient.createCalled()).To(Equal(1))
-			Expect(secondClient.createCalled()).To(Equal(1))
-		})
-
-		It("writes only to two gRPC servers with many clients", func() {
-			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
-			s := egress.NewAdapterService(clients, healthEmitter)
-
-			s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
-
-			createCalled := 0
-			for _, client := range clients {
-				if (client.(*SpyClient)).createCalled() > 0 {
-					createCalled++
+				actual := ingress.Bindings{binding}
+				expected := ingress.Bindings{
+					v1.Binding{AppId: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.other-app"},
 				}
-			}
-			Expect(createCalled).To(Equal(2))
-		})
+				s.CreateDelta(actual, expected)
 
-		It("writes to only one gRPC server when another already has the binding", func() {
-			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
-			s := egress.NewAdapterService(clients, healthEmitter)
-
-			s.CreateDelta(ingress.Bindings{
-				{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
-			}, ingress.Bindings{appBinding})
-
-			createCalled := 0
-			for _, client := range clients {
-				if (client.(*SpyClient)).createCalled() > 0 {
-					createCalled++
+				expectedToBeCreated := &v1.Binding{
+					AppId:    "app-id",
+					Hostname: "org.space.other-app",
+					Drain:    "syslog://my-drain-url",
 				}
-			}
-			Expect(createCalled).To(Equal(1))
+				Expect(client.createBindingRequest()).To(Equal(
+					&v1.CreateBindingRequest{Binding: expectedToBeCreated},
+				))
+			})
 		})
 
-		It("writes to two adapters for each drain binding only once", func() {
-			appBindings := ingress.Bindings{
-				v1.Binding{AppId: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.app"},
-				v1.Binding{AppId: "app-id", Drain: "syslog://another-drain", Hostname: "org.space.app"},
-			}
+		Context("with multiple clients in the pool", func() {
+			It("writes to both adapters with two clients", func() {
+				firstClient := &SpyClient{}
+				secondClient := &SpyClient{}
+				s := egress.NewAdapterService(egress.AdapterPool{firstClient, secondClient}, healthEmitter)
 
-			clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}}
-			s := egress.NewAdapterService(clients, healthEmitter)
+				s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
 
-			s.CreateDelta(
-				ingress.Bindings{},
-				appBindings,
-			)
+				Expect(firstClient.createCalled()).To(Equal(1))
+				Expect(secondClient.createCalled()).To(Equal(1))
+			})
 
-			createCalled := 0
-			for _, client := range clients {
-				createCalled += (client.(*SpyClient)).createCalled()
-			}
-			Expect(createCalled).To(Equal(4))
+			It("writes only to two adapters with many clients", func() {
+				clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
+				s := egress.NewAdapterService(clients, healthEmitter)
 
-			s.CreateDelta(
-				ingress.Bindings{
+				s.CreateDelta(ingress.Bindings{}, ingress.Bindings{appBinding})
+
+				createCalled := 0
+				for _, client := range clients {
+					if (client.(*SpyClient)).createCalled() > 0 {
+						createCalled++
+					}
+				}
+				Expect(createCalled).To(Equal(2))
+			})
+
+			It("writes to only one adapter when another already has the binding", func() {
+				clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}, &SpyClient{}}
+				s := egress.NewAdapterService(clients, healthEmitter)
+
+				s.CreateDelta(ingress.Bindings{
 					{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
-					{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
-					{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
-					{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
-				},
-				appBindings,
-			)
+				}, ingress.Bindings{appBinding})
 
-			createCalled = 0
-			for _, client := range clients {
-				createCalled += (client.(*SpyClient)).createCalled()
+				createCalled := 0
+				for _, client := range clients {
+					if (client.(*SpyClient)).createCalled() > 0 {
+						createCalled++
+					}
+				}
+				Expect(createCalled).To(Equal(1))
+			})
+
+			It("writes to two adapters for each drain binding only once", func() {
+				appBindings := ingress.Bindings{
+					v1.Binding{AppId: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.app"},
+					v1.Binding{AppId: "app-id", Drain: "syslog://another-drain", Hostname: "org.space.app"},
+				}
+
+				clients := egress.AdapterPool{&SpyClient{}, &SpyClient{}}
+				s := egress.NewAdapterService(clients, healthEmitter)
+
+				s.CreateDelta(
+					ingress.Bindings{},
+					appBindings,
+				)
+
+				createCalled := 0
+				for _, client := range clients {
+					createCalled += (client.(*SpyClient)).createCalled()
+				}
+				Expect(createCalled).To(Equal(4))
+
+				s.CreateDelta(
+					ingress.Bindings{
+						{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
+						{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
+						{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://my-drain-url"},
+						{AppId: "app-id", Hostname: "org.space.app", Drain: "syslog://another-drain"},
+					},
+					appBindings,
+				)
+
+				createCalled = 0
+				for _, client := range clients {
+					createCalled += (client.(*SpyClient)).createCalled()
+				}
+				Expect(createCalled).To(Equal(4))
+			})
+		})
+	})
+
+	Describe("Delete", func() {
+		It("makes a call to remove drain", func() {
+			client := &SpyClient{}
+			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
+
+			actual := ingress.Bindings{binding}
+			expected := ingress.Bindings{}
+
+			s.DeleteDelta(actual, expected)
+
+			expectedToBeDeleted := &v1.Binding{
+				AppId:    "app-id",
+				Hostname: "org.space.app",
+				Drain:    "syslog://my-drain-url",
 			}
-			Expect(createCalled).To(Equal(4))
+			Expect(client.deleteBindingRequest()).To(Equal(
+				&v1.DeleteBindingRequest{Binding: expectedToBeDeleted},
+			))
 		})
 
-		It("creates a new drain on hostname rename", func() {
+		It("remove drains on hostname rename", func() {
 			client := &SpyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{client}, healthEmitter)
 
 			actual := ingress.Bindings{binding}
 			expected := ingress.Bindings{
-				v1.Binding{AppId: "app-id", Drain: "syslog://my-drain-url", Hostname: "org.space.other-app"},
+				v1.Binding{AppId: "app-id", Hostname: "org.space.other-app", Drain: "syslog://my-drain-url"},
 			}
-			s.CreateDelta(actual, expected)
+			s.DeleteDelta(actual, expected)
 
-			expectedToBeCreated := &v1.Binding{
+			expectedToBeDeleted := &v1.Binding{
 				AppId:    "app-id",
-				Hostname: "org.space.other-app",
+				Hostname: "org.space.app",
 				Drain:    "syslog://my-drain-url",
 			}
-			Expect(client.createBindingRequest()).To(Equal(
-				&v1.CreateBindingRequest{Binding: expectedToBeCreated},
+			Expect(client.deleteBindingRequest()).To(Equal(
+				&v1.DeleteBindingRequest{Binding: expectedToBeDeleted},
 			))
 		})
 	})
