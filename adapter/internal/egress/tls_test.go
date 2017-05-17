@@ -11,7 +11,7 @@ import (
 
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -19,7 +19,6 @@ import (
 
 var _ = Describe("TLSWriter", func() {
 	It("speaks TLS", func() {
-		metricEmitter := testhelper.NewMetricClient()
 		certFile := test_util.Cert("adapter-rlp.crt")
 		keyFile := test_util.Cert("adapter-rlp.key")
 		tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
@@ -37,7 +36,8 @@ var _ = Describe("TLSWriter", func() {
 			Hostname: "test-hostname",
 			Drain:    fmt.Sprintf("syslog-tls://%s", listener.Addr()),
 		}
-		writer, err := egress.NewTLSWriter(binding, time.Second, time.Second, true, metricEmitter)
+		egressCounter := new(metricemitter.CounterMetric)
+		writer, err := egress.NewTLSWriter(binding, time.Second, time.Second, true, egressCounter)
 		Expect(err).ToNot(HaveOccurred())
 		defer writer.Close()
 
@@ -64,6 +64,6 @@ var _ = Describe("TLSWriter", func() {
 		Expect(actual).To(Equal(expected))
 
 		By("emit an egress metric for each message")
-		Expect(metricEmitter.GetDelta("egress")).To(Equal(uint64(1)))
+		Expect(egressCounter.GetDelta()).To(Equal(uint64(1)))
 	})
 })

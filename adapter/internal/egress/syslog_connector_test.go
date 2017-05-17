@@ -24,7 +24,7 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("connects to the passed syslog scheme", func() {
 		var called bool
-		constructor := func(*v1.Binding, time.Duration, time.Duration, bool, metricemitter.MetricClient) (egress.WriteCloser, error) {
+		constructor := func(*v1.Binding, time.Duration, time.Duration, bool, *metricemitter.CounterMetric) (egress.WriteCloser, error) {
 			called = true
 			return nil, nil
 		}
@@ -48,7 +48,7 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("returns a writer that doesn't block even if the constructor's writer blocks", func(done Done) {
 		defer close(done)
-		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, metricemitter.MetricClient) (egress.WriteCloser, error) {
+		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, *metricemitter.CounterMetric) (egress.WriteCloser, error) {
 			return &BlockedWriteCloser{
 				duration: time.Hour,
 			}, nil
@@ -106,7 +106,7 @@ var _ = Describe("SyslogConnector", func() {
 	})
 
 	It("emits a metric on dropped messages", func() {
-		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, metricemitter.MetricClient) (egress.WriteCloser, error) {
+		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, *metricemitter.CounterMetric) (egress.WriteCloser, error) {
 			return &BlockedWriteCloser{
 				duration: time.Millisecond,
 			}, nil
@@ -147,7 +147,7 @@ var _ = Describe("SyslogConnector", func() {
 	})
 
 	It("does not panic on unknown dropped metrics", func() {
-		unknownConstruct := func(*v1.Binding, time.Duration, time.Duration, bool, metricemitter.MetricClient) (egress.WriteCloser, error) {
+		unknownConstruct := func(*v1.Binding, time.Duration, time.Duration, bool, *metricemitter.CounterMetric) (egress.WriteCloser, error) {
 			return &BlockedWriteCloser{
 				duration: time.Millisecond,
 			}, nil

@@ -10,7 +10,7 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
+	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -24,7 +24,6 @@ var _ = Describe("TCPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
-		metricEmitter *testhelper.SpyMetricClient
 	)
 
 	BeforeEach(func() {
@@ -32,7 +31,6 @@ var _ = Describe("TCPWriter", func() {
 		listener, err = net.Listen("tcp", ":0")
 		Expect(err).ToNot(HaveOccurred())
 		binding.Drain = fmt.Sprintf("syslog://%s", listener.Addr())
-		metricEmitter = testhelper.NewMetricClient()
 	})
 
 	AfterEach(func() {
@@ -40,16 +38,21 @@ var _ = Describe("TCPWriter", func() {
 	})
 
 	Describe("Write()", func() {
-		var writer egress.WriteCloser
+		var (
+			writer        egress.WriteCloser
+			egressCounter *metricemitter.CounterMetric
+		)
 
 		BeforeEach(func() {
 			var err error
+			egressCounter = new(metricemitter.CounterMetric)
+
 			writer, err = egress.NewTCPWriter(
 				binding,
 				time.Second,
 				time.Second,
 				false,
-				metricEmitter,
+				egressCounter,
 			)
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -132,7 +135,7 @@ var _ = Describe("TCPWriter", func() {
 			env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
 			writer.Write(env)
 
-			Expect(metricEmitter.GetDelta("egress")).To(Equal(uint64(1)))
+			Expect(egressCounter.GetDelta()).To(Equal(uint64(1)))
 		})
 	})
 
@@ -150,7 +153,7 @@ var _ = Describe("TCPWriter", func() {
 					time.Second,
 					time.Second,
 					false,
-					metricEmitter,
+					new(metricemitter.CounterMetric),
 				)
 				Expect(err).ToNot(HaveOccurred())
 

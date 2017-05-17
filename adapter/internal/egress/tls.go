@@ -19,7 +19,7 @@ func NewTLSWriter(
 	binding *v1.Binding,
 	dialTimeout, ioTimeout time.Duration,
 	skipCertVerify bool,
-	metricClient metricemitter.MetricClient,
+	egressMetric *metricemitter.CounterMetric,
 ) (WriteCloser, error) {
 	drainURL, err := url.Parse(binding.Drain)
 	// TODO: remove parsing/error from here
@@ -38,22 +38,15 @@ func NewTLSWriter(
 
 	w := &TLSWriter{
 		TCPWriter{
-			url:       drainURL,
-			appID:     binding.AppId,
-			hostname:  binding.Hostname,
-			ioTimeout: ioTimeout,
-			dialFunc:  df,
-			scheme:    "syslog-tls",
+			url:          drainURL,
+			appID:        binding.AppId,
+			hostname:     binding.Hostname,
+			ioTimeout:    ioTimeout,
+			dialFunc:     df,
+			scheme:       "syslog-tls",
+			egressMetric: egressMetric,
 		},
 	}
-
-	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
-	// to a syslog drain over syslog-tls.
-	w.egressMetric = metricClient.NewCounterMetric(
-		"egress",
-		metricemitter.WithVersion(2, 0),
-		metricemitter.WithTags(map[string]string{"drain-protocol": w.scheme}),
-	)
 
 	go w.connect()
 

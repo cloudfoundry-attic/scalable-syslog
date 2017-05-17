@@ -41,7 +41,7 @@ func NewTCPWriter(
 	binding *v1.Binding,
 	dialTimeout, ioTimeout time.Duration,
 	skipCertVerify bool,
-	metricClient metricemitter.MetricClient,
+	egressMetric *metricemitter.CounterMetric,
 ) (WriteCloser, error) {
 	drainURL, err := url.Parse(binding.Drain)
 	// TODO: remove parsing/error from here
@@ -57,21 +57,14 @@ func NewTCPWriter(
 	}
 
 	w := &TCPWriter{
-		url:       drainURL,
-		appID:     binding.AppId,
-		hostname:  binding.Hostname,
-		ioTimeout: ioTimeout,
-		dialFunc:  df,
-		scheme:    "syslog",
+		url:          drainURL,
+		appID:        binding.AppId,
+		hostname:     binding.Hostname,
+		ioTimeout:    ioTimeout,
+		dialFunc:     df,
+		scheme:       "syslog",
+		egressMetric: egressMetric,
 	}
-
-	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
-	// to a syslog drain over syslog.
-	w.egressMetric = metricClient.NewCounterMetric(
-		"egress",
-		metricemitter.WithVersion(2, 0),
-		metricemitter.WithTags(map[string]string{"drain-protocol": w.scheme}),
-	)
 
 	return w, nil
 }
