@@ -24,9 +24,7 @@ const maxWriteCount = 2
 
 // NewAdapterService returns a new DefaultAdapterService initialized with the
 // Adapter pool.
-func NewAdapterService(p AdapterPool, h HealthEmitter) *DefaultAdapterService {
-	h.SetCounter(map[string]int{"adapterCount": len(p)})
-
+func NewAdapterService(p AdapterPool) *DefaultAdapterService {
 	return &DefaultAdapterService{
 		pool: p,
 	}
