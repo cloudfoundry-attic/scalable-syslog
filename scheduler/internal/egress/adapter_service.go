@@ -53,7 +53,8 @@ func (d *DefaultAdapterService) CreateDelta(actual ingress.Bindings, expected in
 
 		pool := d.pool.Subset(d.currentPoolIdx, actualCreateCount)
 		for _, client := range pool {
-			client.CreateBinding(context.Background(), request)
+			ctx, _ := context.WithTimeout(context.Background(), time.Second)
+			client.CreateBinding(ctx, request)
 		}
 
 		d.currentPoolIdx += 1
@@ -87,7 +88,8 @@ func (d *DefaultAdapterService) DeleteDelta(actual ingress.Bindings, expected in
 		}
 
 		for _, client := range d.pool {
-			_, err := client.DeleteBinding(context.Background(), request)
+			ctx, _ := context.WithTimeout(context.Background(), time.Second)
+			_, err := client.DeleteBinding(ctx, request)
 			if err != nil {
 				log.Printf("delete binding failed: %s", err)
 			}
