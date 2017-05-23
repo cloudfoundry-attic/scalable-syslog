@@ -2,10 +2,12 @@ package ingress
 
 import (
 	"net/url"
+
+	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
 type BindingReader interface {
-	FetchBindings() (appBindings Bindings, err error)
+	FetchBindings() (appBindings []v1.Binding, err error)
 }
 
 // VersionFilter wraps a BindingReader and filters out versions that do not
@@ -22,12 +24,12 @@ func NewVersionFilter(br BindingReader) *VersionFilter {
 }
 
 // FetchBindings calls the wrapped BindingReader and filters the result.
-func (f *VersionFilter) FetchBindings() (Bindings, error) {
+func (f *VersionFilter) FetchBindings() ([]v1.Binding, error) {
 	sourceBindings, err := f.br.FetchBindings()
 	if err != nil {
 		return nil, err
 	}
-	newBindings := Bindings{}
+	newBindings := []v1.Binding{}
 	for _, binding := range sourceBindings {
 		url, err := url.Parse(binding.Drain)
 		if err != nil {

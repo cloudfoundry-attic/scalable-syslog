@@ -22,13 +22,13 @@ var _ = Describe("VersionFilter", func() {
 	})
 
 	It("filters out bindings with drain URL with drain-version != 2.0", func() {
-		input := ingress.Bindings{
+		input := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://example.com:1234/?drain-version=2.0"},
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://example.net:4321"},
 			v1.Binding{AppId: "app-id-with-good-drain", Hostname: "we.dont.care", Drain: "syslog://example.com:1234/?drain-version=2.0"},
 			v1.Binding{AppId: "app-id-with-bad-drain", Hostname: "we.dont.care", Drain: "syslog://example.com:1234"},
 		}
-		expected := ingress.Bindings{
+		expected := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://example.com:1234/?drain-version=2.0"},
 			v1.Binding{AppId: "app-id-with-good-drain", Hostname: "we.dont.care", Drain: "syslog://example.com:1234/?drain-version=2.0"},
 		}
@@ -42,13 +42,13 @@ var _ = Describe("VersionFilter", func() {
 	})
 
 	It("ignores malformed drain URLs", func() {
-		input := ingress.Bindings{
+		input := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "://some-bad-url/?drain-version=2.0"},
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://example.net:4321"},
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://example.com:1234/?drain-version=2.0"},
 			v1.Binding{AppId: "app-id-with-malformed-drains", Hostname: "we.dont.care", Drain: "://another-bad-url/?drain-version=2.0"},
 		}
-		expected := ingress.Bindings{
+		expected := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://example.com:1234/?drain-version=2.0"},
 		}
 		bindingReader := &SpyBindingReader{input, nil}
@@ -62,10 +62,10 @@ var _ = Describe("VersionFilter", func() {
 })
 
 type SpyBindingReader struct {
-	bindings ingress.Bindings
+	bindings []v1.Binding
 	err      error
 }
 
-func (s *SpyBindingReader) FetchBindings() (ingress.Bindings, error) {
+func (s *SpyBindingReader) FetchBindings() ([]v1.Binding, error) {
 	return s.bindings, s.err
 }

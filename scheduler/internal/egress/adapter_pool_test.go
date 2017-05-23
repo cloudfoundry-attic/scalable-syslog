@@ -14,16 +14,38 @@ import (
 )
 
 var _ = Describe("AdapterPool", func() {
-	It("returns a list of adapter clients", func() {
+	It("returns a pool of adapter clients", func() {
 		addr, cleanup := startGRPCServer()
 		defer cleanup()
 
 		pool := egress.NewAdapterPool([]string{addr}, nil, grpc.WithInsecure())
 		Expect(pool).To(HaveLen(1))
-		client := pool[0]
+		client := pool[addr]
 
 		_, err := client.ListBindings(context.Background(), &v1.ListBindingsRequest{})
 		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("returns a pool with a unconnected client", func() {
+		addr := "0.0.0.0:1234"
+		pool := egress.NewAdapterPool([]string{addr}, nil, grpc.WithInsecure())
+		Expect(pool).To(HaveLen(1))
+		client := pool[addr]
+
+		_, err := client.ListBindings(context.Background(), &v1.ListBindingsRequest{})
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("dedupes multiple adapters with the same addr", func() {
+		pool := egress.NewAdapterPool([]string{
+			"0.0.0.0:1234",
+			"0.0.0.0:1236",
+			"0.0.0.0:1235",
+			"0.0.0.0:1234",
+			"0.0.0.0:1235",
+			"0.0.0.0:1236",
+		}, nil, grpc.WithInsecure())
+		Expect(pool).To(HaveLen(3))
 	})
 
 	It("reports adapterCount health metric", func() {
@@ -35,54 +57,6 @@ var _ = Describe("AdapterPool", func() {
 		counters := healthEmitter.setCounterArg
 		Expect(counters).To(HaveLen(1))
 		Expect(counters["adapterCount"]).To(Equal(1))
-	})
-
-	It("returns a pool with a unconnected client", func() {
-		pool := egress.NewAdapterPool([]string{"0.0.0.0:1234"}, nil, grpc.WithInsecure())
-		Expect(pool).To(HaveLen(1))
-		client := pool[0]
-
-		_, err := client.ListBindings(context.Background(), &v1.ListBindingsRequest{})
-		Expect(err).To(HaveOccurred())
-	})
-
-	Context("Subset", func() {
-		addr := "1.1.1.1"
-
-		It("returns on client when one is in the pool", func() {
-			pool := egress.NewAdapterPool([]string{addr}, nil, grpc.WithInsecure())
-			subset := pool.Subset(0, 1)
-
-			Expect(len(subset)).To(Equal(1))
-		})
-
-		It("returns two clients when two are in the pool", func() {
-			pool := egress.NewAdapterPool([]string{addr, addr}, nil, grpc.WithInsecure())
-			subset := pool.Subset(0, 2)
-
-			Expect(len(subset)).To(Equal(2))
-		})
-
-		It("returns a subset of the pool when there are many", func() {
-			pool := egress.NewAdapterPool([]string{addr, addr, addr, addr}, nil, grpc.WithInsecure())
-			subset := pool.Subset(1, 2)
-
-			Expect(len(subset)).To(Equal(2))
-		})
-
-		It("wraps back to the first index on overflow", func() {
-			pool := egress.NewAdapterPool([]string{addr, addr, addr}, nil, grpc.WithInsecure())
-			subset := pool.Subset(1, 3)
-
-			Expect(len(subset)).To(Equal(3))
-		})
-
-		It("returns all clients when more are requested than available", func() {
-			pool := egress.NewAdapterPool([]string{addr, addr}, nil, grpc.WithInsecure())
-			subset := pool.Subset(0, 3)
-
-			Expect(len(subset)).To(Equal(2))
-		})
 	})
 })
 

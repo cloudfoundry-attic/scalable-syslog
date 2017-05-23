@@ -39,8 +39,8 @@ func NewBindingFetcher(g Getter) *BindingFetcher {
 
 // FetchBindings reaches out to the syslog drain binding provider via the Getter and decodes
 // the response. If it does not get a 200, it returns an error.
-func (f *BindingFetcher) FetchBindings() (Bindings, error) {
-	bindings := Bindings{}
+func (f *BindingFetcher) FetchBindings() ([]v1.Binding, error) {
+	bindings := []v1.Binding{}
 	nextID := 0
 
 	for {

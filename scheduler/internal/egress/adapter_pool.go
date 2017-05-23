@@ -8,21 +8,23 @@ import (
 	"google.golang.org/grpc"
 )
 
-type AdapterPool []v1.AdapterClient
+type AdapterPool map[string]v1.AdapterClient
 
 func NewAdapterPool(addrs []string, h HealthEmitter, opts ...grpc.DialOption) AdapterPool {
-	var pool AdapterPool
+	pool := AdapterPool{}
 
 	for _, addr := range addrs {
+		_, ok := pool[addr]
+		if ok {
+			continue
+		}
+
 		conn, err := grpc.Dial(addr, opts...)
 		if err != nil {
 			log.Printf("error dialing adapter: %v", err)
 			continue
 		}
-
-		c := v1.NewAdapterClient(conn)
-
-		pool = append(pool, c)
+		pool[addr] = v1.NewAdapterClient(conn)
 	}
 
 	if h != nil {
@@ -30,21 +32,4 @@ func NewAdapterPool(addrs []string, h HealthEmitter, opts ...grpc.DialOption) Ad
 	}
 
 	return pool
-}
-
-func (a AdapterPool) Subset(index, count int) AdapterPool {
-	var pool AdapterPool
-
-	if len(a) < count {
-		return a
-	}
-
-	if index+count >= len(a) {
-		missing := (index + count) - len(a)
-
-		pool = a[index:]
-		return append(pool, a[0:missing]...)
-	}
-
-	return a[index : index+count]
 }

@@ -23,7 +23,7 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("returns valid bindings", func() {
-		input := ingress.Bindings{
+		input := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 			v1.Binding{AppId: "app-id-with-good-drain", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
@@ -39,12 +39,12 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("removes bindings with an invalid host", func() {
-		input := ingress.Bindings{
+		input := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://some.invalid.host"},
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
 			v1.Binding{AppId: "app-id-with-bad-drain", Hostname: "we.dont.care", Drain: "syslog://invalid.host"},
 		}
-		expected := ingress.Bindings{
+		expected := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
 		}
 		bindingReader := &SpyBindingReader{bindings: input}
@@ -58,11 +58,11 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("removes bindings for a blacklisted IP", func() {
-		input := ingress.Bindings{
+		input := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://14.15.16.18"},
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
-		expected := ingress.Bindings{
+		expected := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
 		bindingReader := &SpyBindingReader{bindings: input}
@@ -76,11 +76,11 @@ var _ = Describe("BlacklistFilter", func() {
 	})
 
 	It("removes bindings for incompleted schemes", func() {
-		input := ingress.Bindings{
+		input := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "http://"},
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
-		expected := ingress.Bindings{
+		expected := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.12"},
 		}
 		bindingReader := &SpyBindingReader{bindings: input}

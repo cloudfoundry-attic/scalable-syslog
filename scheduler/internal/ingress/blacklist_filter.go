@@ -3,6 +3,8 @@ package ingress
 import (
 	"log"
 	"sync"
+
+	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
 type BlacklistFilter struct {
@@ -19,12 +21,12 @@ func NewBlacklistFilter(r *IPRanges, b BindingReader) *BlacklistFilter {
 	}
 }
 
-func (f *BlacklistFilter) FetchBindings() (Bindings, int, error) {
+func (f *BlacklistFilter) FetchBindings() ([]v1.Binding, int, error) {
 	sourceBindings, err := f.br.FetchBindings()
 	if err != nil {
 		return nil, 0, err
 	}
-	newBindings := Bindings{}
+	newBindings := []v1.Binding{}
 	removed := 0
 
 	for _, binding := range sourceBindings {

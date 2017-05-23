@@ -29,7 +29,7 @@ type Scheduler struct {
 	client     *http.Client
 	interval   time.Duration
 
-	adapterService *egress.DefaultAdapterService
+	adapterService *egress.AdapterService
 	fetcher        *ingress.BlacklistFilter
 
 	blacklist *ingress.IPRanges
@@ -114,6 +114,7 @@ func (s *Scheduler) Start() string {
 
 func (s *Scheduler) setupIngress() {
 	var fetcher ingress.BindingReader
+
 	fetcher = ingress.NewBindingFetcher(
 		ingress.APIClient{
 			Client: s.client,
@@ -133,7 +134,7 @@ func (s *Scheduler) startEgress() {
 
 	pool := egress.NewAdapterPool(s.adapterAddrs, s.health, grpc.WithTransportCredentials(creds))
 	s.adapterService = egress.NewAdapterService(pool)
-	orchestrator := egress.NewOrchestrator(s.fetcher, s.adapterService, s.health, s.emitter)
+	orchestrator := egress.NewOrchestrator(s.adapterAddrs, s.fetcher, s.adapterService, s.health, s.emitter)
 	go orchestrator.Run(s.interval)
 }
 
