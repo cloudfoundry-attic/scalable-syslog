@@ -1,14 +1,13 @@
 package ingress
 
 import (
-	"context"
 	"log"
-	"sync/atomic"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
+	"golang.org/x/net/context"
 )
 
 type ClientPool interface {
@@ -16,23 +15,30 @@ type ClientPool interface {
 }
 
 type SyslogConnector interface {
-	Connect(binding *v1.Binding) (cw egress.WriteCloser, err error)
+	Connect(ctx context.Context, binding *v1.Binding) (w egress.Writer, err error)
 }
 
 // Subscriber streams loggregator egress to the syslog drain.
 type Subscriber struct {
+	ctx           context.Context
 	pool          ClientPool
 	connector     SyslogConnector
 	ingressMetric *metricemitter.CounterMetric
 }
 
 // NewSubscriber returns a new Subscriber.
-func NewSubscriber(p ClientPool, c SyslogConnector, e metricemitter.MetricClient) *Subscriber {
+func NewSubscriber(
+	ctx context.Context,
+	p ClientPool,
+	c SyslogConnector,
+	e metricemitter.MetricClient,
+) *Subscriber {
+
 	return &Subscriber{
+		ctx:       ctx,
 		pool:      p,
 		connector: c,
-		ingressMetric: e.NewCounterMetric(
-			"ingress",
+		ingressMetric: e.NewCounterMetric("ingress",
 			metricemitter.WithVersion(2, 0),
 		),
 	}
@@ -42,26 +48,28 @@ func NewSubscriber(p ClientPool, c SyslogConnector, e metricemitter.MetricClient
 // egress writer. Start does not block. Start returns a function that can be
 // called to stop streaming logs.
 func (s *Subscriber) Start(binding *v1.Binding) func() {
-	var unsubscribe int32
+	ctx, cancel := context.WithCancel(s.ctx)
 
-	go s.connectAndRead(binding, &unsubscribe)
+	go s.connectAndRead(ctx, binding)
 
-	return func() {
-		atomic.AddInt32(&unsubscribe, 1)
-	}
+	return cancel
 }
 
-func (s *Subscriber) connectAndRead(binding *v1.Binding, unsubscribe *int32) {
-	for {
-		cont := s.attemptConnectAndRead(binding, unsubscribe)
+func (s *Subscriber) connectAndRead(ctx context.Context, binding *v1.Binding) {
+	for !isDone(ctx) {
+		cont := s.attemptConnectAndRead(ctx, binding)
 		if !cont {
 			return
 		}
 	}
 }
 
-func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int32) bool {
-	writer, err := s.connector.Connect(binding)
+func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Binding) bool {
+	var cancel func()
+	ctx, cancel = context.WithCancel(ctx)
+	defer cancel()
+
+	writer, err := s.connector.Connect(ctx, binding)
 	if err != nil {
 		log.Println("Failed connecting to syslog: %s", err)
 		// If connect fails it is likely due to a parse error with the binding
@@ -69,11 +77,8 @@ func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int
 		// connecting.
 		return false
 	}
-	defer writer.Close()
 
-	// TODO: What if we cannot get a client?
 	client := s.pool.Next()
-	ctx, cancel := context.WithCancel(context.Background())
 	receiver, err := client.Receiver(ctx, &v2.EgressRequest{
 		ShardId: buildShardId(binding),
 		Filter: &v2.Filter{
@@ -86,23 +91,16 @@ func (s *Subscriber) attemptConnectAndRead(binding *v1.Binding, unsubscribe *int
 	if err != nil {
 		return true
 	}
-	defer cancel()
 	defer receiver.CloseSend()
 
-	if err := s.readWriteLoop(receiver, writer, unsubscribe); err != nil {
-		log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
-		return true
-	}
+	err = s.readWriteLoop(receiver, writer)
+	log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
 
-	return false
+	return true
 }
 
-func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteCloser, unsubscribe *int32) error {
+func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.Writer) error {
 	for {
-		if atomic.LoadInt32(unsubscribe) > 0 {
-			return nil
-		}
-
 		env, err := r.Recv()
 		if err != nil {
 			return err
@@ -116,6 +114,15 @@ func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.WriteClo
 		// situations the connector will provide a diode writer and the diode
 		// writer never returns an error.
 		_ = w.Write(env)
+	}
+}
+
+func isDone(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
 	}
 }
 

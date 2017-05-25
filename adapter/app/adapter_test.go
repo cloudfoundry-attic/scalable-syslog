@@ -8,6 +8,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,6 +23,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	"github.com/crewjam/rfc5424"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -31,12 +34,11 @@ var _ = Describe("Adapter", func() {
 		rlpTLSConfig *tls.Config
 		tlsConfig    *tls.Config
 
-		adapterServiceHost string
-		adapterHealthAddr  string
-		client             v1.AdapterClient
-		binding            *v1.Binding
-		egressServer       *MockEgressServer
-		syslogTCPServer    *SyslogTCPServer
+		adapterHealthAddr string
+		client            v1.AdapterClient
+		binding           *v1.Binding
+		egressServer      *MockEgressServer
+		syslogTCPServer   *SyslogTCPServer
 	)
 
 	BeforeEach(func() {
@@ -71,9 +73,11 @@ var _ = Describe("Adapter", func() {
 				app.WithAdapterServerAddr("localhost:0"),
 				app.WithLogsEgressAPIConnCount(1),
 			)
-			adapterHealthAddr, adapterServiceHost = adapter.Start()
+			go adapter.Start()
+			Eventually(adapter.ServerAddr).ShouldNot(Equal("localhost:0"))
 
-			client = startAdapterClient(adapterServiceHost)
+			adapterHealthAddr = adapter.HealthAddr()
+			client = startAdapterClient(adapter.ServerAddr())
 			syslogTCPServer = newSyslogTCPServer()
 
 			binding = &v1.Binding{
@@ -146,9 +150,10 @@ var _ = Describe("Adapter", func() {
 					app.WithLogsEgressAPIConnCount(1),
 					app.WithSyslogSkipCertVerify(true),
 				)
-				adapterHealthAddr, adapterServiceHost = adapter.Start()
+				go adapter.Start()
 
-				client = startAdapterClient(adapterServiceHost)
+				Eventually(adapter.ServerAddr).ShouldNot(Equal("localhost:0"))
+				client = startAdapterClient(adapter.ServerAddr())
 			})
 
 			It("forwards logs from loggregator to a syslog TLS drain", func() {
@@ -191,9 +196,10 @@ var _ = Describe("Adapter", func() {
 					app.WithLogsEgressAPIConnCount(1),
 					app.WithSyslogSkipCertVerify(false),
 				)
-				adapterHealthAddr, adapterServiceHost = adapter.Start()
+				go adapter.Start()
 
-				client = startAdapterClient(adapterServiceHost)
+				Eventually(adapter.ServerAddr).ShouldNot(Equal("localhost:0"))
+				client = startAdapterClient(adapter.ServerAddr())
 			})
 
 			It("fails to forward logs", func() {
@@ -204,6 +210,47 @@ var _ = Describe("Adapter", func() {
 
 				Consistently(syslogTCPServer.msgCount).Should(Equal(uint64(0)))
 			})
+		})
+
+		Describe("drain and die", func() {
+			var adapter *app.Adapter
+
+			BeforeEach(func() {
+				syslogTCPServer = newSyslogTLSServer()
+
+				binding = &v1.Binding{
+					AppId:    "appguid",
+					Hostname: "ahostname",
+					Drain:    "syslog-tls://" + syslogTCPServer.addr().String(),
+				}
+
+				adapter = app.NewAdapter(
+					logsAPIAddr,
+					rlpTLSConfig,
+					tlsConfig,
+					testhelper.NewMetricClient(),
+					app.WithHealthAddr("localhost:0"),
+					app.WithAdapterServerAddr("localhost:0"),
+					app.WithLogsEgressAPIConnCount(1),
+					app.WithSyslogSkipCertVerify(true),
+				)
+
+				go adapter.Start()
+				Eventually(adapter.ServerAddr).ShouldNot(Equal("localhost:0"))
+
+				client = startAdapterClient(adapter.ServerAddr())
+				_, err := client.CreateBinding(context.Background(), &v1.CreateBindingRequest{
+					Binding: binding,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(syslogTCPServer.msgCount).Should(BeNumerically(">", 10))
+			})
+
+			It("empties buffers and sends logs to syslog", func() {
+				adapter.Stop()
+				lastIdx := egressServer.WaitForLastSentIdx()
+				Eventually(syslogTCPServer.LastReceivedIdx).Should(BeNumerically("~", lastIdx, 1))
+			}, 5)
 		})
 	})
 })
@@ -249,7 +296,9 @@ func startLogsAPIServer() (*MockEgressServer, string) {
 }
 
 type MockEgressServer struct {
-	receiver chan v2.Egress_ReceiverServer
+	receiver       chan v2.Egress_ReceiverServer
+	lastSuccessIdx int64
+	exited         int64
 }
 
 func NewMockEgressServer() *MockEgressServer {
@@ -259,21 +308,32 @@ func NewMockEgressServer() *MockEgressServer {
 }
 
 func (m *MockEgressServer) Receiver(req *v2.EgressRequest, receiver v2.Egress_ReceiverServer) error {
+	defer atomic.StoreInt64(&m.exited, 1)
 	m.receiver <- receiver
 
-	for {
-		err := receiver.Send(buildLogEnvelope())
+	for i := 0; ; i++ {
+		err := receiver.Send(buildLogEnvelope(int64(i)))
 		if err != nil {
 			return err
 		}
+		atomic.StoreInt64(&m.lastSuccessIdx, int64(i))
 		time.Sleep(time.Millisecond)
 	}
 }
 
+func (m *MockEgressServer) WaitForLastSentIdx() int64 {
+	for atomic.LoadInt64(&m.exited) < 1 {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	return atomic.LoadInt64(&m.lastSuccessIdx)
+}
+
 type SyslogTCPServer struct {
-	lis       net.Listener
-	mu        sync.Mutex
-	msgCount_ uint64
+	lis             net.Listener
+	mu              sync.Mutex
+	msgCount_       uint64
+	lastReceivedIdx int64
 }
 
 func newSyslogTCPServer() *SyslogTCPServer {
@@ -304,6 +364,10 @@ func newSyslogTLSServer() *SyslogTCPServer {
 	return m
 }
 
+func (m *SyslogTCPServer) LastReceivedIdx() int64 {
+	return atomic.LoadInt64(&m.lastReceivedIdx)
+}
+
 func (m *SyslogTCPServer) accept() {
 	for {
 		conn, err := m.lis.Accept()
@@ -316,12 +380,22 @@ func (m *SyslogTCPServer) accept() {
 
 func (m *SyslogTCPServer) handleConn(conn net.Conn) {
 	for {
-		buf := make([]byte, 1024)
-		_, err := conn.Read(buf)
+		var msg rfc5424.Message
+
+		_, err := msg.ReadFrom(conn)
 		if err != nil {
 			return
 		}
-		_ = buf
+
+		i, err := strconv.ParseInt(strings.TrimSpace(string(msg.Message)), 10, 64)
+		if err == nil {
+			atomic.StoreInt64(&m.lastReceivedIdx, i)
+		}
+
+		if err != nil {
+			fmt.Println("Failed to parse", err)
+		}
+
 		atomic.AddUint64(&m.msgCount_, 1)
 	}
 }
@@ -334,7 +408,7 @@ func (m *SyslogTCPServer) addr() net.Addr {
 	return m.lis.Addr()
 }
 
-func buildLogEnvelope() *v2.Envelope {
+func buildLogEnvelope(i int64) *v2.Envelope {
 	return &v2.Envelope{
 		Tags: map[string]*v2.Value{
 			"source_type":     {&v2.Value_Text{"APP"}},
@@ -344,7 +418,7 @@ func buildLogEnvelope() *v2.Envelope {
 		SourceId:  "app-guid",
 		Message: &v2.Envelope_Log{
 			Log: &v2.Log{
-				Payload: []byte("log"),
+				Payload: []byte(fmt.Sprint(i)),
 				Type:    v2.Log_OUT,
 			},
 		},

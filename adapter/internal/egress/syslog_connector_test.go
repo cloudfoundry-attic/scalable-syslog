@@ -1,7 +1,10 @@
 package egress_test
 
 import (
+	"io"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
@@ -16,17 +19,20 @@ import (
 var _ = Describe("SyslogConnector", func() {
 	var (
 		metricEmitter *testhelper.SpyMetricClient
+		ctx           context.Context
+		cancelCtx     func()
 	)
 
 	BeforeEach(func() {
 		metricEmitter = testhelper.NewMetricClient()
+		ctx, cancelCtx = context.WithCancel(context.Background())
 	})
 
 	It("connects to the passed syslog scheme", func() {
 		var called bool
 		constructor := func(*v1.Binding, time.Duration, time.Duration, bool, *metricemitter.CounterMetric) (egress.WriteCloser, error) {
 			called = true
-			return nil, nil
+			return &BlockedWriteCloser{}, nil
 		}
 
 		connector := egress.NewSyslogConnector(
@@ -41,7 +47,7 @@ var _ = Describe("SyslogConnector", func() {
 		binding := &v1.Binding{
 			Drain: "foo://",
 		}
-		_, err := connector.Connect(binding)
+		_, err := connector.Connect(ctx, binding)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(called).To(BeTrue())
 	})
@@ -66,7 +72,7 @@ var _ = Describe("SyslogConnector", func() {
 		binding := &v1.Binding{
 			Drain: "blocked://",
 		}
-		writer, err := connector.Connect(binding)
+		writer, err := connector.Connect(ctx, binding)
 		Expect(err).ToNot(HaveOccurred())
 		err = writer.Write(&loggregator_v2.Envelope{
 			SourceId: "test-source-id",
@@ -85,7 +91,7 @@ var _ = Describe("SyslogConnector", func() {
 		binding := &v1.Binding{
 			Drain: "bla://some-domain.tld",
 		}
-		_, err := connector.Connect(binding)
+		_, err := connector.Connect(ctx, binding)
 		Expect(err).To(MatchError("unsupported scheme"))
 	})
 
@@ -101,7 +107,7 @@ var _ = Describe("SyslogConnector", func() {
 			Drain: "://syslog/laksjdflk:asdfdsaf:2232",
 		}
 
-		_, err := connector.Connect(binding)
+		_, err := connector.Connect(ctx, binding)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -130,10 +136,10 @@ var _ = Describe("SyslogConnector", func() {
 		binding := &v1.Binding{
 			Drain: "blocked://",
 		}
-		writer, err := connector.Connect(binding)
+		writer, err := connector.Connect(ctx, binding)
 		Expect(err).ToNot(HaveOccurred())
 
-		go func(writer egress.WriteCloser) {
+		go func(writer egress.Writer) {
 			for i := 0; i < 50000; i++ {
 				writer.Write(&loggregator_v2.Envelope{
 					SourceId: "test-source-id",
@@ -167,22 +173,23 @@ var _ = Describe("SyslogConnector", func() {
 		binding := &v1.Binding{
 			Drain: "unknown://",
 		}
-		writer, err := connector.Connect(binding)
+		writer, err := connector.Connect(ctx, binding)
 		Expect(err).ToNot(HaveOccurred())
 
-		for i := 0; i < 50000; i++ {
-			writer.Write(&loggregator_v2.Envelope{
-				SourceId: "test-source-id",
-			})
+		f := func() {
+			for i := 0; i < 50000; i++ {
+				writer.Write(&loggregator_v2.Envelope{
+					SourceId: "test-source-id",
+				})
+			}
 		}
-
-		// Should not panic
+		Expect(f).ToNot(Panic())
 	})
 })
 
 type BlockedWriteCloser struct {
 	duration time.Duration
-	egress.WriteCloser
+	io.Closer
 }
 
 func (b *BlockedWriteCloser) Write(*loggregator_v2.Envelope) error {

@@ -2,9 +2,12 @@ package egress
 
 import (
 	"errors"
+	"io"
 	"log"
 	"net/url"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
@@ -12,10 +15,15 @@ import (
 	"github.com/cloudfoundry/diodes"
 )
 
+// Write is the interface for all diode writers.
+type Writer interface {
+	Write(*loggregator_v2.Envelope) error
+}
+
 // WriteCloser is the interface for all syslog writers.
 type WriteCloser interface {
-	Write(*loggregator_v2.Envelope) error
-	Close() error
+	Writer
+	io.Closer
 }
 
 // SyslogConnector creates the various egress syslog writers.
@@ -57,8 +65,7 @@ func NewSyslogConnector(
 	)
 	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
 	// to a syslog drain over syslog.
-	syslogEgressMetric := metricClient.NewCounterMetric(
-		"egress",
+	syslogEgressMetric := metricClient.NewCounterMetric("egress",
 		metricemitter.WithVersion(2, 0),
 		metricemitter.WithTags(map[string]string{"drain-protocol": "syslog"}),
 	)
@@ -71,8 +78,7 @@ func NewSyslogConnector(
 	)
 	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
 	// to a syslog drain over syslog-tls.
-	syslogTLSEgressMetric := metricClient.NewCounterMetric(
-		"egress",
+	syslogTLSEgressMetric := metricClient.NewCounterMetric("egress",
 		metricemitter.WithVersion(2, 0),
 		metricemitter.WithTags(map[string]string{"drain-protocol": "syslog-tls"}),
 	)
@@ -121,7 +127,7 @@ func WithDroppedMetrics(metrics map[string]*metricemitter.CounterMetric) Connect
 
 // Connect returns an egress writer based on the scheme of the binding drain
 // URL.
-func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
+func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, error) {
 	url, err := url.Parse(b.Drain)
 	if err != nil {
 		return nil, err
@@ -138,7 +144,7 @@ func (w *SyslogConnector) Connect(b *v1.Binding) (WriteCloser, error) {
 		return nil, err
 	}
 
-	dw := NewDiodeWriter(writer, diodes.AlertFunc(func(missed int) {
+	dw := NewDiodeWriter(ctx, writer, diodes.AlertFunc(func(missed int) {
 		if droppedMetric != nil {
 			droppedMetric.Increment(uint64(missed))
 		}

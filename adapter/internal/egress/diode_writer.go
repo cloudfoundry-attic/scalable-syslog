@@ -1,7 +1,7 @@
 package egress
 
 import (
-	"time"
+	"golang.org/x/net/context"
 
 	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	"code.cloudfoundry.org/scalable-syslog/internal/diodes"
@@ -11,57 +11,37 @@ import (
 type DiodeWriter struct {
 	wc    WriteCloser
 	diode *diodes.OneToOne
-	done_ chan struct{}
+
+	ctx context.Context
 }
 
-func NewDiodeWriter(wc WriteCloser, alerter gendiodes.Alerter) *DiodeWriter {
+func NewDiodeWriter(ctx context.Context, wc WriteCloser, alerter gendiodes.Alerter) *DiodeWriter {
 	dw := &DiodeWriter{
 		wc:    wc,
-		diode: diodes.NewOneToOne(10000, alerter),
-		done_: make(chan struct{}),
+		diode: diodes.NewOneToOne(100, alerter, gendiodes.WithPollingContext(ctx)),
+		ctx:   ctx,
 	}
 	go dw.start()
+
 	return dw
 }
 
 // Write writes an envelope into the diode. This can not fail.
 func (d *DiodeWriter) Write(env *loggregator_v2.Envelope) error {
 	d.diode.Set(env)
+
 	return nil
 }
 
-// Close tearsdown the goroutine servicing the diode and also closes the
-// underlying writer, returning it's error.
-func (d *DiodeWriter) Close() error {
-	close(d.done_)
-	return d.wc.Close()
-}
-
 func (d *DiodeWriter) start() {
+	defer d.wc.Close()
+
 	for {
-		if d.done() {
+		e := d.diode.Next()
+		if e == nil {
 			return
 		}
-		d.attemptMessageTransfer()
-	}
-}
 
-func (d *DiodeWriter) done() bool {
-	select {
-	case <-d.done_:
-		return true
-	default:
-		return false
+		d.wc.Write(e)
 	}
-}
-
-func (d *DiodeWriter) attemptMessageTransfer() {
-	env, ok := d.diode.TryNext()
-	if !ok {
-		time.Sleep(10 * time.Millisecond)
-		return
-	}
-
-	// TODO: do something with error?
-	d.wc.Write(env)
 }

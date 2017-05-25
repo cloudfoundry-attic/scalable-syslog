@@ -1,10 +1,11 @@
 package egress_test
 
 import (
-	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"golang.org/x/net/context"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,7 +21,7 @@ var _ = Describe("DiodeWriter", func() {
 		}
 		spyWriter := &SpyWriter{}
 		spyAlerter := &SpyAlerter{}
-		dw := egress.NewDiodeWriter(spyWriter, spyAlerter)
+		dw := egress.NewDiodeWriter(context.TODO(), spyWriter, spyAlerter)
 
 		dw.Write(expectedEnv)
 
@@ -32,24 +33,13 @@ var _ = Describe("DiodeWriter", func() {
 	It("dispatches calls to close to the underlying writer", func() {
 		spyWriter := &SpyWriter{}
 		spyAlerter := &SpyAlerter{}
-		dw := egress.NewDiodeWriter(spyWriter, spyAlerter)
+		ctx, cancel := context.WithCancel(context.TODO())
 
-		dw.Close()
+		egress.NewDiodeWriter(ctx, spyWriter, spyAlerter)
 
-		Expect(spyWriter.closeCalled).To(Equal(1))
-	})
+		cancel()
 
-	It("returns the underlying writer's close error", func() {
-		expectedErr := errors.New("test-close-error")
-		spyWriter := &SpyWriter{
-			closeRet: expectedErr,
-		}
-		spyAlerter := &SpyAlerter{}
-		dw := egress.NewDiodeWriter(spyWriter, spyAlerter)
-
-		err := dw.Close()
-
-		Expect(err).To(Equal(expectedErr))
+		Eventually(spyWriter.CloseCalled).Should(Equal(int64(1)))
 	})
 
 	It("is not blocked when underlying writer is blocked", func(done Done) {
@@ -58,24 +48,50 @@ var _ = Describe("DiodeWriter", func() {
 			blockWrites: true,
 		}
 		spyAlerter := &SpyAlerter{}
-		dw := egress.NewDiodeWriter(spyWriter, spyAlerter)
+		dw := egress.NewDiodeWriter(context.TODO(), spyWriter, spyAlerter)
 		dw.Write(nil)
+	})
+
+	It("flushes existing messages after close", func() {
+		spyWriter := &SpyWriter{
+			blockWrites: true,
+		}
+		spyAlerter := &SpyAlerter{}
+		ctx, cancel := context.WithCancel(context.TODO())
+
+		dw := egress.NewDiodeWriter(ctx, spyWriter, spyAlerter)
+
+		e := &loggregator_v2.Envelope{}
+		for i := 0; i < 100; i++ {
+			dw.Write(e)
+		}
+		cancel()
+		spyWriter.WriteBlocked(false)
+
+		Eventually(spyWriter.calledWith).Should(HaveLen(100))
 	})
 })
 
 type SpyWriter struct {
 	mu          sync.Mutex
 	calledWith_ []*loggregator_v2.Envelope
-	closeCalled int
+	closeCalled int64
 	closeRet    error
 	blockWrites bool
 }
 
 func (s *SpyWriter) Write(env *loggregator_v2.Envelope) error {
-	if s.blockWrites {
-		for {
+	for {
+		s.mu.Lock()
+		block := s.blockWrites
+		s.mu.Unlock()
+
+		if block {
 			time.Sleep(100 * time.Millisecond)
+			continue
 		}
+
+		break
 	}
 
 	s.mu.Lock()
@@ -84,9 +100,21 @@ func (s *SpyWriter) Write(env *loggregator_v2.Envelope) error {
 	return nil
 }
 
+func (s *SpyWriter) WriteBlocked(blocked bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.blockWrites = blocked
+}
+
 func (s *SpyWriter) Close() error {
-	s.closeCalled++
+	atomic.AddInt64(&s.closeCalled, 1)
+
 	return s.closeRet
+}
+
+func (s *SpyWriter) CloseCalled() int64 {
+	return atomic.LoadInt64(&s.closeCalled)
 }
 
 func (s *SpyWriter) calledWith() []*loggregator_v2.Envelope {

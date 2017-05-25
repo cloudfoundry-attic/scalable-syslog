@@ -4,7 +4,10 @@ import (
 	"crypto/tls"
 	"log"
 	"net"
+	"sync"
 	"time"
+
+	"golang.org/x/net/context"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/binding"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
@@ -18,10 +21,17 @@ import (
 )
 
 type Adapter struct {
-	healthAddr             string
+	mu                sync.Mutex
+	healthAddr        string
+	adapterServerAddr string
+
+	ctx    context.Context
+	cancel func()
+
+	adapterServer          *grpc.Server
+	bindingManager         *binding.BindingManager
 	logsAPIConnCount       int
 	logsAPIConnTTL         time.Duration
-	adapterServerAddr      string
 	logsEgressAPIAddr      string
 	logsEgressAPITLSConfig *tls.Config
 	adapterServerTLSConfig *tls.Config
@@ -97,9 +107,13 @@ func NewAdapter(
 	metricClient metricemitter.MetricClient,
 	opts ...AdapterOption,
 ) *Adapter {
-	adapter := &Adapter{
+	ctx, cancel := context.WithCancel(context.Background())
+
+	a := &Adapter{
 		healthAddr:             ":8080",
 		adapterServerAddr:      ":443",
+		ctx:                    ctx,
+		cancel:                 cancel,
 		logsAPIConnCount:       5,
 		logsAPIConnTTL:         600 * time.Second,
 		logsEgressAPIAddr:      logsEgressAPIAddr,
@@ -113,59 +127,70 @@ func NewAdapter(
 	}
 
 	for _, o := range opts {
-		o(adapter)
+		o(a)
 	}
 
-	return adapter
-}
-
-// Start starts the adapter health endpoint and gRPC service.
-func (a *Adapter) Start() (actualHealth, actualService string) {
-	log.Print("Starting adapter...")
-
 	balancer := ingress.NewBalancer(a.logsEgressAPIAddr)
-	connector := ingress.NewConnector(
-		balancer,
+	connector := ingress.NewConnector(balancer,
 		grpc.WithTransportCredentials(credentials.NewTLS(a.logsEgressAPITLSConfig)),
 	)
 	clientManager := ingress.NewClientManager(
 		connector,
 		a.logsAPIConnCount,
 		a.logsAPIConnTTL,
-		time.Second,
-	)
+		time.Second)
 	syslogConnector := egress.NewSyslogConnector(
 		a.syslogDialTimeout,
 		a.syslogIOTimeout,
 		a.skipCertVerify,
 		a.metricClient,
 	)
-	subscriber := ingress.NewSubscriber(clientManager, syslogConnector, a.metricClient)
-	manager := binding.NewBindingManager(subscriber)
+	subscriber := ingress.NewSubscriber(a.ctx, clientManager, syslogConnector, a.metricClient)
 
-	actualHealth = health.StartServer(a.health, a.healthAddr)
-	creds := credentials.NewTLS(a.adapterServerTLSConfig)
-	actualService = a.startAdapterService(creds, manager)
+	a.bindingManager = binding.NewBindingManager(subscriber)
+	a.healthAddr = health.StartServer(a.health, a.healthAddr)
 
-	return actualHealth, actualService
+	return a
 }
 
-func (a *Adapter) startAdapterService(creds credentials.TransportCredentials, manager *binding.BindingManager) string {
-	lis, err := net.Listen("tcp", a.adapterServerAddr)
+// Start starts the adapter health endpoint and gRPC service.
+func (a *Adapter) Start() error {
+	lis, err := net.Listen("tcp", a.adapterServerAddr) // close this listener
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
-	adapterServer := binding.NewAdapterServer(manager, a.health)
+	adapterServer := binding.NewAdapterServer(a.bindingManager, a.health)
 	grpcServer := grpc.NewServer(
-		grpc.Creds(creds),
+		grpc.Creds(credentials.NewTLS(a.adapterServerTLSConfig)),
 	)
 	v1.RegisterAdapterServer(grpcServer, adapterServer)
 
-	go func() {
-		log.Fatalf("failed to serve: %v", grpcServer.Serve(lis))
-	}()
-
 	log.Printf("Adapter server is listening on %s", lis.Addr().String())
-	return lis.Addr().String()
+	a.adapterServer = grpcServer
+
+	a.mu.Lock()
+	a.adapterServerAddr = lis.Addr().String()
+	a.mu.Unlock()
+
+	return grpcServer.Serve(lis)
+}
+
+func (a *Adapter) HealthAddr() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.healthAddr
+}
+
+func (a *Adapter) ServerAddr() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.adapterServerAddr
+}
+
+func (a *Adapter) Stop() {
+	log.Println("Shutting down adapter server")
+
+	a.adapterServer.Stop()
+	a.cancel()
 }

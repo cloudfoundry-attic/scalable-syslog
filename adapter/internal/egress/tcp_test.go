@@ -57,10 +57,6 @@ var _ = Describe("TCPWriter", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		AfterEach(func() {
-			writer.Close()
-		})
-
 		DescribeTable("envelopes are written out with proper priority", func(logType loggregator_v2.Log_Type, expectedPriority int) {
 			env := buildLogEnvelope("APP", "2", "just a test", logType)
 			Expect(writer.Write(env)).To(Succeed())
@@ -139,7 +135,7 @@ var _ = Describe("TCPWriter", func() {
 		})
 	})
 
-	Describe("Close()", func() {
+	Describe("Cancel Context", func() {
 		var (
 			writer egress.WriteCloser
 			conn   net.Conn

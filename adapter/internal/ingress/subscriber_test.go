@@ -8,6 +8,7 @@ import (
 	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
+	"golang.org/x/net/context"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -26,7 +27,7 @@ var _ = Describe("Subscriber", func() {
 		mockClientPool = newMockClientPool()
 		spyEmitter = testhelper.NewMetricClient()
 		syslogConnector = newMockSyslogConnector()
-		subscriber = ingress.NewSubscriber(mockClientPool, syslogConnector, spyEmitter)
+		subscriber = ingress.NewSubscriber(context.TODO(), mockClientPool, syslogConnector, spyEmitter)
 		binding = &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host-name",
@@ -36,7 +37,7 @@ var _ = Describe("Subscriber", func() {
 
 	It("opens a stream to an egress client", func() {
 		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.Cw <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
 		client := newMockEgressClient()
@@ -65,8 +66,8 @@ var _ = Describe("Subscriber", func() {
 
 	It("uses another egress client if it fails to open a stream", func() {
 		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.Cw <- closeWriter
-		syslogConnector.ConnectOutput.Cw <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
 		client := newMockEgressClient()
@@ -82,8 +83,8 @@ var _ = Describe("Subscriber", func() {
 
 	It("gets a new client and reciever if Recv() fails", func() {
 		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.Cw <- closeWriter
-		syslogConnector.ConnectOutput.Cw <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
 		client := newMockEgressClient()
@@ -107,7 +108,10 @@ var _ = Describe("Subscriber", func() {
 		receiverClient.RecvOutput.Ret1 <- errors.New("an-error")
 
 		Eventually(receiverClient.CloseSendCalled).Should(Receive())
-		Eventually(closeWriter.closes).Should(Receive())
+
+		var ctx context.Context
+		Eventually(syslogConnector.ConnectInput.Ctx).Should(Receive(&ctx))
+		Eventually(ctx.Done).Should(BeClosed())
 
 		By("get a new client and receiver")
 		Eventually(mockClientPool.NextCalled).Should(HaveLen(2))
@@ -125,8 +129,8 @@ var _ = Describe("Subscriber", func() {
 
 	It("closes all connections when the unsubscribe func is called", func() {
 		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.Cw <- closeWriter
-		syslogConnector.ConnectOutput.Cw <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
 		client := newMockEgressClient()
@@ -138,7 +142,6 @@ var _ = Describe("Subscriber", func() {
 		client.ReceiverOutput.Ret0 <- receiverClient
 		close(client.ReceiverOutput.Ret1)
 		close(receiverClient.CloseSendOutput.Ret0)
-		close(receiverClient.RecvOutput.Ret1)
 
 		unsubscribe := subscriber.Start(binding)
 
@@ -158,38 +161,23 @@ var _ = Describe("Subscriber", func() {
 		}()
 
 		unsubscribe()
+		receiverClient.RecvOutput.Ret1 <- errors.New("some-error")
 
 		Eventually(receiverClient.CloseSendCalled).Should(Receive())
-		Eventually(closeWriter.closes).Should(Receive())
 		Consistently(mockClientPool.NextCalled).ShouldNot(Receive())
-	})
 
-	It("cancels the connection context if unsubscribe func is called", func() {
-		syslogConnector.ConnectOutput.Cw <- newSpyCloseWriter()
-		close(syslogConnector.ConnectOutput.Err)
+		var ctx context.Context
+		Eventually(syslogConnector.ConnectInput.Ctx).Should(Receive(&ctx))
+		Eventually(ctx.Done).Should(BeClosed())
 
-		client := newMockEgressClient()
-		mockClientPool.NextOutput.Client <- client
-
-		receiverClient := newMockReceiverClient()
-		client.ReceiverOutput.Ret0 <- receiverClient
-		close(client.ReceiverOutput.Ret1)
-		close(receiverClient.RecvOutput.Ret0)
-		close(receiverClient.RecvOutput.Ret1)
-		close(receiverClient.CloseSendOutput.Ret0)
-
-		unsubscribe := subscriber.Start(binding)
-		unsubscribe()
-
-		ctx := <-client.ReceiverInput.Ctx
-		done := ctx.Done()
-		Eventually(done, 2).Should(BeClosed())
+		Eventually(client.ReceiverInput.Ctx).Should(Receive(&ctx))
+		Eventually(ctx.Done).Should(BeClosed())
 	})
 
 	It("ignores non log messages", func() {
 		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.Cw <- closeWriter
-		syslogConnector.ConnectOutput.Cw <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
 		client := newMockEgressClient()
@@ -218,7 +206,7 @@ var _ = Describe("Subscriber", func() {
 
 	It("emits ingress metrics", func() {
 		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.Cw <- closeWriter
+		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
 		client := newMockEgressClient()

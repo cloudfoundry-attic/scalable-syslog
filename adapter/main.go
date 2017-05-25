@@ -59,6 +59,8 @@ func main() {
 		log.Fatalf("Couldn't connect to metric emitter: %s", err)
 	}
 
+	go startPprof(cfg.PprofHostport)
+
 	adapter := app.NewAdapter(
 		cfg.LogsAPIAddr,
 		rlpTlsConfig,
@@ -71,8 +73,10 @@ func main() {
 		app.WithSyslogSkipCertVerify(cfg.SyslogSkipCertVerify),
 	)
 	adapter.Start()
+}
 
-	lis, err := net.Listen("tcp", cfg.PprofHostport)
+func startPprof(hostport string) {
+	lis, err := net.Listen("tcp", hostport)
 	if err != nil {
 		log.Printf("Error creating pprof listener: %s", err)
 	}
