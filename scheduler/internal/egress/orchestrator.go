@@ -48,16 +48,18 @@ func NewOrchestrator(
 	h HealthEmitter,
 	m MetricEmitter,
 ) *Orchestrator {
+	// metric-documentation-v2: (scheduler.drains) Number of drains being
+	// serviced by scalable syslog.
+	drainGauge := m.NewGaugeMetric("drains", "count",
+		metricemitter.WithVersion(2, 0),
+	)
+
 	return &Orchestrator{
-		addrs:   addrs,
-		reader:  r,
-		service: s,
-		health:  h,
-		drainGauge: m.NewGaugeMetric(
-			"drains",
-			"count",
-			metricemitter.WithVersion(2, 0),
-		),
+		addrs:      addrs,
+		reader:     r,
+		service:    s,
+		health:     h,
+		drainGauge: drainGauge,
 	}
 }
 

@@ -33,14 +33,17 @@ func NewSubscriber(
 	c SyslogConnector,
 	e metricemitter.MetricClient,
 ) *Subscriber {
+	// metric-documentation-v2: (adapter.ingress) Number of envelopes
+	// ingressed from RLP.
+	ingressMetric := e.NewCounterMetric("ingress",
+		metricemitter.WithVersion(2, 0),
+	)
 
 	return &Subscriber{
-		ctx:       ctx,
-		pool:      p,
-		connector: c,
-		ingressMetric: e.NewCounterMetric("ingress",
-			metricemitter.WithVersion(2, 0),
-		),
+		ctx:           ctx,
+		pool:          p,
+		connector:     c,
+		ingressMetric: ingressMetric,
 	}
 }
 
