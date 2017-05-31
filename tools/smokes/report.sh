@@ -97,3 +97,8 @@ if [ "$msg_count" -eq 0 ]; then
     echo message count was zero, sad
     exit 1
 fi
+
+if [ "$drain_count" -eq 0 ]; then
+    echo drain count was zero, sad
+    exit 1
+fi
