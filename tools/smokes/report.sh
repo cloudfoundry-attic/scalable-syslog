@@ -14,7 +14,7 @@ for i in `seq 1 $NUM_APPS`; do
     : $(( msg_count = $msg_count + $c ))
 done;
 
-drain_count=$(curl $(app_url "$counter_name")/get)
+drain_count=$(curl -s $(app_url "$counter_name")/get)
 currenttime=$(date +%s)
 
 curl -X POST -H "Content-type: application/json" \
