@@ -68,7 +68,7 @@ function restart_drain_app {
 }
 
 function create_drain_service {
-    drain_domain=$(cf app "$job_name" | grep urls | awk '{print $2}')
+    drain_domain=$(cf app "$job_name" | grep -E 'routes|urls' | awk '{print $2}')
     cf create-user-provided-service \
         "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION" \
         -l "$DRAIN_TYPE://$drain_domain/drain?drain-version=$DRAIN_VERSION" || true
