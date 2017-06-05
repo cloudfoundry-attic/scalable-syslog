@@ -21,11 +21,13 @@ var _ = Describe("SyslogConnector", func() {
 		metricEmitter *testhelper.SpyMetricClient
 		ctx           context.Context
 		cancelCtx     func()
+		spyWaitGroup  *SpyWaitGroup
 	)
 
 	BeforeEach(func() {
 		metricEmitter = testhelper.NewMetricClient()
 		ctx, cancelCtx = context.WithCancel(context.Background())
+		spyWaitGroup = &SpyWaitGroup{}
 	})
 
 	It("connects to the passed syslog scheme", func() {
@@ -40,9 +42,11 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			metricEmitter,
+			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
 				"foo": constructor,
-			}))
+			}),
+		)
 
 		binding := &v1.Binding{
 			Drain: "foo://",
@@ -65,9 +69,11 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			metricEmitter,
+			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
 				"blocked": blockedConstructor,
-			}))
+			}),
+		)
 
 		binding := &v1.Binding{
 			Drain: "blocked://",
@@ -86,6 +92,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			metricEmitter,
+			spyWaitGroup,
 		)
 
 		binding := &v1.Binding{
@@ -101,6 +108,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			metricEmitter,
+			spyWaitGroup,
 		)
 
 		binding := &v1.Binding{
@@ -125,6 +133,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			metricEmitter,
+			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
 				"blocked": blockedConstructor,
 			}),
@@ -164,6 +173,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			metricEmitter,
+			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
 				"unknown": unknownConstruct,
 			}),

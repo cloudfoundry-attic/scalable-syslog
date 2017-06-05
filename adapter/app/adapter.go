@@ -12,6 +12,7 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/binding"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/timeoutwaitgroup"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/health"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
@@ -40,6 +41,7 @@ type Adapter struct {
 	skipCertVerify         bool
 	health                 *health.Health
 	metricClient           metricemitter.MetricClient
+	timeoutWaitGroup       *timeoutwaitgroup.TimeoutWaitGroup
 }
 
 // AdapterOption is a type that will manipulate a config
@@ -124,6 +126,7 @@ func NewAdapter(
 		skipCertVerify:         true,
 		health:                 health.NewHealth(),
 		metricClient:           metricClient,
+		timeoutWaitGroup:       timeoutwaitgroup.New(time.Minute),
 	}
 
 	for _, o := range opts {
@@ -144,6 +147,7 @@ func NewAdapter(
 		a.syslogIOTimeout,
 		a.skipCertVerify,
 		a.metricClient,
+		a.timeoutWaitGroup,
 	)
 	subscriber := ingress.NewSubscriber(a.ctx, clientManager, syslogConnector, a.metricClient)
 
@@ -189,8 +193,12 @@ func (a *Adapter) ServerAddr() string {
 }
 
 func (a *Adapter) Stop() {
-	log.Println("Shutting down adapter server")
+	log.Printf("Draining connections...")
 
 	a.adapterServer.Stop()
 	a.cancel()
+	a.timeoutWaitGroup.Wait()
+
+	log.Printf("Done draining connections.")
+	log.Println("Shutting down adapter server")
 }

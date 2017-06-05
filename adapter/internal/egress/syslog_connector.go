@@ -35,6 +35,7 @@ type SyslogConnector struct {
 	constructors   map[string]SyslogConstructor
 	droppedMetrics map[string]*metricemitter.CounterMetric
 	egressMetrics  map[string]*metricemitter.CounterMetric
+	wg             WaitGroup
 }
 
 // NewSyslogConnector configures and returns a new SyslogConnector.
@@ -42,6 +43,7 @@ func NewSyslogConnector(
 	dialTimeout, ioTimeout time.Duration,
 	skipCertVerify bool,
 	metricClient metricemitter.MetricClient,
+	wg WaitGroup,
 	opts ...ConnectorOption,
 ) *SyslogConnector {
 	// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
@@ -88,6 +90,7 @@ func NewSyslogConnector(
 		dialTimeout:    dialTimeout,
 		skipCertVerify: skipCertVerify,
 		metricClient:   metricClient,
+		wg:             wg,
 		constructors: map[string]SyslogConstructor{
 			"https":      NewHTTPSWriter,
 			"syslog":     NewTCPWriter,
@@ -150,7 +153,7 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 		}
 
 		log.Printf("Dropped %d %s logs", missed, url.Scheme)
-	}))
+	}), w.wg)
 
 	return dw, nil
 }

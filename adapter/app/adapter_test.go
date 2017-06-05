@@ -246,7 +246,9 @@ var _ = Describe("Adapter", func() {
 				Eventually(syslogTCPServer.msgCount).Should(BeNumerically(">", 10))
 			})
 
-			It("empties buffers and sends logs to syslog", func() {
+			It("empties buffers and sends logs to syslog", func(done Done) {
+				defer close(done)
+
 				adapter.Stop()
 				lastIdx := egressServer.WaitForLastSentIdx()
 				Eventually(syslogTCPServer.LastReceivedIdx).Should(BeNumerically("~", lastIdx, 1))

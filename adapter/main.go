@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -77,15 +76,7 @@ func main() {
 		app.WithSyslogSkipCertVerify(cfg.SyslogSkipCertVerify),
 	)
 	go adapter.Start()
-	defer func() {
-		adapter.Stop()
-		log.Printf("Draining connections...")
-		// TODO: This should coordinate with the components that are stopping
-		// to know when they are stopped and then unblock. Sleeping for a
-		// minute is a hack that forces draining to take at least a minute.
-		time.Sleep(time.Minute)
-		log.Printf("Done draining connections.")
-	}()
+	defer adapter.Stop()
 
 	killSignal := make(chan os.Signal, 1)
 	signal.Notify(killSignal, syscall.SIGINT, syscall.SIGTERM)
