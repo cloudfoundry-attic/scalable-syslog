@@ -85,6 +85,9 @@ function push_spinner_app {
         cf bind-service \
             "drainspinner-$job_name-$1" \
             "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION"
+        # Giving some time for the binding to propogate to CC. Since the
+        # default for scheduler to poll CC is 30s.
+        sleep 31
     popd
 }
 
