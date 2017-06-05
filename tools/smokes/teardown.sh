@@ -13,5 +13,7 @@ done;
 
 # delete the drain app (reader)
 cf delete-service "ss-smoke-syslog-$job_name-drain-${DRAIN_VERSION}" -f
+cf logs "$job_name" --recent
 cf delete "$job_name" -r -f
+cf logs "$counter_name" --recent
 cf delete "$counter_name" -r -f
