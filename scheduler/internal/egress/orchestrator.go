@@ -3,8 +3,10 @@ package egress
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"math/rand"
+	"sort"
 	"time"
 
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
@@ -87,12 +89,13 @@ func (o *Orchestrator) Run(interval time.Duration) {
 
 // desiredState maps the current bindings onto adapters. Each binding gets
 // mapped onto at most two adapters.
-func desiredState(bindings []v1.Binding, addrs []string) State {
+func desiredState(bs []v1.Binding, addrs []string) State {
 	r := rand.New(rand.NewSource(0))
+	sort.Sort(bindings(bs))
 
 	desired := State{}
 
-	for _, b := range bindings {
+	for _, b := range bs {
 		addr, remaining, err := sample(r, desired, addrs)
 		if err != nil {
 			continue
@@ -140,4 +143,20 @@ func minKeys(state State, addrs []string) []string {
 		}
 	}
 	return minAddrs
+}
+
+type bindings []v1.Binding
+
+func (b bindings) Len() int {
+	return len(b)
+}
+
+func (b bindings) Less(i, j int) bool {
+	return fmt.Sprintf("%#v", b[i]) < fmt.Sprintf("%#v", b[j])
+}
+
+func (b bindings) Swap(i, j int) {
+	tmp := b[i]
+	b[i] = b[j]
+	b[j] = tmp
 }

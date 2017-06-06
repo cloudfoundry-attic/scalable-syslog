@@ -3,6 +3,7 @@ package egress_test
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -215,7 +216,15 @@ type SpyReader struct {
 }
 
 func (s *SpyReader) FetchBindings() (appBindings []v1.Binding, invalid int, err error) {
-	return s.drains, 0, s.err
+	return s.randomizeOrder(s.drains), 0, s.err
+}
+
+func (s *SpyReader) randomizeOrder(b []v1.Binding) []v1.Binding {
+	var result []v1.Binding
+	for _, n := range rand.Perm(len(b)) {
+		result = append(result, b[n])
+	}
+	return result
 }
 
 type transition struct {
