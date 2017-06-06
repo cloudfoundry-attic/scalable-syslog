@@ -116,7 +116,7 @@ func NewAdapter(
 		adapterServerAddr:      ":443",
 		ctx:                    ctx,
 		cancel:                 cancel,
-		logsAPIConnCount:       5,
+		logsAPIConnCount:       10,
 		logsAPIConnTTL:         600 * time.Second,
 		logsEgressAPIAddr:      logsEgressAPIAddr,
 		logsEgressAPITLSConfig: logsEgressAPITLSConfig,
