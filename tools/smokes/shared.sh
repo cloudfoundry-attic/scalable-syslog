@@ -1,13 +1,4 @@
 
-# JOB_NAME:
-# DRAIN_TYPE:
-# DRAIN_VERSION:
-# CF_SYSTEM_DOMAIN:
-# CF_USERNAME:
-# CF_PASSWORD:
-# CF_SPACE:
-# CF_ORG:
-
 function login {
     checkpoint "Logging into CF"
 
@@ -21,6 +12,44 @@ function login {
             --skip-ssl-validation # TODO: consider passing this in as a param
     fi
     login_has_occurred=true
+}
+
+function validate_variables {
+    for var in "$@"; do
+        local value=${!var:-}
+        case "$var" in
+            DRAIN_VERSION)
+                if [ "$value" != "1.0" ] && [ "$value" != "2.0" ]; then
+                    error "$var must be either \"1.0\" or \"2.0\""
+                    return 1
+                fi
+                ;;
+            DRAIN_TYPE)
+                if [ "$value" != "syslog" ] && [ "$value" != "https" ]; then
+                    error "$var must be either \"syslog\" or \"https\""
+                    return 1
+                fi
+                ;;
+            CYCLES)
+                if [ ! "$value" -gt 0 ]; then
+                    error "$var must be a positive number"
+                    return 1
+                fi
+                ;;
+            DELAY_US)
+                if [ ! "$value" -ge 0 ]; then
+                    error "$var must be a nonnegative number"
+                    return 1
+                fi
+                ;;
+            *)
+                if [ "$value" = "" ]; then
+                    error "$var needs to be set"
+                    return 1
+                fi
+                ;;
+        esac
+    done
 }
 
 function checkpoint {
@@ -63,24 +92,20 @@ function app_url {
     fi
 }
 
-function job_name {
-    echo "${JOB_NAME:-$DRAIN_TYPE}"
-}
-
 function drain_app_name {
-    echo "drain-$(job_name)"
+    echo "ss-smoke-drain-$JOB_NAME"
 }
 
 function drainspinner_app_name {
-    echo "drainspinner-$(job_name)"
+    echo "ss-smoke-drainspinner-$JOB_NAME"
 }
 
 function counter_app_name {
-    echo "counter-$(job_name)"
+    echo "ss-smoke-counter-$JOB_NAME"
 }
 
 function syslog_drain_service_name {
-    echo "ss-smoke-syslog-$(job_name)-drain-$DRAIN_VERSION"
+    echo "ss-smoke-${JOB_NAME}-${DRAIN_VERSION}"
 }
 
 function syslog_drain_service_url {

@@ -1,4 +1,18 @@
 #!/usr/bin/env bash
+
+# JOB_NAME: the name of the job, this should be unique for each dataset
+# CYCLES: how many log messages to emit
+# DELAY_US: how many microseconds to wait inbetween writing log messages
+# DATADOG_API_KEY:
+# DRAIN_TYPE: syslog or https
+# DRAIN_VERSION: 1.0 or 2.0
+# CF_SYSTEM_DOMAIN: system domain for communicating with cf api
+# CF_USERNAME: cf username
+# CF_PASSWORD: cf password
+# CF_SPACE: cf space for running test
+# CF_ORG: cf org for running test
+# CF_APP_DOMAIN: tcp or https app domain based on DRAIN_TYPE
+
 set -eu
 
 source ./shared.sh
@@ -22,16 +36,25 @@ function post_to_datadog {
         "tags": [
             "drain_version:$DRAIN_VERSION",
             "drain_type:$DRAIN_TYPE",
-            "job_name:$(job_name)"
+            "job_name:$JOB_NAME"
         ]
     }]
 }
 JSON
 )
     curl -X POST -H "Content-type: application/json" -d "$payload" "$(datadog_url)"
+    echo
+}
+
+function validate_report {
+    validate_variables JOB_NAME CYCLES DELAY_US DATADOG_API_KEY DRAIN_TYPE \
+        DRAIN_VERSION CF_SYSTEM_DOMAIN CF_USERNAME CF_PASSWORD CF_SPACE \
+        CF_ORG CF_APP_DOMAIN
 }
 
 function main {
+    validate_report
+
     checkpoint "Reporting Results"
 
     kill_cf

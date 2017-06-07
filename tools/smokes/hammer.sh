@@ -1,4 +1,14 @@
 #!/usr/bin/env bash
+
+# JOB_NAME: the name of the job, this should be unique for each dataset
+# CYCLES: how many log messages to emit
+# DELAY_US: how many microseconds to wait inbetween writing log messages
+# CF_SYSTEM_DOMAIN: system domain for communicating with cf api
+# CF_USERNAME: cf username
+# CF_PASSWORD: cf password
+# CF_SPACE: cf space for running test
+# CF_ORG: cf org for running test
+
 set -eu
 
 source ./shared.sh
@@ -41,7 +51,14 @@ function block_until_count_equals_cycles {
     exit 0
 }
 
+function validate_hammer {
+    validate_variables JOB_NAME CYCLES DELAY_US CF_SYSTEM_DOMAIN CF_USERNAME \
+        CF_PASSWORD CF_SPACE CF_ORG
+}
+
 function main {
+    validate_hammer
+
     checkpoint "Starting Hammer"
 
     login

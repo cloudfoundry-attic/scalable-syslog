@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
+
+# JOB_NAME: the name of the job, this should be unique for each dataset
+# DRAIN_TYPE: syslog or https
+# DRAIN_VERSION: 1.0 or 2.0
+# CF_SYSTEM_DOMAIN: system domain for communicating with cf api
+# CF_USERNAME: cf username
+# CF_PASSWORD: cf password
+# CF_SPACE: cf space for running test
+# CF_ORG: cf org for running test
+# CF_APP_DOMAIN: tcp or https app domain based on DRAIN_TYPE
+
 set -eu
-
-# DRAIN_TYPE:
-# CF_APP_DOMAIN:
-
-# TODO: validate arguments
-# TODO: document arguments
 
 source ./shared.sh
 
@@ -89,10 +94,7 @@ function push_drain_app {
         if [ "$DRAIN_TYPE" = "syslog" ]; then
             cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --random-port
         else
-            echo
-            echo cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --hostname "$(job_name)"
-            echo
-            cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --hostname "$(job_name)"
+            cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --hostname "$JOB_NAME"
         fi
 
         cf start "$(drain_app_name)"
@@ -165,7 +167,14 @@ function block_until_count {
     exit 0
 }
 
+function validate_push {
+    validate_variables JOB_NAME DRAIN_TYPE DRAIN_VERSION CF_SYSTEM_DOMAIN \
+        CF_USERNAME CF_PASSWORD CF_SPACE CF_ORG CF_APP_DOMAIN
+}
+
 function main {
+    validate_push
+
     checkpoint "Starting Push"
 
     login
