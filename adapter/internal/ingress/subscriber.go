@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"log"
+	"time"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
@@ -18,12 +19,21 @@ type SyslogConnector interface {
 	Connect(ctx context.Context, binding *v1.Binding) (w egress.Writer, err error)
 }
 
+type SubscriberOption func(s *Subscriber)
+
+func WithStreamOpenTimeout(d time.Duration) SubscriberOption {
+	return func(s *Subscriber) {
+		s.streamOpenTimeout = d
+	}
+}
+
 // Subscriber streams loggregator egress to the syslog drain.
 type Subscriber struct {
-	ctx           context.Context
-	pool          ClientPool
-	connector     SyslogConnector
-	ingressMetric *metricemitter.CounterMetric
+	ctx               context.Context
+	pool              ClientPool
+	connector         SyslogConnector
+	ingressMetric     *metricemitter.CounterMetric
+	streamOpenTimeout time.Duration
 }
 
 // NewSubscriber returns a new Subscriber.
@@ -32,6 +42,7 @@ func NewSubscriber(
 	p ClientPool,
 	c SyslogConnector,
 	e metricemitter.MetricClient,
+	opts ...SubscriberOption,
 ) *Subscriber {
 	// metric-documentation-v2: (adapter.ingress) Number of envelopes
 	// ingressed from RLP.
@@ -39,12 +50,19 @@ func NewSubscriber(
 		metricemitter.WithVersion(2, 0),
 	)
 
-	return &Subscriber{
-		ctx:           ctx,
-		pool:          p,
-		connector:     c,
-		ingressMetric: ingressMetric,
+	s := &Subscriber{
+		ctx:               ctx,
+		pool:              p,
+		connector:         c,
+		ingressMetric:     ingressMetric,
+		streamOpenTimeout: 5 * time.Second,
 	}
+
+	for _, o := range opts {
+		o(s)
+	}
+
+	return s
 }
 
 // Start begins to stream logs from a loggregator egress client to the syslog
@@ -82,6 +100,17 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 	}
 
 	client := s.pool.Next()
+
+	ready := make(chan struct{})
+	go func() {
+		select {
+		case <-time.After(s.streamOpenTimeout):
+			cancel()
+		case <-ready:
+			// Do nothing
+		}
+	}()
+
 	receiver, err := client.Receiver(ctx, &v2.EgressRequest{
 		ShardId: buildShardId(binding),
 		Filter: &v2.Filter{
@@ -91,7 +120,9 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 			},
 		},
 	})
+	close(ready)
 	if err != nil {
+		log.Printf("failed to open stream for binding %s: %s", binding.AppId, err)
 		return true
 	}
 	defer receiver.CloseSend()

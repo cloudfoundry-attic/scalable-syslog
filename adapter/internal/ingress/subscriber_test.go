@@ -3,6 +3,7 @@ package ingress_test
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
@@ -27,7 +28,13 @@ var _ = Describe("Subscriber", func() {
 		mockClientPool = newMockClientPool()
 		spyEmitter = testhelper.NewMetricClient()
 		syslogConnector = newMockSyslogConnector()
-		subscriber = ingress.NewSubscriber(context.TODO(), mockClientPool, syslogConnector, spyEmitter)
+		subscriber = ingress.NewSubscriber(
+			context.TODO(),
+			mockClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
 		binding = &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host-name",
@@ -226,6 +233,25 @@ var _ = Describe("Subscriber", func() {
 		Eventually(func() uint64 {
 			return spyEmitter.GetDelta("ingress")
 		}).Should(Equal(uint64(1)))
+	})
+
+	It("times out opening a stream", func() {
+		syslogConnector.ConnectOutput.W <- newSpyCloseWriter()
+		syslogConnector.ConnectOutput.W <- newSpyCloseWriter()
+		close(syslogConnector.ConnectOutput.Err)
+
+		client := newMockEgressClient()
+		mockClientPool.NextOutput.Client <- client
+
+		subscriber.Start(binding)
+		Eventually(mockClientPool.NextCalled).Should(Receive())
+
+		close(client.ReceiverOutput.Ret0)
+		ctx := <-client.ReceiverInput.Ctx
+		Eventually(ctx.Done).Should(BeClosed())
+
+		client.ReceiverOutput.Ret1 <- errors.New("Stream Open Failed")
+		Eventually(mockClientPool.NextCalled).Should(Receive())
 	})
 })
 
