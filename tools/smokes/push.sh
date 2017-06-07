@@ -94,7 +94,7 @@ function push_drain_app {
         if [ "$DRAIN_TYPE" = "syslog" ]; then
             cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --random-port
         else
-            cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --hostname "$JOB_NAME"
+            cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --hostname "$(drain_app_name)"
         fi
 
         cf start "$(drain_app_name)"
