@@ -186,8 +186,5 @@ function main {
     bind_service
 
     prime_service_binding
-
-    restart_counter_app
-    restart_spinner_app
 }
 main
