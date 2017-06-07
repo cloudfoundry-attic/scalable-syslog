@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -19,7 +20,11 @@ func main() {
 }
 
 type Handler struct {
-	count uint64
+	// primeCount will track the primer message count
+	primeCount uint64
+
+	// msgCount will track the actual message count
+	msgCount uint64
 }
 
 func NewSyslog() *Handler {
@@ -33,10 +38,11 @@ func (h *Handler) reportCount() {
 	}
 
 	for range time.Tick(time.Second) {
-		newCount := atomic.LoadUint64(&h.count)
-		log.Printf("Updating count on counter app to %d", newCount)
+		newPrimeCount := atomic.LoadUint64(&h.primeCount)
+		newMsgCount := atomic.LoadUint64(&h.msgCount)
+		log.Printf("Updating prime count: %d msg count: %d", newPrimeCount, newMsgCount)
 
-		countStr := fmt.Sprint(newCount)
+		countStr := fmt.Sprintf("%d:%d", newPrimeCount, newMsgCount)
 		resp, err := http.Post(url, "text/plain", strings.NewReader(countStr))
 		if err != nil {
 			log.Printf("Failed to write count: %s", err)
@@ -61,7 +67,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	atomic.AddUint64(&h.count, 1)
-
+	if bytes.Contains(body, []byte("prime")) {
+		atomic.AddUint64(&h.primeCount, 1)
+	}
+	if bytes.Contains(body, []byte("live")) {
+		atomic.AddUint64(&h.msgCount, 1)
+	}
 	return
 }

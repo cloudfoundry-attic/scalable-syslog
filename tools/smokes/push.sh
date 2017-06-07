@@ -1,118 +1,184 @@
 #!/usr/bin/env bash
-set -exu
+set -eu
 
-source shared.sh
+# DRAIN_TYPE:
+# CF_APP_DOMAIN:
+
+# TODO: validate arguments
+# TODO: document arguments
+
+source ./shared.sh
 
 function ensure_counter_app {
-    if ! cf app "$counter_name" > /dev/null; then
+    checkpoint "Ensuring Counter App is Pushed"
+
+    if ! cf app "$(counter_app_name)" &> /dev/null; then
         push_counter_app
     else
         restart_counter_app
     fi
 }
 
-function push_counter_app {
-    pushd counter
-        if ! [ -e ./counter ]; then
-            GOOS=linux go build
-        fi
-        cf push "$counter_name" -c ./counter -b binary_buildpack -m 128M
-    popd
-}
-
-function restart_counter_app {
-    cf restart "$counter_name"
-}
-
 function ensure_drain_app {
-    if ! cf app "$job_name" > /dev/null; then
+    checkpoint "Ensuring Drain App is Pushed"
+
+    if ! cf app "$(drain_app_name)" &> /dev/null; then
         push_drain_app
     else
         restart_drain_app
     fi
-    if ! cf service "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION" 2> /dev/null; then
-        create_drain_service
+}
+
+function ensure_spinner_app {
+    checkpoint "Ensuring Spinner App is Pushed"
+
+    if ! cf app "$(drainspinner_app_name)" &> /dev/null; then
+        push_spinner_app
+    else
+        restart_spinner_app
     fi
 }
 
-function ensure_spinner_apps {
-    for i in $(seq 1 "$NUM_APPS"); do
-        if ! cf app "drainspinner-$job_name-$i" 2> /dev/null; then
-            push_spinner_app "$i"
-        else
-            restart_spinner_app "$i"
+function restart_counter_app {
+    checkpoint "Restarting Counter App"
+
+    cf restart "$(counter_app_name)"
+}
+
+function restart_drain_app {
+    checkpoint "Restarting Drain App"
+
+    cf restart "$(drain_app_name)"
+}
+
+function restart_spinner_app {
+    checkpoint "Restarting Spinner App"
+
+    cf restart "$(drainspinner_app_name)"
+}
+
+function push_counter_app {
+    checkpoint "Pushing Counter App"
+
+    pushd counter
+        if ! [ -e ./counter ]; then
+            GOOS=linux go build
         fi
-    done
+        cf push "$(counter_app_name)" -c ./counter -b binary_buildpack -m 128M
+    popd
 }
 
 function push_drain_app {
+    checkpoint "Pushing Drain App"
+
     pushd "./${DRAIN_TYPE}_drain"
         if ! [ -e "./${DRAIN_TYPE}_drain" ]; then
             GOOS=linux go build
         fi
-        cf push "$job_name" -c "./${DRAIN_TYPE}_drain" -b binary_buildpack --no-route --no-start -m 128M
-        cf set-env "$job_name" COUNTER_URL "https://$(app_url $counter_name)"
+        cf push "$(drain_app_name)" \
+            -c "./${DRAIN_TYPE}_drain" \
+            -b binary_buildpack \
+            --no-route \
+            --no-start \
+            -m 128M \
+            --health-check-type none
+        cf set-env "$(drain_app_name)" \
+            COUNTER_URL \
+            "https://$(app_url "$(counter_app_name)")"
 
         if [ "$DRAIN_TYPE" = "syslog" ]; then
-            cf map-route "$job_name" "$CF_APP_DOMAIN" --random-port
+            cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --random-port
         else
-            cf map-route "$job_name" "$CF_APP_DOMAIN" --hostname "$job_name"
+            echo
+            echo cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --hostname "$(job_name)"
+            echo
+            cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --hostname "$(job_name)"
         fi
 
-        cf start "$job_name"
+        cf start "$(drain_app_name)"
     popd
 }
 
-function restart_drain_app {
-    cf restart "$job_name"
-}
-
-function create_drain_service {
-    drain_domain=$(cf app "$job_name" | grep -E 'routes|urls' | awk '{print $2}')
-    cf create-user-provided-service \
-        "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION" \
-        -l "$DRAIN_TYPE://$drain_domain/drain?drain-version=$DRAIN_VERSION" || true
-}
-
 function push_spinner_app {
+    checkpoint "Pushing Spinner App"
+
     pushd ../logspinner
         if ! [ -e ./logspinner ]; then
             GOOS=linux go build
         fi
         for i in {1..5}; do
-            cf push "drainspinner-$job_name-$1" -c ./logspinner -b binary_buildpack -m 128M && break || sleep 5
+            if cf push "$(drainspinner_app_name)" -c ./logspinner -b binary_buildpack -m 128M; then
+                break
+            fi
+            sleep 5
         done
-        cf bind-service \
-            "drainspinner-$job_name-$1" \
-            "ss-smoke-syslog-$job_name-drain-$DRAIN_VERSION"
-        # Giving some time for the binding to propogate to CC. Since the
-        # default for scheduler to poll CC is 30s.
-        sleep 60
     popd
 }
 
-function restart_spinner_app {
-    cf restart "drainspinner-$job_name-$1"
+function ensure_drain_service {
+    checkpoint "Ensuring Drain Service Exists"
+
+    if ! cf service "$(syslog_drain_service_name)" &> /dev/null; then
+        create_drain_service
+    fi
 }
 
-function login {
-    cf login \
-        -a api."$CF_SYSTEM_DOMAIN" \
-        -u "$CF_USERNAME" \
-        -p "$CF_PASSWORD" \
-        -s "$CF_SPACE" \
-        -o "$CF_ORG" \
-        --skip-ssl-validation # TODO: consider passing this in as a param
+function create_drain_service {
+    checkpoint "Creating Drain Service"
+
+    cf create-user-provided-service \
+        "$(syslog_drain_service_name)" \
+        -l "$(syslog_drain_service_url)"
+}
+
+function bind_service {
+    checkpoint "Binding Service to Drainspinner App"
+
+    cf bind-service "$(drainspinner_app_name)" "$(syslog_drain_service_name)"
+}
+
+function prime_service_binding {
+    checkpoint "Priming Service Binding"
+
+    # start emitting prime messages
+    curl "$(app_url "$(drainspinner_app_name)")?cycles=120&delay=1s&text=prime" &> /dev/null
+
+    export -f block_until_count
+    if ! timeout 120s bash -ec "block_until_count"; then
+        error "unable to prime the syslog drain binding"
+        exit 5
+    fi
+}
+
+function block_until_count {
+    # wait for first prime message and exit
+    source ./shared.sh
+    while true; do
+        local count=$(curl -s "$(app_url "$(counter_app_name)")/get-prime")
+        if [ "${count:-0}" -gt 0 ]; then
+            success "received primer message, binding has been setup"
+            break
+        fi
+        echo waiting for primer message, binding is not setup
+        sleep 5
+    done
+    exit 0
 }
 
 function main {
-    # default job_name to $DRAIN_TYPE-drain
-    job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
-    counter_name="$job_name-counter"
+    checkpoint "Starting Push"
 
     login
+
     ensure_counter_app
     ensure_drain_app
-    ensure_spinner_apps
+    ensure_spinner_app
+    ensure_drain_service
+    bind_service
+
+    prime_service_binding
+
+    restart_counter_app
+    restart_spinner_app
 }
 main

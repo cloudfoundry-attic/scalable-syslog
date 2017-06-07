@@ -1,14 +1,10 @@
 #!/usr/bin/env bash
-set -ex
+set -eu
 
-# default job_name to $DRAIN_TYPE-drain
-job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
+source ./shared.sh
 
-# restart logspinner apps (writers)
-for i in `seq 1 $NUM_APPS`; do
-    cf restart "drainspinner-$job_name-$i"
-    rm "output-$i.txt" || true
-done;
-
-# restart the drain app (reader)
-cf restart "$job_name"
+function main {
+    cf restart "$(drainspinner_app_name)"
+    cf restart "$(drain_app_name)"
+}
+main

@@ -1,104 +1,61 @@
 #!/usr/bin/env bash
-set -exu
-
-pkill cf || true
+set -eu
 
 source ./shared.sh
 
-job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
-counter_name="$job_name-counter"
+function kill_cf {
+    pkill cf || true
+}
 
-msg_count=0
-for i in `seq 1 $NUM_APPS`; do
-    c=$(cat output-$i.txt | grep -c 'msg')
-    : $(( msg_count = $msg_count + $c ))
-done;
+function datadog_url {
+    echo "https://app.datadoghq.com/api/v1/series?api_key=$DATADOG_API_KEY"
+}
 
-drain_count=$(curl -s $(app_url "$counter_name")/get)
-currenttime=$(date +%s)
-
-curl -X POST -H "Content-type: application/json" \
--d "$(cat <<JSON
+function post_to_datadog {
+    local payload=$(cat <<JSON
 {
     "series": [{
-        "metric": "smoke_test.ss.loggregator.msg_count",
-        "points": [[$currenttime, $msg_count]],
+        "metric": "smoke_test.ss.loggregator.$1",
+        "points": [[$2, $3]],
         "type": "gauge",
         "host": "$CF_SYSTEM_DOMAIN",
         "tags": [
             "drain_version:$DRAIN_VERSION",
             "drain_type:$DRAIN_TYPE",
-            "job_name:$job_name"
+            "job_name:$(job_name)"
         ]
     }]
 }
 JSON
-)" \
-"https://app.datadoghq.com/api/v1/series?api_key=$DATADOG_API_KEY"
-
-curl -X POST -H "Content-type: application/json" \
--d "$(cat <<JSON
-{
-    "series" : [{
-        "metric": "smoke_test.ss.loggregator.drain_msg_count",
-        "points": [[$currenttime, $drain_count]],
-        "type": "gauge",
-        "host": "$CF_SYSTEM_DOMAIN",
-        "tags": [
-            "drain_version:$DRAIN_VERSION",
-            "drain_type:$DRAIN_TYPE",
-            "job_name:$job_name"
-        ]
-    }]
+)
+    curl -X POST -H "Content-type: application/json" -d "$payload" "$(datadog_url)"
 }
-JSON
-)" \
-"https://app.datadoghq.com/api/v1/series?api_key=$DATADOG_API_KEY"
 
-curl -X POST -H "Content-type: application/json" \
--d "$(cat <<JSON
-{
-    "series": [{
-        "metric": "smoke_test.ss.loggregator.delay",
-        "points": [[$currenttime, $DELAY_US]],
-        "type": "gauge",
-        "host": "$CF_SYSTEM_DOMAIN",
-        "tags": [
-            "drain_version:$DRAIN_VERSION",
-            "drain_type:$DRAIN_TYPE",
-            "job_name:$job_name"
-        ]
-    }]
+function main {
+    checkpoint "Reporting Results"
+
+    kill_cf
+    login
+
+    msg_count=0
+    c=$(grep -c live output.txt)
+    : $(( msg_count = msg_count + c ))
+
+    drain_msg_count=$(curl -s "$(app_url "$(counter_app_name)")/get")
+    currenttime=$(date +%s)
+
+    post_to_datadog "msg_count" "$currenttime" "$msg_count"
+    post_to_datadog "drain_msg_count" "$currenttime" "$drain_msg_count"
+    post_to_datadog "delay" "$currenttime" "$DELAY_US"
+    post_to_datadog "cycles" "$currenttime" "$CYCLES"
+
+    if [ "$msg_count" -eq 0 ]; then
+        error "message count was zero, sad"
+        exit 1
+    fi
+    if [ "$drain_msg_count" -eq 0 ]; then
+        error "drain count was zero, sad"
+        exit 1
+    fi
 }
-JSON
-)" \
-"https://app.datadoghq.com/api/v1/series?api_key=$DATADOG_API_KEY"
-
-curl -X POST -H "Content-type: application/json" \
--d "$(cat <<JSON
-{
-    "series": [{
-        "metric": "smoke_test.ss.loggregator.cycles",
-        "points": [[$currenttime, $(expr $CYCLES \* $NUM_APPS)]],
-        "type": "gauge",
-        "host": "$CF_SYSTEM_DOMAIN",
-        "tags": [
-            "drain_version:$DRAIN_VERSION",
-            "drain_type:$DRAIN_TYPE",
-            "job_name:$job_name"
-        ]
-    }]
-}
-JSON
-)" \
-"https://app.datadoghq.com/api/v1/series?api_key=$DATADOG_API_KEY"
-
-if [ "$msg_count" -eq 0 ]; then
-    echo message count was zero, sad
-    exit 1
-fi
-
-if [ "$drain_count" -eq 0 ]; then
-    echo drain count was zero, sad
-    exit 1
-fi
+main

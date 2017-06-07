@@ -1,19 +1,15 @@
 #!/usr/bin/env bash
-set -ex
+set -eu
 
-# default job_name to $DRAIN_TYPE-drain
-job_name="${JOB_NAME:-$DRAIN_TYPE-drain}"
-counter_name="$job_name-counter"
+source ./shared.sh
 
-# delete logspinner apps (writers)
-for i in `seq 1 $NUM_APPS`; do
-    cf delete "drainspinner-$job_name-$i" -r -f
-    rm "output-$i.txt" || true
-done;
+function main {
+    checkpoint "Tearing Down Apps and Services"
 
-# delete the drain app (reader)
-cf delete-service "ss-smoke-syslog-$job_name-drain-${DRAIN_VERSION}" -f
-cf logs "$job_name" --recent
-cf delete "$job_name" -r -f
-cf logs "$counter_name" --recent
-cf delete "$counter_name" -r -f
+    login
+    cf delete "$(drainspinner_app_name)" -r -f
+    cf delete "$(drain_app_name)" -r -f
+    cf delete "$(counter_app_name)" -r -f
+    cf delete-service "$(syslog_drain_service_name)" -f
+}
+main

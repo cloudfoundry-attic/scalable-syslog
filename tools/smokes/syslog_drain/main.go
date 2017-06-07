@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -14,7 +15,13 @@ import (
 	"github.com/crewjam/rfc5424"
 )
 
-var count uint64
+var (
+	// primeCount will track the primer message count
+	primeCount uint64
+
+	// msgCount will track the actual message count
+	msgCount uint64
+)
 
 func main() {
 	l, err := net.Listen("tcp", fmt.Sprintf(":%s", os.Getenv("PORT")))
@@ -45,10 +52,11 @@ func reportCount() {
 	}
 
 	for range time.Tick(time.Second) {
-		newCount := atomic.LoadUint64(&count)
-		log.Printf("Updating count on counter app to %d", newCount)
+		newPrimeCount := atomic.LoadUint64(&primeCount)
+		newMsgCount := atomic.LoadUint64(&msgCount)
+		log.Printf("Updating prime count: %d msg count: %d", newPrimeCount, newMsgCount)
 
-		countStr := fmt.Sprint(newCount)
+		countStr := fmt.Sprintf("%d:%d", newPrimeCount, newMsgCount)
 		resp, err := http.Post(url, "text/plain", strings.NewReader(countStr))
 		if err != nil {
 			log.Printf("Failed to write count: %s", err)
@@ -74,6 +82,11 @@ func handleRequest(conn net.Conn) {
 			break
 		}
 
-		atomic.AddUint64(&count, 1)
+		if bytes.Contains(msg.Message, []byte("prime")) {
+			atomic.AddUint64(&primeCount, 1)
+		}
+		if bytes.Contains(msg.Message, []byte("live")) {
+			atomic.AddUint64(&msgCount, 1)
+		}
 	}
 }
