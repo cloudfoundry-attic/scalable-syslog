@@ -55,7 +55,7 @@ func NewSubscriber(
 		pool:              p,
 		connector:         c,
 		ingressMetric:     ingressMetric,
-		streamOpenTimeout: 5 * time.Second,
+		streamOpenTimeout: 2 * time.Second,
 	}
 
 	for _, o := range opts {
