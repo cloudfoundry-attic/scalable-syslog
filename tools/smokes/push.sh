@@ -143,10 +143,11 @@ function prime_service_binding {
     checkpoint "Priming Service Binding"
 
     # start emitting prime messages
-    curl "$(app_url "$(drainspinner_app_name)")?cycles=120&delay=1s&text=prime" &> /dev/null
+    local timeout_seconds=300
+    curl "$(app_url "$(drainspinner_app_name)")?cycles=$timeout_seconds&delay=1s&text=prime" &> /dev/null
 
     export -f block_until_count
-    if ! timeout 120s bash -ec "block_until_count"; then
+    if ! timeout "${timeout_seconds}s" bash -ec "block_until_count"; then
         error "unable to prime the syslog drain binding"
         exit 5
     fi
