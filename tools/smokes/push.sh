@@ -89,7 +89,7 @@ function push_drain_app {
             --health-check-type none
         cf set-env "$(drain_app_name)" \
             COUNTER_URL \
-            "https://$(app_url "$(counter_app_name)")"
+            "http://$(app_url "$(counter_app_name)")"
 
         if [ "$DRAIN_TYPE" = "syslog" ]; then
             cf map-route "$(drain_app_name)" "$CF_APP_DOMAIN" --random-port
