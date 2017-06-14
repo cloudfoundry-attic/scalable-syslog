@@ -33,6 +33,9 @@ func main() {
 		log.Fatalf("failed to build egress server: %s", err)
 	}
 	egressServer.Start(logServer.Receiver)
+
+	var wait chan struct{}
+	<-wait
 }
 
 type logServer struct {
