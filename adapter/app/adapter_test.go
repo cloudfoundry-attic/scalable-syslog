@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -14,10 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/go-loggregator/testhelpers"
 	"code.cloudfoundry.org/scalable-syslog/adapter/app"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/test_util"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
-	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 	"google.golang.org/grpc"
@@ -37,12 +37,14 @@ var _ = Describe("Adapter", func() {
 		adapterHealthAddr string
 		client            v1.AdapterClient
 		binding           *v1.Binding
-		egressServer      *MockEgressServer
+		egressServer      *testhelpers.TestEgressServer
 		syslogTCPServer   *SyslogTCPServer
+
+		lastIdx *int64
 	)
 
 	BeforeEach(func() {
-		egressServer, logsAPIAddr = startLogsAPIServer()
+		egressServer, logsAPIAddr, lastIdx = startLogsAPIServer()
 
 		var err error
 		rlpTLSConfig, err = api.NewMutualTLSConfig(
@@ -250,8 +252,8 @@ var _ = Describe("Adapter", func() {
 				defer close(done)
 
 				adapter.Stop()
-				lastIdx := egressServer.WaitForLastSentIdx()
-				Eventually(syslogTCPServer.LastReceivedIdx).Should(BeNumerically("~", lastIdx, 1))
+				idx := waitForLastSentIdx(lastIdx)
+				Eventually(syslogTCPServer.LastReceivedIdx).Should(BeNumerically("~", idx, 1))
 			}, 5)
 		})
 	})
@@ -272,63 +274,38 @@ func startAdapterClient(addr string) v1.AdapterClient {
 	return v1.NewAdapterClient(conn)
 }
 
-func startLogsAPIServer() (*MockEgressServer, string) {
-	lis, err := net.Listen("tcp", ":0")
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-
-	tlsConfig, err := api.NewMutualTLSConfig(
+func startLogsAPIServer() (*testhelpers.TestEgressServer, string, *int64) {
+	server, err := testhelpers.NewTestEgressServer(
 		test_util.Cert("fake-log-provider.crt"),
 		test_util.Cert("fake-log-provider.key"),
 		test_util.Cert("loggregator-ca.crt"),
-		"fake-log-provider",
 	)
+
+	var lastIdx int64
 	Expect(err).ToNot(HaveOccurred())
+	callback := func(req *v2.EgressRequest, rx v2.Egress_ReceiverServer) error {
 
-	mockEgressServer := NewMockEgressServer()
-	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-	v2.RegisterEgressServer(grpcServer, mockEgressServer)
-
-	go func() {
-		log.Fatalf("failed to serve: %v", grpcServer.Serve(lis))
-	}()
-
-	return mockEgressServer, lis.Addr().String()
-}
-
-type MockEgressServer struct {
-	receiver       chan v2.Egress_ReceiverServer
-	lastSuccessIdx int64
-	exited         int64
-}
-
-func NewMockEgressServer() *MockEgressServer {
-	return &MockEgressServer{
-		receiver: make(chan v2.Egress_ReceiverServer, 5),
-	}
-}
-
-func (m *MockEgressServer) Receiver(req *v2.EgressRequest, receiver v2.Egress_ReceiverServer) error {
-	defer atomic.StoreInt64(&m.exited, 1)
-	m.receiver <- receiver
-
-	for i := 0; ; i++ {
-		err := receiver.Send(buildLogEnvelope(int64(i)))
-		if err != nil {
-			return err
+		for i := 0; ; i++ {
+			err := rx.Send(buildLogEnvelope(int64(i)))
+			if err != nil {
+				// Subtract 1 due to the last one failing
+				atomic.StoreInt64(&lastIdx, int64(i-1))
+				return err
+			}
+			time.Sleep(time.Millisecond)
 		}
-		atomic.StoreInt64(&m.lastSuccessIdx, int64(i))
-		time.Sleep(time.Millisecond)
 	}
+	Expect(server.Start(callback)).To(Succeed())
+
+	return server, server.Addr(), &lastIdx
 }
 
-func (m *MockEgressServer) WaitForLastSentIdx() int64 {
-	for atomic.LoadInt64(&m.exited) < 1 {
+func waitForLastSentIdx(lastIdx *int64) int64 {
+	for atomic.LoadInt64(lastIdx) < 1 {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	return atomic.LoadInt64(&m.lastSuccessIdx)
+	return atomic.LoadInt64(lastIdx)
 }
 
 type SyslogTCPServer struct {

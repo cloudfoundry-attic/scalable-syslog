@@ -134,9 +134,7 @@ func NewAdapter(
 	}
 
 	balancer := ingress.NewBalancer(a.logsEgressAPIAddr)
-	connector := ingress.NewConnector(balancer,
-		grpc.WithTransportCredentials(credentials.NewTLS(a.logsEgressAPITLSConfig)),
-	)
+	connector := ingress.NewConnector(balancer, a.logsEgressAPITLSConfig)
 	clientManager := ingress.NewClientManager(
 		connector,
 		a.logsAPIConnCount,

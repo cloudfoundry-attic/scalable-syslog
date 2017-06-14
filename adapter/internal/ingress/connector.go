@@ -1,42 +1,47 @@
 package ingress
 
 import (
+	"crypto/tls"
 	"io"
 	"log"
 
-	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
+	"golang.org/x/net/context"
 
-	"google.golang.org/grpc"
+	loggregator "code.cloudfoundry.org/go-loggregator"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 )
 
 // Connector connects to loggregator egress API
 type Connector struct {
-	opts     []grpc.DialOption
+	tlsConf  *tls.Config
 	balancer *Balancer
 }
 
+type LogsProviderClient interface {
+	Receiver(ctx context.Context, in *loggregator_v2.EgressRequest) (loggregator_v2.Egress_ReceiverClient, error)
+}
+
 // NewConnector returns a new Connector
-func NewConnector(balancer *Balancer, opts ...grpc.DialOption) *Connector {
+func NewConnector(balancer *Balancer, t *tls.Config) *Connector {
 	return &Connector{
 		balancer: balancer,
-		opts:     opts,
+		tlsConf:  t,
 	}
 }
 
 // Connect connects to a loggregator egress API
-func (c *Connector) Connect() (io.Closer, v2.EgressClient, error) {
+func (c *Connector) Connect() (io.Closer, LogsProviderClient, error) {
 	hp, err := c.balancer.NextHostPort()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	conn, err := grpc.Dial(hp, c.opts...)
+	client, closer, err := loggregator.NewEgressClient(hp, c.tlsConf)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	client := v2.NewEgressClient(conn)
 	log.Println("Created new connection to loggregator egress API")
 
-	return conn, client, nil
+	return closer, client, nil
 }

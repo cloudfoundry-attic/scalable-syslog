@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
-	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
+	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 	"golang.org/x/net/context"
@@ -47,7 +47,7 @@ var _ = Describe("Subscriber", func() {
 		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
-		client := newMockEgressClient()
+		client := newMockLogsProviderClient()
 		mockClientPool.NextOutput.Client <- client
 
 		receiverClient := newMockReceiverClient()
@@ -77,7 +77,7 @@ var _ = Describe("Subscriber", func() {
 		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
-		client := newMockEgressClient()
+		client := newMockLogsProviderClient()
 		mockClientPool.NextOutput.Client <- client
 		mockClientPool.NextOutput.Client <- client
 
@@ -94,7 +94,7 @@ var _ = Describe("Subscriber", func() {
 		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
-		client := newMockEgressClient()
+		client := newMockLogsProviderClient()
 		mockClientPool.NextOutput.Client <- client
 		mockClientPool.NextOutput.Client <- client
 
@@ -140,7 +140,7 @@ var _ = Describe("Subscriber", func() {
 		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
-		client := newMockEgressClient()
+		client := newMockLogsProviderClient()
 		mockClientPool.NextOutput.Client <- client
 		mockClientPool.NextOutput.Client <- client
 
@@ -187,7 +187,7 @@ var _ = Describe("Subscriber", func() {
 		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
-		client := newMockEgressClient()
+		client := newMockLogsProviderClient()
 		mockClientPool.NextOutput.Client <- client
 		mockClientPool.NextOutput.Client <- client
 
@@ -216,7 +216,7 @@ var _ = Describe("Subscriber", func() {
 		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
 
-		client := newMockEgressClient()
+		client := newMockLogsProviderClient()
 		mockClientPool.NextOutput.Client <- client
 
 		receiverClient := newMockReceiverClient()
@@ -240,7 +240,7 @@ var _ = Describe("Subscriber", func() {
 		syslogConnector.ConnectOutput.W <- newSpyCloseWriter()
 		close(syslogConnector.ConnectOutput.Err)
 
-		client := newMockEgressClient()
+		client := newMockLogsProviderClient()
 		mockClientPool.NextOutput.Client <- client
 
 		subscriber.Start(binding)

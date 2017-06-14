@@ -7,12 +7,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
 	"net/http"
 	_ "net/http/pprof"
 
+	"code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/scalable-syslog/adapter/app"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
@@ -51,16 +49,20 @@ func main() {
 		log.Fatalf("Invalid Metric Ingress TLS config: %s", err)
 	}
 
-	// metric-documentation-v2: setup function
-	metricClient, err := metricemitter.NewClient(
-		cfg.MetricIngressAddr,
-		metricemitter.WithGRPCDialOptions(grpc.WithTransportCredentials(credentials.NewTLS(metricIngressTLS))),
-		metricemitter.WithOrigin("scalablesyslog.adapter"),
-		metricemitter.WithPulseInterval(cfg.MetricEmitterInterval),
+	loggClient, err := loggregator.NewIngressClient(
+		metricIngressTLS,
+		loggregator.WithStringTag("origin", "scalablesyslog.adapter"),
+		loggregator.WithAddr(cfg.MetricIngressAddr),
 	)
 	if err != nil {
-		log.Fatalf("Couldn't connect to metric emitter: %s", err)
+		log.Fatalf("Couldn't connect to metric ingress server: %s", err)
 	}
+
+	// metric-documentation-v2: setup function
+	metricClient := metricemitter.NewClient(
+		loggClient,
+		metricemitter.WithPulseInterval(cfg.MetricEmitterInterval),
+	)
 
 	go startPprof(cfg.PprofHostport)
 

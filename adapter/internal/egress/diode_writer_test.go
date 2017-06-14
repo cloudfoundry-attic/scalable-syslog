@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
-	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 )
 
 var _ = Describe("DiodeWriter", func() {

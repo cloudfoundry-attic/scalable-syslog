@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
-	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"github.com/crewjam/rfc5424"

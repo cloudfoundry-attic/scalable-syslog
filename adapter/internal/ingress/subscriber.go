@@ -4,15 +4,15 @@ import (
 	"log"
 	"time"
 
+	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
-	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"golang.org/x/net/context"
 )
 
 type ClientPool interface {
-	Next() (client v2.EgressClient)
+	Next() (client LogsProviderClient)
 }
 
 type SyslogConnector interface {

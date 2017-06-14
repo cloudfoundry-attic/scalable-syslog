@@ -1,9 +1,10 @@
 package metricemitter_test
 
 import (
-	"errors"
+	"sync"
 
-	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
+	loggregator "code.cloudfoundry.org/go-loggregator"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 
 	. "github.com/onsi/ginkgo"
@@ -11,31 +12,94 @@ import (
 )
 
 var _ = Describe("CounterMetric", func() {
-	Context("SendWith", func() {
-		It("decrements it value on success", func() {
-			metric := metricemitter.NewCounterMetric("name", "source-id")
+	Context("Emit", func() {
+		It("emits the delta", func() {
+			metric := metricemitter.NewCounterMetric("name", metricemitter.WithVersion(1, 2))
 
 			metric.Increment(10)
 
-			err := metric.SendWith(func(_ *v2.Envelope) error {
-				return nil
-			})
-			Expect(err).ToNot(HaveOccurred())
+			spy := newSpyLoggClient()
+			metric.Emit(spy)
+			Expect(spy.CounterName()).To(Equal("name"))
+
+			e := &loggregator_v2.Envelope{
+				Message: &loggregator_v2.Envelope_Counter{
+					Counter: &loggregator_v2.Counter{},
+				},
+				Tags: make(map[string]*loggregator_v2.Value),
+			}
+			for _, o := range spy.CounterOpts() {
+				o(e)
+			}
+
+			Expect(e.GetCounter().GetDelta()).To(Equal(uint64(10)))
+			Expect(e.GetTags()).To(HaveKey("metric_version"))
+			Expect(e.GetTags()["metric_version"].GetText()).To(Equal("1.2"))
+		})
+
+		It("decrements it value on success", func() {
+			metric := metricemitter.NewCounterMetric("name")
+
+			metric.Increment(10)
+
+			spy := newSpyLoggClient()
+			metric.Emit(spy)
 
 			Expect(metric.GetDelta()).To(Equal(uint64(0)))
 		})
-
-		It("does not decrement the value on failure", func() {
-			metric := metricemitter.NewCounterMetric("name", "source-id")
-
-			metric.Increment(10)
-
-			err := metric.SendWith(func(_ *v2.Envelope) error {
-				return errors.New("some error")
-			})
-			Expect(err).To(HaveOccurred())
-
-			Expect(metric.GetDelta()).To(Equal(uint64(10)))
-		})
 	})
 })
+
+type spyLoggClient struct {
+	mu             sync.Mutex
+	name           string
+	counterOpts    []loggregator.EmitCounterOption
+	gaugeOpts      []loggregator.EmitGaugeOption
+	gaugeCallCount int
+}
+
+func newSpyLoggClient() *spyLoggClient {
+	return &spyLoggClient{}
+}
+
+func (s *spyLoggClient) EmitCounter(name string, opts ...loggregator.EmitCounterOption) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.name = name
+	s.counterOpts = opts
+}
+
+func (s *spyLoggClient) EmitGauge(opts ...loggregator.EmitGaugeOption) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.gaugeCallCount++
+	s.gaugeOpts = opts
+}
+
+func (s *spyLoggClient) CounterName() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.name
+}
+
+func (s *spyLoggClient) CounterOpts() []loggregator.EmitCounterOption {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.counterOpts
+}
+
+func (s *spyLoggClient) GaugeOpts() []loggregator.EmitGaugeOption {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.gaugeOpts
+}
+
+func (s *spyLoggClient) GaugeCallCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.gaugeCallCount
+}

@@ -6,12 +6,10 @@ import (
 	"os"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
 	"net/http"
 	_ "net/http/pprof"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/app"
@@ -54,16 +52,20 @@ func main() {
 		log.Fatalf("Invalid Metric Ingress TLS config: %s", err)
 	}
 
-	// metric-documentation-v2: setup function
-	metricClient, err := metricemitter.NewClient(
-		cfg.MetricIngressAddr,
-		metricemitter.WithGRPCDialOptions(grpc.WithTransportCredentials(credentials.NewTLS(metricIngressTLS))),
-		metricemitter.WithOrigin("scalablesyslog.scheduler"),
-		metricemitter.WithPulseInterval(cfg.MetricEmitterInterval),
+	loggClient, err := loggregator.NewIngressClient(
+		metricIngressTLS,
+		loggregator.WithStringTag("origin", "scalablesyslog.scheduler"),
+		loggregator.WithAddr(cfg.MetricIngressAddr),
 	)
 	if err != nil {
-		log.Fatalf("Couldn't connect to metric emitter: %s", err)
+		log.Fatalf("Couldn't connect to metric ingress server: %s", err)
 	}
+
+	// metric-documentation-v2: setup function
+	metricClient := metricemitter.NewClient(
+		loggClient,
+		metricemitter.WithPulseInterval(cfg.MetricEmitterInterval),
+	)
 
 	scheduler := app.NewScheduler(
 		cfg.APIURL,

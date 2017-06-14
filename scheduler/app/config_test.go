@@ -15,7 +15,7 @@ var _ = Describe("Config", func() {
 			args := []string{
 				"--adapter-cn", "default-string",
 				"--adapter-addrs", "10.10.10.10",
-				"--adapter-port", "default-string",
+				"--adapter-port", "8080",
 				"--api-ca", "default-string",
 				"--api-cert", "default-string",
 				"--api-cn", "default-string",
@@ -43,7 +43,7 @@ var _ = Describe("Config", func() {
 			args := []string{
 				"--adapter-cn", "default-string",
 				"--adapter-addrs", "10.10.10.10",
-				"--adapter-port", "default-string",
+				"--adapter-port", "8080",
 				"--api-ca", "default-string",
 				"--api-cert", "default-string",
 				"--api-cn", "default-string",

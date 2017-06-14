@@ -2,29 +2,26 @@ package metricemitter
 
 import (
 	"sync/atomic"
-	"time"
 
-	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
+	loggregator "code.cloudfoundry.org/go-loggregator"
 )
 
 type GaugeMetric struct {
-	name     string
-	unit     string
-	sourceID string
-	value    int64
-	tags     map[string]*v2.Value
+	name  string
+	unit  string
+	value int64
+	tags  map[string]string
 }
 
-func NewGaugeMetric(name, unit, sourceID string, opts ...MetricOption) *GaugeMetric {
+func NewGaugeMetric(name, unit string, opts ...MetricOption) *GaugeMetric {
 	g := &GaugeMetric{
-		name:     name,
-		unit:     unit,
-		sourceID: sourceID,
-		tags:     make(map[string]*v2.Value),
+		name: name,
+		unit: unit,
+		tags: make(map[string]string),
 	}
 
 	for _, opt := range opts {
-		opt(g)
+		opt(g.tags)
 	}
 
 	return g
@@ -34,33 +31,16 @@ func (g *GaugeMetric) Set(number int64) {
 	atomic.SwapInt64(&g.value, number)
 }
 
-func (g *GaugeMetric) SendWith(fn func(*v2.Envelope) error) error {
-	return fn(g.toEnvelope())
-}
-
-func (g *GaugeMetric) toEnvelope() *v2.Envelope {
-	metrics := make(map[string]*v2.GaugeValue)
-	metrics[g.name] = &v2.GaugeValue{
-		Unit:  g.unit,
-		Value: float64(atomic.LoadInt64(&g.value)),
+func (g *GaugeMetric) Emit(c LoggClient) {
+	options := []loggregator.EmitGaugeOption{
+		loggregator.WithGaugeValue(
+			g.name,
+			float64(atomic.LoadInt64(&g.value)),
+			g.unit,
+		)}
+	for k, v := range g.tags {
+		options = append(options, loggregator.WithEnvelopeStringTag(k, v))
 	}
 
-	return &v2.Envelope{
-		SourceId:  g.sourceID,
-		Timestamp: time.Now().UnixNano(),
-		Message: &v2.Envelope_Gauge{
-			Gauge: &v2.Gauge{
-				Metrics: metrics,
-			},
-		},
-		Tags: g.tags,
-	}
-}
-
-func (g *GaugeMetric) setTag(k, v string) {
-	g.tags[k] = &v2.Value{
-		Data: &v2.Value_Text{
-			Text: v,
-		},
-	}
+	c.EmitGauge(options...)
 }

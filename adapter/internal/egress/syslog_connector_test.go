@@ -6,8 +6,8 @@ import (
 
 	"golang.org/x/net/context"
 
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
-	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"

@@ -6,17 +6,15 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 )
 
 type ConnectionBuilder interface {
-	Connect() (io.Closer, v2.EgressClient, error)
+	Connect() (io.Closer, LogsProviderClient, error)
 }
 
 type connection struct {
 	closer    io.Closer
-	client    v2.EgressClient
+	client    LogsProviderClient
 	createdAt time.Time
 }
 
@@ -72,7 +70,7 @@ func NewClientManager(
 
 // Next returns the next available loggregator egress client. Next will block
 // until a healthy client is available.
-func (c *ClientManager) Next() v2.EgressClient {
+func (c *ClientManager) Next() LogsProviderClient {
 	for {
 		idx := atomic.AddUint64(&c.nextIdx, 1)
 		actualIdx := int(idx % uint64(len(c.connections)))

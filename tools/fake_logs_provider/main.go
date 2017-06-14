@@ -4,14 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net"
 	"time"
 
-	"code.cloudfoundry.org/scalable-syslog/internal/api"
-	"code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/go-loggregator/testhelpers"
 )
 
 func main() {
@@ -27,24 +23,16 @@ func main() {
 	log.Print("Starting fake logs provider...")
 	defer log.Print("Closing fake logs provider.")
 
-	tlsConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *commonName)
-	if err != nil {
-		log.Fatalf("failed to build TLS config: %s", err)
-	}
-	creds := credentials.NewTLS(tlsConfig)
+	logServer := &logServer{delay: *delay}
 
-	lis, err := net.Listen("tcp", *addr)
+	egressServer, err := testhelpers.NewTestEgressServer(*certFile, *keyFile, *caFile,
+		testhelpers.WithCN(*commonName),
+		testhelpers.WithAddr(*addr),
+	)
 	if err != nil {
-		log.Fatalf("failed to listen: %s", err)
+		log.Fatalf("failed to build egress server: %s", err)
 	}
-	s := grpc.NewServer(grpc.Creds(creds))
-	loggregator_v2.RegisterEgressServer(s, &logServer{
-		delay: *delay,
-	})
-
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
+	egressServer.Start(logServer.Receiver)
 }
 
 type logServer struct {

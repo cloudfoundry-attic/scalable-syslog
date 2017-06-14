@@ -8,10 +8,8 @@ import (
 
 	"golang.org/x/net/context"
 
-	"google.golang.org/grpc"
-
+	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
-	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -107,7 +105,7 @@ func NewMockConnector() *MockConnector {
 	}
 }
 
-func (m *MockConnector) Connect() (io.Closer, v2.EgressClient, error) {
+func (m *MockConnector) Connect() (io.Closer, ingress.LogsProviderClient, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -157,6 +155,6 @@ type MockReceiver struct {
 	n int
 }
 
-func (m *MockReceiver) Receiver(ctx context.Context, in *v2.EgressRequest, opts ...grpc.CallOption) (v2.Egress_ReceiverClient, error) {
+func (m *MockReceiver) Receiver(ctx context.Context, in *v2.EgressRequest) (v2.Egress_ReceiverClient, error) {
 	return nil, nil
 }

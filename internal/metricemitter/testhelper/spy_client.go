@@ -22,7 +22,7 @@ func (s *SpyMetricClient) NewCounterMetric(name string, opts ...metricemitter.Me
 }
 
 func (s *SpyMetricClient) NewGaugeMetric(name, unit string, opts ...metricemitter.MetricOption) *metricemitter.GaugeMetric {
-	s.GaugeMetric = metricemitter.NewGaugeMetric(name, unit, "spy-client", opts...)
+	s.GaugeMetric = metricemitter.NewGaugeMetric(name, unit, opts...)
 
 	return s.GaugeMetric
 }

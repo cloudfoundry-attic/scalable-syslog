@@ -1,89 +1,39 @@
 package metricemitter_test
 
 import (
-	v2 "code.cloudfoundry.org/scalable-syslog/internal/api/loggregator/v2"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("GaugeMetric", func() {
-	It("calls the passed-in function with an envelope", func() {
-		g := metricemitter.NewGaugeMetric("some-gauge", "some-unit", "source-id")
+	It("emits gauges", func() {
+		g := metricemitter.NewGaugeMetric("some-gauge", "some-unit", metricemitter.WithVersion(1, 2))
 
 		g.Set(10)
 
-		var actualEnvelope *v2.Envelope
-		fn := func(e *v2.Envelope) error {
-			actualEnvelope = e
-			return nil
-		}
+		spy := newSpyLoggClient()
+		g.Emit(spy)
 
-		err := g.SendWith(fn)
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(actualEnvelope.GetGauge().Metrics).To(Equal(map[string]*v2.GaugeValue{
-			"some-gauge": &v2.GaugeValue{
-				Unit:  "some-unit",
-				Value: 10,
+		e := &loggregator_v2.Envelope{
+			Message: &loggregator_v2.Envelope_Gauge{
+				Gauge: &loggregator_v2.Gauge{
+					Metrics: make(map[string]*loggregator_v2.GaugeValue),
+				},
 			},
-		}))
-	})
-
-	It("configures the sourceID", func() {
-		g := metricemitter.NewGaugeMetric("some-gauge", "some-unit", "source-id")
-
-		var actualEnvelope *v2.Envelope
-		fn := func(e *v2.Envelope) error {
-			actualEnvelope = e
-			return nil
+			Tags: make(map[string]*loggregator_v2.Value),
 		}
 
-		err := g.SendWith(fn)
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(actualEnvelope.SourceId).To(Equal("source-id"))
-	})
-
-	It("appends a timestamp", func() {
-		g := metricemitter.NewGaugeMetric("some-gauge", "some-unit", "source-id")
-
-		var actualEnvelope *v2.Envelope
-		fn := func(e *v2.Envelope) error {
-			actualEnvelope = e
-			return nil
+		for _, o := range spy.GaugeOpts() {
+			o(e)
 		}
+		Expect(e.GetGauge().GetMetrics()).To(HaveLen(1))
+		Expect(e.GetGauge().GetMetrics()).To(HaveKey("some-gauge"))
+		Expect(e.GetGauge().GetMetrics()["some-gauge"].GetValue()).To(Equal(10.0))
+		Expect(e.GetGauge().GetMetrics()["some-gauge"].GetUnit()).To(Equal("some-unit"))
 
-		err := g.SendWith(fn)
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(actualEnvelope.Timestamp).To(BeNumerically(">", int64(0)))
-	})
-
-	It("adds tags", func() {
-		g := metricemitter.NewGaugeMetric(
-			"some-gauge",
-			"some-unit",
-			"source-id",
-			metricemitter.WithTags(map[string]string{
-				"some-tag": "some-value",
-			}),
-		)
-
-		var actualEnvelope *v2.Envelope
-		fn := func(e *v2.Envelope) error {
-			actualEnvelope = e
-			return nil
-		}
-
-		err := g.SendWith(fn)
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(actualEnvelope.Tags).To(Equal(map[string]*v2.Value{
-			"some-tag": &v2.Value{
-				Data: &v2.Value_Text{Text: "some-value"},
-			},
-		}))
+		Expect(e.GetTags()).To(HaveKey("metric_version"))
+		Expect(e.GetTags()["metric_version"].GetText()).To(Equal("1.2"))
 	})
 })
