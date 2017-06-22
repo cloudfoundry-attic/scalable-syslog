@@ -11,7 +11,7 @@ function login {
             -o "$CF_ORG" \
             --skip-ssl-validation # TODO: consider passing this in as a param
     fi
-    login_has_occurred=true
+    export login_has_occurred=true
 }
 
 function validate_variables {
