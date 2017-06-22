@@ -29,7 +29,7 @@ func NewDiodeWriter(
 ) *DiodeWriter {
 	dw := &DiodeWriter{
 		wc:    wc,
-		diode: diodes.NewOneToOne(100, alerter, gendiodes.WithPollingContext(ctx)),
+		diode: diodes.NewOneToOne(1000, alerter, gendiodes.WithPollingContext(ctx)),
 		wg:    wg,
 		ctx:   ctx,
 	}
