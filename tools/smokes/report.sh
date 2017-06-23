@@ -58,11 +58,14 @@ function main {
     checkpoint "Reporting Results"
 
     kill_cf
-    login
 
     msg_count=0
-    c=$(grep -c live output.txt)
-    : $(( msg_count = msg_count + c ))
+    if [ -e output.txt ]; then
+        c=$(grep -c live output.txt)
+        : $(( msg_count = msg_count + c ))
+    else
+        error "output.txt was not created"
+    fi
 
     drain_msg_count=$(curl -s "$(app_url "$(counter_app_name)")/get")
     currenttime=$(date +%s)
