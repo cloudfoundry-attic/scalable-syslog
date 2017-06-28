@@ -89,20 +89,19 @@ func (w *TCPWriter) connect() (net.Conn, error) {
 			return nil, errors.New("attempting connect after close")
 		}
 
-		w.mu.Lock()
 		conn, err := w.dialFunc(w.url.Host)
 		if err != nil {
-			w.mu.Unlock()
 			duration := time.Minute
 			log.Printf("failed to connect to %s, retrying in %s: %s", w.url.Host, duration, err)
 			time.Sleep(duration)
 			continue
 		}
+		w.mu.Lock()
+		w.conn = conn
+		w.mu.Unlock()
 
 		log.Printf("created conn to syslog drain: %s", w.url.Host)
 
-		w.conn = conn
-		w.mu.Unlock()
 		return conn, nil
 	}
 }
