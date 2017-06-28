@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"time"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
@@ -18,16 +19,26 @@ import (
 )
 
 var _ = Describe("TLSWriter", func() {
-	It("speaks TLS", func() {
-		certFile := test_util.Cert("adapter-rlp.crt")
-		keyFile := test_util.Cert("adapter-rlp.key")
+	var (
+		tlsConfig *tls.Config
+
+		certFile      = test_util.Cert("adapter-rlp.crt")
+		keyFile       = test_util.Cert("adapter-rlp.key")
+		egressCounter = &metricemitter.CounterMetric{}
+		env           = buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
+	)
+
+	BeforeEach(func() {
 		tlsCert, err := tls.LoadX509KeyPair(certFile, keyFile)
 		Expect(err).ToNot(HaveOccurred())
-		tlsConfig := &tls.Config{
+
+		tlsConfig = &tls.Config{
 			Certificates:       []tls.Certificate{tlsCert},
 			InsecureSkipVerify: true,
 		}
+	})
 
+	It("speaks TLS", func() {
 		listener, err := tls.Listen("tcp", ":0", tlsConfig)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -36,26 +47,27 @@ var _ = Describe("TLSWriter", func() {
 			Hostname: "test-hostname",
 			Drain:    fmt.Sprintf("syslog-tls://%s", listener.Addr()),
 		}
-		egressCounter := new(metricemitter.CounterMetric)
+
 		writer, err := egress.NewTLSWriter(binding, time.Second, time.Second, true, egressCounter)
 		Expect(err).ToNot(HaveOccurred())
 		defer writer.Close()
 
-		conn, err := listener.Accept()
-		Expect(err).ToNot(HaveOccurred())
+		var conn net.Conn
+		go func() {
+			var err error
+			conn, err = listener.Accept()
+			Expect(err).ToNot(HaveOccurred())
+
+			// Note: for some odd reason you have to do a read off of the TLS
+			// connection before the dial will succeed. We should probably
+			// investigate.
+			empty := make([]byte, 0)
+			conn.Read(empty)
+		}()
+
+		Expect(writer.Write(env)).To(Succeed())
+
 		buf := bufio.NewReader(conn)
-
-		// Note: for some odd reason you have to do a read off of the TLS
-		// connection before the dial will succeed. We should probably
-		// investigate.
-		empty := make([]byte, 0)
-		conn.Read(empty)
-
-		env := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
-		f := func() error {
-			return writer.Write(env)
-		}
-		Eventually(f).Should(Succeed())
 
 		actual, err := buf.ReadString('\n')
 		Expect(err).ToNot(HaveOccurred())
