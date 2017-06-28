@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
@@ -21,6 +20,8 @@ import (
 type DialFunc func(addr string) (net.Conn, error)
 
 // TCPWriter represents a syslog writer that connects over unencrypted TCP.
+// This writer is not meant to be used from multiple goroutines. The same
+// goroutine that calls `.Write()` should be the one that calls `.Close()`.
 type TCPWriter struct {
 	url       *url.URL
 	appID     string
@@ -28,10 +29,8 @@ type TCPWriter struct {
 	dialFunc  DialFunc
 	ioTimeout time.Duration
 	scheme    string
-
-	mu     sync.Mutex
-	conn   net.Conn
-	closed bool
+	conn      net.Conn
+	closed    bool
 
 	egressMetric *metricemitter.CounterMetric
 }
@@ -70,22 +69,15 @@ func NewTCPWriter(
 }
 
 func (w *TCPWriter) connection() (net.Conn, error) {
-	w.mu.Lock()
-	conn := w.conn
-	w.mu.Unlock()
-
-	if conn == nil {
+	if w.conn == nil {
 		return w.connect()
 	}
-	return conn, nil
+	return w.conn, nil
 }
 
 func (w *TCPWriter) connect() (net.Conn, error) {
 	for {
-		w.mu.Lock()
-		closed := w.closed
-		w.mu.Unlock()
-		if closed {
+		if w.closed {
 			return nil, errors.New("attempting connect after close")
 		}
 
@@ -96,9 +88,7 @@ func (w *TCPWriter) connect() (net.Conn, error) {
 			time.Sleep(duration)
 			continue
 		}
-		w.mu.Lock()
 		w.conn = conn
-		w.mu.Unlock()
 
 		log.Printf("created conn to syslog drain: %s", w.url.Host)
 
@@ -108,8 +98,6 @@ func (w *TCPWriter) connect() (net.Conn, error) {
 
 // Close tears down any active connections to the drain and prevents reconnect.
 func (w *TCPWriter) Close() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	w.closed = true
 	return w.connClose()
 }
@@ -151,9 +139,7 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 	conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
 	_, err = msg.WriteTo(conn)
 	if err != nil {
-		w.mu.Lock()
 		_ = w.connClose()
-		w.mu.Unlock()
 
 		return err
 	}
