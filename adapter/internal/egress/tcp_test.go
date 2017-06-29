@@ -7,10 +7,10 @@ import (
 	"net"
 	"time"
 
-	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -40,12 +40,12 @@ var _ = Describe("TCPWriter", func() {
 	Describe("Write()", func() {
 		var (
 			writer        egress.WriteCloser
-			egressCounter *metricemitter.CounterMetric
+			egressCounter *pulseemitter.CounterMetric
 		)
 
 		BeforeEach(func() {
 			var err error
-			egressCounter = new(metricemitter.CounterMetric)
+			egressCounter = new(pulseemitter.CounterMetric)
 
 			writer, err = egress.NewTCPWriter(
 				binding,
@@ -149,7 +149,7 @@ var _ = Describe("TCPWriter", func() {
 					time.Second,
 					time.Second,
 					false,
-					new(metricemitter.CounterMetric),
+					new(pulseemitter.CounterMetric),
 				)
 				Expect(err).ToNot(HaveOccurred())
 

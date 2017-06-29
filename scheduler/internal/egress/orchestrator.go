@@ -9,8 +9,7 @@ import (
 	"sort"
 	"time"
 
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
-
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
@@ -35,11 +34,11 @@ type Orchestrator struct {
 	reader     BindingReader
 	service    AdapterServicer
 	health     HealthEmitter
-	drainGauge *metricemitter.GaugeMetric
+	drainGauge *pulseemitter.GaugeMetric
 }
 
 type MetricEmitter interface {
-	NewGaugeMetric(name, unit string, opts ...metricemitter.MetricOption) *metricemitter.GaugeMetric
+	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) *pulseemitter.GaugeMetric
 }
 
 // NewOrchestrator creates a new orchestrator.
@@ -53,7 +52,7 @@ func NewOrchestrator(
 	// metric-documentation-v2: (scheduler.drains) Number of drains being
 	// serviced by scalable syslog.
 	drainGauge := m.NewGaugeMetric("drains", "count",
-		metricemitter.WithVersion(2, 0),
+		pulseemitter.WithVersion(2, 0),
 	)
 
 	return &Orchestrator{

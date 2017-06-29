@@ -11,9 +11,9 @@ import (
 	_ "net/http/pprof"
 
 	"code.cloudfoundry.org/go-loggregator"
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/scalable-syslog/adapter/app"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 )
 
 func main() {
@@ -59,9 +59,9 @@ func main() {
 	}
 
 	// metric-documentation-v2: setup function
-	metricClient := metricemitter.NewClient(
+	metricClient := pulseemitter.New(
 		loggClient,
-		metricemitter.WithPulseInterval(cfg.MetricEmitterInterval),
+		pulseemitter.WithPulseInterval(cfg.MetricEmitterInterval),
 	)
 
 	go startPprof(cfg.PprofHostport)

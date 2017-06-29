@@ -6,11 +6,11 @@ import (
 
 	"golang.org/x/net/context"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
+	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -32,7 +32,7 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("connects to the passed syslog scheme", func() {
 		var called bool
-		constructor := func(*v1.Binding, time.Duration, time.Duration, bool, *metricemitter.CounterMetric) (egress.WriteCloser, error) {
+		constructor := func(*v1.Binding, time.Duration, time.Duration, bool, *pulseemitter.CounterMetric) (egress.WriteCloser, error) {
 			called = true
 			return &BlockedWriteCloser{}, nil
 		}
@@ -58,7 +58,7 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("returns a writer that doesn't block even if the constructor's writer blocks", func(done Done) {
 		defer close(done)
-		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, *metricemitter.CounterMetric) (egress.WriteCloser, error) {
+		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, *pulseemitter.CounterMetric) (egress.WriteCloser, error) {
 			return &BlockedWriteCloser{
 				duration: time.Hour,
 			}, nil
@@ -120,13 +120,13 @@ var _ = Describe("SyslogConnector", func() {
 	})
 
 	It("emits a metric on dropped messages", func() {
-		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, *metricemitter.CounterMetric) (egress.WriteCloser, error) {
+		blockedConstructor := func(*v1.Binding, time.Duration, time.Duration, bool, *pulseemitter.CounterMetric) (egress.WriteCloser, error) {
 			return &BlockedWriteCloser{
 				duration: time.Millisecond,
 			}, nil
 		}
 
-		droppedMetric := &metricemitter.CounterMetric{}
+		droppedMetric := &pulseemitter.CounterMetric{}
 
 		connector := egress.NewSyslogConnector(
 			time.Second,
@@ -137,7 +137,7 @@ var _ = Describe("SyslogConnector", func() {
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
 				"blocked": blockedConstructor,
 			}),
-			egress.WithDroppedMetrics(map[string]*metricemitter.CounterMetric{
+			egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{
 				"blocked": droppedMetric,
 			}),
 		)
@@ -162,7 +162,7 @@ var _ = Describe("SyslogConnector", func() {
 	})
 
 	It("does not panic on unknown dropped metrics", func() {
-		unknownConstruct := func(*v1.Binding, time.Duration, time.Duration, bool, *metricemitter.CounterMetric) (egress.WriteCloser, error) {
+		unknownConstruct := func(*v1.Binding, time.Duration, time.Duration, bool, *pulseemitter.CounterMetric) (egress.WriteCloser, error) {
 			return &BlockedWriteCloser{
 				duration: time.Millisecond,
 			}, nil
@@ -177,7 +177,7 @@ var _ = Describe("SyslogConnector", func() {
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
 				"unknown": unknownConstruct,
 			}),
-			egress.WithDroppedMetrics(map[string]*metricemitter.CounterMetric{}),
+			egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{}),
 		)
 
 		binding := &v1.Binding{

@@ -13,13 +13,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/go-loggregator/testhelpers"
 	"code.cloudfoundry.org/scalable-syslog/adapter/app"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/test_util"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 

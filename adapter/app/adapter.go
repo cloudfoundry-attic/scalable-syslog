@@ -9,17 +9,21 @@ import (
 
 	"golang.org/x/net/context"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/binding"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/timeoutwaitgroup"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/health"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
+
+type MetricClient interface {
+	NewCounterMetric(string, ...pulseemitter.MetricOption) *pulseemitter.CounterMetric
+}
 
 type Adapter struct {
 	mu                sync.Mutex
@@ -40,7 +44,7 @@ type Adapter struct {
 	syslogIOTimeout        time.Duration
 	skipCertVerify         bool
 	health                 *health.Health
-	metricClient           metricemitter.MetricClient
+	metricClient           MetricClient
 	timeoutWaitGroup       *timeoutwaitgroup.TimeoutWaitGroup
 }
 
@@ -106,7 +110,7 @@ func NewAdapter(
 	logsEgressAPIAddr string,
 	logsEgressAPITLSConfig *tls.Config,
 	adapterServerTLSConfig *tls.Config,
-	metricClient metricemitter.MetricClient,
+	metricClient MetricClient,
 	opts ...AdapterOption,
 ) *Adapter {
 	ctx, cancel := context.WithCancel(context.Background())

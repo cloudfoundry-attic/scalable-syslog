@@ -4,10 +4,10 @@ import (
 	"log"
 	"time"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"golang.org/x/net/context"
 )
 
@@ -32,8 +32,12 @@ type Subscriber struct {
 	ctx               context.Context
 	pool              ClientPool
 	connector         SyslogConnector
-	ingressMetric     *metricemitter.CounterMetric
+	ingressMetric     *pulseemitter.CounterMetric
 	streamOpenTimeout time.Duration
+}
+
+type MetricClient interface {
+	NewCounterMetric(string, ...pulseemitter.MetricOption) *pulseemitter.CounterMetric
 }
 
 // NewSubscriber returns a new Subscriber.
@@ -41,13 +45,13 @@ func NewSubscriber(
 	ctx context.Context,
 	p ClientPool,
 	c SyslogConnector,
-	e metricemitter.MetricClient,
+	e MetricClient,
 	opts ...SubscriberOption,
 ) *Subscriber {
 	// metric-documentation-v2: (adapter.ingress) Number of envelopes
 	// ingressed from RLP.
 	ingressMetric := e.NewCounterMetric("ingress",
-		metricemitter.WithVersion(2, 0),
+		pulseemitter.WithVersion(2, 0),
 	)
 
 	s := &Subscriber{
