@@ -10,9 +10,9 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/test_util"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -22,10 +22,9 @@ var _ = Describe("TLSWriter", func() {
 	var (
 		tlsConfig *tls.Config
 
-		certFile      = test_util.Cert("adapter-rlp.crt")
-		keyFile       = test_util.Cert("adapter-rlp.key")
-		egressCounter = &metricemitter.CounterMetric{}
-		env           = buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
+		certFile = test_util.Cert("adapter-rlp.crt")
+		keyFile  = test_util.Cert("adapter-rlp.key")
+		env      = buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
 	)
 
 	BeforeEach(func() {
@@ -47,7 +46,7 @@ var _ = Describe("TLSWriter", func() {
 			Hostname: "test-hostname",
 			Drain:    fmt.Sprintf("syslog-tls://%s", listener.Addr()),
 		}
-
+		egressCounter := new(pulseemitter.CounterMetric)
 		writer, err := egress.NewTLSWriter(binding, time.Second, time.Second, true, egressCounter)
 		Expect(err).ToNot(HaveOccurred())
 		defer writer.Close()

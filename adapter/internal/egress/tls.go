@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"time"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 )
 
 // TLSWriter represents a syslog writer that connects over unencrypted TCP.
@@ -19,7 +19,7 @@ func NewTLSWriter(
 	binding *v1.Binding,
 	dialTimeout, ioTimeout time.Duration,
 	skipCertVerify bool,
-	egressMetric *metricemitter.CounterMetric,
+	egressMetric *pulseemitter.CounterMetric,
 ) (WriteCloser, error) {
 	drainURL, err := url.Parse(binding.Drain)
 	// TODO: remove parsing/error from here

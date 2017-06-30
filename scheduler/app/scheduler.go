@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/scalable-syslog/internal/health"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 
@@ -36,7 +36,7 @@ type Scheduler struct {
 }
 
 type Emitter interface {
-	NewGaugeMetric(name, unit string, opts ...metricemitter.MetricOption) *metricemitter.GaugeMetric
+	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) *pulseemitter.GaugeMetric
 }
 
 // NewScheduler returns a new unstarted scheduler.

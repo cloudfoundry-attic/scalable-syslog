@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
+	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter/testhelper"
 	"golang.org/x/net/context"
 
 	. "github.com/onsi/ginkgo"

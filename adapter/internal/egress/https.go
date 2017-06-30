@@ -10,17 +10,17 @@ import (
 	"net/url"
 	"time"
 
-	"code.cloudfoundry.org/scalable-syslog/internal/api"
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/scalable-syslog/internal/api"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"github.com/crewjam/rfc5424"
 )
 
 type HTTPSWriter struct {
 	binding      *v1.Binding
 	client       *http.Client
-	egressMetric *metricemitter.CounterMetric
+	egressMetric *pulseemitter.CounterMetric
 }
 
 func NewHTTPSWriter(
@@ -28,7 +28,7 @@ func NewHTTPSWriter(
 	dialTimeout,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
-	egressMetric *metricemitter.CounterMetric,
+	egressMetric *pulseemitter.CounterMetric,
 ) (WriteCloser, error) {
 	u, _ := url.Parse(binding.Drain)
 

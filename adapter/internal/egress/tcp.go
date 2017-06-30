@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/metricemitter"
 	"github.com/crewjam/rfc5424"
 )
 
@@ -32,7 +32,7 @@ type TCPWriter struct {
 	conn      net.Conn
 	closed    bool
 
-	egressMetric *metricemitter.CounterMetric
+	egressMetric *pulseemitter.CounterMetric
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
@@ -40,7 +40,7 @@ func NewTCPWriter(
 	binding *v1.Binding,
 	dialTimeout, ioTimeout time.Duration,
 	skipCertVerify bool,
-	egressMetric *metricemitter.CounterMetric,
+	egressMetric *pulseemitter.CounterMetric,
 ) (WriteCloser, error) {
 	drainURL, err := url.Parse(binding.Drain)
 	// TODO: remove parsing/error from here
