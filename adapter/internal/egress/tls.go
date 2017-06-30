@@ -48,7 +48,5 @@ func NewTLSWriter(
 		},
 	}
 
-	go w.connect()
-
 	return w, nil
 }
