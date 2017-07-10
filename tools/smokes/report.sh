@@ -13,7 +13,7 @@
 # CF_ORG: cf org for running test
 # CF_APP_DOMAIN: tcp or https app domain based on DRAIN_TYPE
 
-set -eu
+set -u
 
 source ./shared.sh
 
