@@ -67,11 +67,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if bytes.Contains(body, []byte("prime")) {
-		atomic.AddUint64(&h.primeCount, 1)
+	if !bytes.Contains(body, []byte("HTTP")) {
+		if bytes.Contains(body, []byte("prime")) {
+			atomic.AddUint64(&h.primeCount, 1)
+		}
+		if bytes.Contains(body, []byte("live")) {
+			atomic.AddUint64(&h.msgCount, 1)
+		}
 	}
-	if bytes.Contains(body, []byte("live")) {
-		atomic.AddUint64(&h.msgCount, 1)
-	}
+
 	return
 }

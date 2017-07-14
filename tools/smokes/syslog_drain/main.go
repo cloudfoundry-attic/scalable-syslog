@@ -82,11 +82,13 @@ func handleRequest(conn net.Conn) {
 			break
 		}
 
-		if bytes.Contains(msg.Message, []byte("prime")) {
-			atomic.AddUint64(&primeCount, 1)
-		}
-		if bytes.Contains(msg.Message, []byte("live")) {
-			atomic.AddUint64(&msgCount, 1)
+		if !bytes.Contains(msg.Message, []byte("HTTP")) {
+			if bytes.Contains(msg.Message, []byte("prime")) {
+				atomic.AddUint64(&primeCount, 1)
+			}
+			if bytes.Contains(msg.Message, []byte("live")) {
+				atomic.AddUint64(&msgCount, 1)
+			}
 		}
 	}
 }
