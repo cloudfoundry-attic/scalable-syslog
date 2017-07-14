@@ -42,7 +42,7 @@ function block_until_count_equals_cycles {
     while true; do
         local count=$(curl -s "$(app_url "$(counter_app_name)")/get")
         if [ "${count:-0}" -ge "$CYCLES" ]; then
-            success "received all messages"
+            success "received all messages with count $count"
             break
         fi
         echo "waiting to receive all messages, current count $count"
