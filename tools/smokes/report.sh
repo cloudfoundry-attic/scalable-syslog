@@ -26,7 +26,9 @@ function datadog_url {
 }
 
 function post_to_datadog {
-    local payload=$(cat <<JSON
+    echo "posting $1 $2 $3"
+    local payload
+    payload=$(cat <<JSON
 {
     "series": [{
         "metric": "smoke_test.ss.loggregator.$1",
@@ -42,7 +44,6 @@ function post_to_datadog {
 }
 JSON
 )
-    echo "posting payload: $payload"
     curl -X POST -H "Content-type: application/json" -d "$payload" "$(datadog_url)"
     echo
 }
@@ -60,15 +61,22 @@ function main {
 
     kill_cf
 
-    msg_count=0
+    local msg_count
     if [ -e output.txt ]; then
-        c=$(grep -c live output.txt)
-        : $(( msg_count = msg_count + c ))
+        msg_count=$(grep -c live output.txt)
     else
         error "output.txt was not created"
     fi
+    if [ "$msg_count" -gt "$CYCLES" ]; then
+        error "msg_count ($msg_count) was > CYCLES ($CYCLES)"
+    fi
 
+    local drain_msg_count
     drain_msg_count=$(curl -s "$(app_url "$(counter_app_name)")/get")
+    if [ "$drain_msg_count" -gt "$CYCLES" ]; then
+        error "drain_msg_count ($drain_msg_count) was > CYCLES ($CYCLES)"
+    fi
+
     currenttime=$(date +%s)
 
     post_to_datadog "msg_count" "$currenttime" "$msg_count"
