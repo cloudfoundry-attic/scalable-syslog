@@ -67,15 +67,9 @@ function main {
     else
         error "output.txt was not created"
     fi
-    if [ "$msg_count" -gt "$CYCLES" ]; then
-        error "msg_count ($msg_count) was > CYCLES ($CYCLES)"
-    fi
 
     local drain_msg_count
     drain_msg_count=$(curl -s "$(app_url "$(counter_app_name)")/get")
-    if [ "$drain_msg_count" -gt "$CYCLES" ]; then
-        error "drain_msg_count ($drain_msg_count) was > CYCLES ($CYCLES)"
-    fi
 
     currenttime=$(date +%s)
 
@@ -83,6 +77,16 @@ function main {
     post_to_datadog "drain_msg_count" "$currenttime" "$drain_msg_count"
     post_to_datadog "delay" "$currenttime" "$DELAY_US"
     post_to_datadog "cycles" "$currenttime" "$CYCLES"
+
+    if [ "$msg_count" -gt "$CYCLES" ]; then
+        error "msg_count ($msg_count) was > CYCLES ($CYCLES)"
+        exit 1
+    fi
+
+    if [ "$drain_msg_count" -gt "$CYCLES" ]; then
+        error "drain_msg_count ($drain_msg_count) was > CYCLES ($CYCLES)"
+        exit 1
+    fi
 
     if [ "$msg_count" -eq 0 ]; then
         error "message count was zero, sad"
