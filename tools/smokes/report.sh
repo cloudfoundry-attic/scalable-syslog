@@ -42,6 +42,7 @@ function post_to_datadog {
 }
 JSON
 )
+    echo "posting payload: $payload"
     curl -X POST -H "Content-type: application/json" -d "$payload" "$(datadog_url)"
     echo
 }
