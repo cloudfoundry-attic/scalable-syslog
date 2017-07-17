@@ -63,7 +63,7 @@ function main {
 
     local msg_count
     if [ -e output.txt ]; then
-        msg_count=$(grep -c live output.txt)
+        msg_count=$(grep -c -E 'APP.+live' output.txt)
     else
         error "output.txt was not created"
     fi
