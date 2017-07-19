@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -17,6 +18,11 @@ var (
 )
 
 func main() {
+	verbose := flag.Bool("verbose", false, "turn on verbose logging for debug purposes")
+	if !*verbose {
+		log.SetOutput(ioutil.Discard)
+	}
+
 	http.Handle("/get", http.HandlerFunc(getCountHandler))
 	http.Handle("/get-prime", http.HandlerFunc(getPrimeCountHandler))
 
@@ -48,6 +54,8 @@ func setCountHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	log.Printf("Body: %s", string(body))
 
 	parts := strings.Split(string(body), ":")
 	if len(parts) != 2 {
