@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -18,8 +17,8 @@ var (
 )
 
 func main() {
-	verbose := flag.Bool("verbose", false, "turn on verbose logging for debug purposes")
-	if !*verbose {
+	verbose := os.Getenv("VERBOSE")
+	if verbose != "true" {
 		log.SetOutput(ioutil.Discard)
 	}
 
