@@ -73,8 +73,6 @@ func (o *Orchestrator) Run(interval time.Duration) {
 			continue
 		}
 
-		desired := desiredState(freshBindings, o.addrs)
-
 		o.health.SetCounter(map[string]int{
 			"drainCount":                   len(freshBindings),
 			"blacklistedOrInvalidUrlCount": blacklisted,
@@ -82,6 +80,7 @@ func (o *Orchestrator) Run(interval time.Duration) {
 		o.drainGauge.Set(int64(len(freshBindings)))
 
 		actual := o.service.List()
+		desired := desiredState(freshBindings, pullActiveAddrs(actual, o.addrs))
 		o.service.Transition(actual, desired)
 	}
 }
@@ -109,6 +108,16 @@ func desiredState(bs []v1.Binding, addrs []string) State {
 	}
 
 	return desired
+}
+
+func pullActiveAddrs(actual State, addrs []string) []string {
+	var result []string
+	for _, addr := range addrs {
+		if _, ok := actual[addr]; ok {
+			result = append(result, addr)
+		}
+	}
+	return result
 }
 
 func sample(r *rand.Rand, state State, addrs []string) (string, []string, error) {

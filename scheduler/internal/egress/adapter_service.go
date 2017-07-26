@@ -34,7 +34,7 @@ func (d *AdapterService) List() State {
 		ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
 		resp, err := client.ListBindings(ctx, request)
 		if err != nil {
-			log.Printf("unable to retrieve bindings: %s", err)
+			log.Printf("unable to retrieve bindings from %s: %s", adapterAddr, err)
 			continue
 		}
 		bindingSet := make(map[v1.Binding]struct{})
@@ -80,7 +80,10 @@ func (o Operations) Create(p AdapterPool) {
 				Binding: &op,
 			}
 			ctx, _ := context.WithTimeout(context.Background(), time.Second)
-			client.CreateBinding(ctx, request)
+			_, err := client.CreateBinding(ctx, request)
+			if err != nil {
+				log.Printf("Failed to create binding on %s: %s", adapterAddr, err)
+			}
 		}
 	}
 }
@@ -93,7 +96,10 @@ func (o Operations) Delete(p AdapterPool) {
 				Binding: &op,
 			}
 			ctx, _ := context.WithTimeout(context.Background(), time.Second)
-			client.DeleteBinding(ctx, request)
+			_, err := client.DeleteBinding(ctx, request)
+			if err != nil {
+				log.Printf("Failed to delete binding on %s: %s", adapterAddr, err)
+			}
 		}
 	}
 }

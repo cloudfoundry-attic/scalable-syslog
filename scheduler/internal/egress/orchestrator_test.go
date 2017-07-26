@@ -44,16 +44,55 @@ var _ = Describe("Orchestrator", func() {
 		Eventually(adapterService.lastActualTransition).Should(Equal(actualState))
 	})
 
+	It("only uses adapters from actualState", func() {
+		actualState := egress.State{
+			"test-addr": []v1.Binding{
+				{
+					AppId:    "app-id",
+					Drain:    "syslog://my-app-drain",
+					Hostname: "org.space.app",
+				},
+			},
+		}
+		adapterService := &SpyAdapterService{
+			actualState: actualState,
+		}
+
+		o := egress.NewOrchestrator(
+			[]string{"test-addr", "invalid-addr"},
+			&SpyReader{drains: []v1.Binding{
+				{
+					AppId:    "app-id",
+					Drain:    "syslog://my-app-drain",
+					Hostname: "org.space.app",
+				},
+			}},
+			adapterService,
+			&SpyHealthEmitter{},
+			testhelper.NewMetricClient(),
+		)
+		go o.Run(time.Millisecond)
+
+		Eventually(adapterService.lastDesiredTransition).ShouldNot(BeEmpty())
+		Expect(adapterService.lastDesiredTransition()).ToNot(HaveKey("invalid-addr"))
+	})
+
 	DescribeTable("it evenly distributes bindings across adapter addrs", func(adapterCount, bindingCount int, dist []int) {
-		adapterService := &SpyAdapterService{}
+		adapterService := &SpyAdapterService{
+			actualState: make(egress.State),
+		}
 
 		var (
 			addrs    []string
 			bindings []v1.Binding
 		)
+
 		for i := 0; i < adapterCount; i++ {
-			addrs = append(addrs, fmt.Sprintf("test-addr-%d", i))
+			addr := fmt.Sprintf("test-addr-%d", i)
+			addrs = append(addrs, addr)
+			adapterService.actualState[addr] = nil
 		}
+
 		for i := 0; i < bindingCount; i++ {
 			bindings = append(bindings, v1.Binding{
 				AppId:    fmt.Sprintf("app-id-%d", i),
@@ -104,7 +143,13 @@ var _ = Describe("Orchestrator", func() {
 				Hostname: "org.space.app",
 			},
 		}
-		adapterService := &SpyAdapterService{}
+		adapterService := &SpyAdapterService{
+			actualState: egress.State{
+				"test-addr-1": nil,
+				"test-addr-2": nil,
+				"test-addr-3": nil,
+			},
+		}
 
 		o := egress.NewOrchestrator(
 			addrs,
@@ -145,7 +190,11 @@ var _ = Describe("Orchestrator", func() {
 				},
 			},
 		}
-		adapterService := &SpyAdapterService{}
+		adapterService := &SpyAdapterService{
+			actualState: egress.State{
+				"test-addr-1": nil,
+			},
+		}
 
 		o := egress.NewOrchestrator(
 			addrs,
