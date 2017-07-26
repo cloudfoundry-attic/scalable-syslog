@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
@@ -31,14 +33,17 @@ type TCPWriter struct {
 	scheme    string
 	conn      net.Conn
 	closed    bool
+	ctx       context.Context
 
 	egressMetric *pulseemitter.CounterMetric
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
 func NewTCPWriter(
+	ctx context.Context,
 	binding *v1.Binding,
-	dialTimeout, ioTimeout time.Duration,
+	dialTimeout time.Duration,
+	ioTimeout time.Duration,
 	skipCertVerify bool,
 	egressMetric *pulseemitter.CounterMetric,
 ) (WriteCloser, error) {
@@ -63,6 +68,7 @@ func NewTCPWriter(
 		dialFunc:     df,
 		scheme:       "syslog",
 		egressMetric: egressMetric,
+		ctx:          ctx,
 	}
 
 	return w, nil
@@ -83,6 +89,10 @@ func (w *TCPWriter) connect() (net.Conn, error) {
 
 		conn, err := w.dialFunc(w.url.Host)
 		if err != nil {
+			if contextDone(w.ctx) {
+				return nil, err
+			}
+
 			duration := time.Minute
 			log.Printf("failed to connect to %s, retrying in %s: %s", w.url.Host, duration, err)
 			time.Sleep(duration)

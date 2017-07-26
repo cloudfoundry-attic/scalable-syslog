@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
@@ -24,8 +26,9 @@ type HTTPSWriter struct {
 }
 
 func NewHTTPSWriter(
+	ctx context.Context,
 	binding *v1.Binding,
-	dialTimeout,
+	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
 	egressMetric *pulseemitter.CounterMetric,

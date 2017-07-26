@@ -117,7 +117,14 @@ func NewSyslogConnector(
 	return sc
 }
 
-type SyslogConstructor func(*v1.Binding, time.Duration, time.Duration, bool, *pulseemitter.CounterMetric) (WriteCloser, error)
+type SyslogConstructor func(
+	ctx context.Context,
+	binding *v1.Binding,
+	dialTimeout time.Duration,
+	ioTimeout time.Duration,
+	skipCertVerify bool,
+	egressMetric *pulseemitter.CounterMetric,
+) (WriteCloser, error)
 type ConnectorOption func(*SyslogConnector)
 
 func WithConstructors(constructors map[string]SyslogConstructor) ConnectorOption {
@@ -146,7 +153,7 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 	if !ok {
 		return nil, errors.New("unsupported scheme")
 	}
-	writer, err := constructor(b, w.dialTimeout, w.ioTimeout, w.skipCertVerify, egressMetric)
+	writer, err := constructor(ctx, b, w.dialTimeout, w.ioTimeout, w.skipCertVerify, egressMetric)
 	if err != nil {
 		return nil, err
 	}

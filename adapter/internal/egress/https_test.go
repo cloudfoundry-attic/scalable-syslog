@@ -1,6 +1,7 @@
 package egress_test
 
 import (
+	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -30,7 +31,14 @@ var _ = Describe("HTTPWriter", func() {
 		b := &v1.Binding{
 			Drain: "syslog://example.com:1123",
 		}
-		_, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, new(pulseemitter.CounterMetric))
+		_, err := egress.NewHTTPSWriter(
+			context.TODO(),
+			b,
+			time.Second,
+			time.Second,
+			true,
+			new(pulseemitter.CounterMetric),
+		)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -42,7 +50,14 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, false, new(pulseemitter.CounterMetric))
+		writer, err := egress.NewHTTPSWriter(
+			context.TODO(),
+			b,
+			time.Second,
+			time.Second,
+			false,
+			new(pulseemitter.CounterMetric),
+		)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -57,7 +72,14 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id-012345678901234567890012345678901234567890",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, new(pulseemitter.CounterMetric))
+		writer, err := egress.NewHTTPSWriter(
+			context.TODO(),
+			b,
+			time.Second,
+			time.Second,
+			true,
+			new(pulseemitter.CounterMetric),
+		)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -73,7 +95,14 @@ var _ = Describe("HTTPWriter", func() {
 			Hostname: "test-hostname",
 		}
 
-		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, new(pulseemitter.CounterMetric))
+		writer, err := egress.NewHTTPSWriter(
+			context.TODO(),
+			b,
+			time.Second,
+			time.Second,
+			true,
+			new(pulseemitter.CounterMetric),
+		)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -88,7 +117,14 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, new(pulseemitter.CounterMetric))
+		writer, err := egress.NewHTTPSWriter(
+			context.TODO(),
+			b,
+			time.Second,
+			time.Second,
+			true,
+			new(pulseemitter.CounterMetric),
+		)
 		Expect(err).ToNot(HaveOccurred())
 
 		env1 := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -137,7 +173,14 @@ var _ = Describe("HTTPWriter", func() {
 			AppId:    "test-app-id",
 			Hostname: "test-hostname",
 		}
-		writer, err := egress.NewHTTPSWriter(b, time.Second, time.Second, true, metric)
+		writer, err := egress.NewHTTPSWriter(
+			context.TODO(),
+			b,
+			time.Second,
+			time.Second,
+			true,
+			metric,
+		)
 		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)

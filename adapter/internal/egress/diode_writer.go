@@ -56,6 +56,18 @@ func (d *DiodeWriter) start() {
 			return
 		}
 
-		d.wc.Write(e)
+		err := d.wc.Write(e)
+		if err != nil && contextDone(d.ctx) {
+			return
+		}
+	}
+}
+
+func contextDone(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
 	}
 }

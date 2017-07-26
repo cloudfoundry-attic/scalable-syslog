@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"time"
 
+	"golang.org/x/net/context"
+
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
@@ -16,8 +18,10 @@ type TLSWriter struct {
 }
 
 func NewTLSWriter(
+	ctx context.Context,
 	binding *v1.Binding,
-	dialTimeout, ioTimeout time.Duration,
+	dialTimeout time.Duration,
+	ioTimeout time.Duration,
 	skipCertVerify bool,
 	egressMetric *pulseemitter.CounterMetric,
 ) (WriteCloser, error) {
@@ -45,6 +49,7 @@ func NewTLSWriter(
 			dialFunc:     df,
 			scheme:       "syslog-tls",
 			egressMetric: egressMetric,
+			ctx:          ctx,
 		},
 	}
 

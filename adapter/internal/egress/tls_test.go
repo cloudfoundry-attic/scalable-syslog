@@ -2,6 +2,7 @@ package egress_test
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -47,7 +48,14 @@ var _ = Describe("TLSWriter", func() {
 			Drain:    fmt.Sprintf("syslog-tls://%s", listener.Addr()),
 		}
 		egressCounter := new(pulseemitter.CounterMetric)
-		writer, err := egress.NewTLSWriter(binding, time.Second, time.Second, true, egressCounter)
+		writer, err := egress.NewTLSWriter(
+			context.TODO(),
+			binding,
+			time.Second,
+			time.Second,
+			true,
+			egressCounter,
+		)
 		Expect(err).ToNot(HaveOccurred())
 		defer writer.Close()
 

@@ -1,6 +1,7 @@
 package egress_test
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -10,8 +11,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 )
 
 var _ = Describe("DiodeWriter", func() {
@@ -75,6 +76,27 @@ var _ = Describe("DiodeWriter", func() {
 		Eventually(spyWriter.calledWith).Should(HaveLen(100))
 	})
 
+	It("closes the writer if write returns an error and context is done", func() {
+		spyWaitGroup := &SpyWaitGroup{}
+		spyWriter := &SpyWriter{
+			writeError: fmt.Errorf("some-error"),
+		}
+		spyAlerter := &SpyAlerter{}
+		ctx, cancel := context.WithCancel(context.TODO())
+		dw := egress.NewDiodeWriter(ctx, spyWriter, spyAlerter, spyWaitGroup)
+
+		go func() {
+			for {
+				dw.Write(&loggregator_v2.Envelope{})
+			}
+		}()
+
+		Eventually(spyWriter.calledWith).ShouldNot(BeEmpty())
+		cancel()
+
+		Eventually(spyWriter.CloseCalled).ShouldNot(BeZero())
+	})
+
 	It("registers with the wait group and deregisters when done", func() {
 		spyWaitGroup := &SpyWaitGroup{}
 		spyWriter := &SpyWriter{
@@ -98,6 +120,7 @@ type SpyWriter struct {
 	closeCalled int64
 	closeRet    error
 	blockWrites bool
+	writeError  error
 }
 
 func (s *SpyWriter) Write(env *loggregator_v2.Envelope) error {
@@ -117,7 +140,7 @@ func (s *SpyWriter) Write(env *loggregator_v2.Envelope) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.calledWith_ = append(s.calledWith_, env)
-	return nil
+	return s.writeError
 }
 
 func (s *SpyWriter) WriteBlocked(blocked bool) {
