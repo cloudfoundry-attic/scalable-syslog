@@ -26,16 +26,11 @@ type WriteCloser interface {
 	io.Closer
 }
 
-type MetricClient interface {
-	NewCounterMetric(string, ...pulseemitter.MetricOption) *pulseemitter.CounterMetric
-}
-
 // SyslogConnector creates the various egress syslog writers.
 type SyslogConnector struct {
 	skipCertVerify bool
 	ioTimeout      time.Duration
 	dialTimeout    time.Duration
-	metricClient   MetricClient
 	constructors   map[string]SyslogConstructor
 	droppedMetrics map[string]*pulseemitter.CounterMetric
 	egressMetrics  map[string]*pulseemitter.CounterMetric
@@ -46,70 +41,17 @@ type SyslogConnector struct {
 func NewSyslogConnector(
 	dialTimeout, ioTimeout time.Duration,
 	skipCertVerify bool,
-	metricClient MetricClient,
 	wg WaitGroup,
 	opts ...ConnectorOption,
 ) *SyslogConnector {
-	// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
-	// when sending to a syslog drain over https.
-	httpsDroppedMetric := metricClient.NewCounterMetric("dropped",
-		pulseemitter.WithVersion(2, 0),
-		pulseemitter.WithTags(map[string]string{"drain-protocol": "https"}),
-	)
-	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
-	// to a syslog drain over https.
-	httpsEgressMetric := metricClient.NewCounterMetric("egress",
-		pulseemitter.WithVersion(2, 0),
-		pulseemitter.WithTags(map[string]string{"drain-protocol": "https"}),
-	)
-
-	// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
-	// when sending to a syslog drain over syslog.
-	syslogDroppedMetric := metricClient.NewCounterMetric("dropped",
-		pulseemitter.WithVersion(2, 0),
-		pulseemitter.WithTags(map[string]string{"drain-protocol": "syslog"}),
-	)
-	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
-	// to a syslog drain over syslog.
-	syslogEgressMetric := metricClient.NewCounterMetric("egress",
-		pulseemitter.WithVersion(2, 0),
-		pulseemitter.WithTags(map[string]string{"drain-protocol": "syslog"}),
-	)
-
-	// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
-	// when sending to a syslog drain over syslog-tls.
-	syslogTLSDroppedMetric := metricClient.NewCounterMetric("dropped",
-		pulseemitter.WithVersion(2, 0),
-		pulseemitter.WithTags(map[string]string{"drain-protocol": "syslog-tls"}),
-	)
-	// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
-	// to a syslog drain over syslog-tls.
-	syslogTLSEgressMetric := metricClient.NewCounterMetric("egress",
-		pulseemitter.WithVersion(2, 0),
-		pulseemitter.WithTags(map[string]string{"drain-protocol": "syslog-tls"}),
-	)
-
 	sc := &SyslogConnector{
 		ioTimeout:      ioTimeout,
 		dialTimeout:    dialTimeout,
 		skipCertVerify: skipCertVerify,
-		metricClient:   metricClient,
 		wg:             wg,
-		constructors: map[string]SyslogConstructor{
-			"https":      NewHTTPSWriter,
-			"syslog":     NewTCPWriter,
-			"syslog-tls": NewTLSWriter,
-		},
-		droppedMetrics: map[string]*pulseemitter.CounterMetric{
-			"https":      httpsDroppedMetric,
-			"syslog":     syslogDroppedMetric,
-			"syslog-tls": syslogTLSDroppedMetric,
-		},
-		egressMetrics: map[string]*pulseemitter.CounterMetric{
-			"https":      httpsEgressMetric,
-			"syslog":     syslogEgressMetric,
-			"syslog-tls": syslogTLSEgressMetric,
-		},
+		constructors:   make(map[string]SyslogConstructor),
+		droppedMetrics: make(map[string]*pulseemitter.CounterMetric),
+		egressMetrics:  make(map[string]*pulseemitter.CounterMetric),
 	}
 	for _, o := range opts {
 		o(sc)
@@ -117,6 +59,8 @@ func NewSyslogConnector(
 	return sc
 }
 
+// SyslogConstructor creates syslog connections to https, syslog, and
+// syslog-tls drains
 type SyslogConstructor func(
 	ctx context.Context,
 	binding *v1.Binding,
@@ -127,15 +71,28 @@ type SyslogConstructor func(
 ) (WriteCloser, error)
 type ConnectorOption func(*SyslogConnector)
 
+// WithConstructors allows users to configure the constructors which will
+// create syslog network connections. The string key in the constructors map
+// should name the protocol.
 func WithConstructors(constructors map[string]SyslogConstructor) ConnectorOption {
 	return func(sc *SyslogConnector) {
 		sc.constructors = constructors
 	}
 }
 
+// WithDroppedMetrics allows users to configure the dropped metrics which will
+// be emitted when a syslog writer drops messages
 func WithDroppedMetrics(metrics map[string]*pulseemitter.CounterMetric) ConnectorOption {
 	return func(sc *SyslogConnector) {
 		sc.droppedMetrics = metrics
+	}
+}
+
+// WithEgressMetrics allows users to configure the dropped metrics which will
+// be emitted when a syslog writer drops messages
+func WithEgressMetrics(metrics map[string]*pulseemitter.CounterMetric) ConnectorOption {
+	return func(sc *SyslogConnector) {
+		sc.egressMetrics = metrics
 	}
 }
 

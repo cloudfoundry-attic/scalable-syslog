@@ -10,7 +10,6 @@ import (
 	"github.com/crewjam/rfc5424"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
-	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
@@ -19,14 +18,6 @@ import (
 )
 
 var _ = Describe("HTTPWriter", func() {
-	var (
-		metricEmitter *testhelper.SpyMetricClient
-	)
-
-	BeforeEach(func() {
-		metricEmitter = testhelper.NewMetricClient()
-	})
-
 	It("does not accept schemes other than http", func() {
 		b := &v1.Binding{
 			Drain: "syslog://example.com:1123",

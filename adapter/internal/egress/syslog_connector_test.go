@@ -7,7 +7,6 @@ import (
 	"golang.org/x/net/context"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
-	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
@@ -18,30 +17,33 @@ import (
 
 var _ = Describe("SyslogConnector", func() {
 	var (
-		metricEmitter *testhelper.SpyMetricClient
-		ctx           context.Context
-		cancelCtx     func()
-		spyWaitGroup  *SpyWaitGroup
+		ctx          context.Context
+		spyWaitGroup *SpyWaitGroup
 	)
 
 	BeforeEach(func() {
-		metricEmitter = testhelper.NewMetricClient()
-		ctx, cancelCtx = context.WithCancel(context.Background())
+		ctx, _ = context.WithCancel(context.Background())
 		spyWaitGroup = &SpyWaitGroup{}
 	})
 
 	It("connects to the passed syslog scheme", func() {
 		var called bool
-		constructor := func(context.Context, *v1.Binding, time.Duration, time.Duration, bool, *pulseemitter.CounterMetric) (egress.WriteCloser, error) {
+		constructor := func(
+			context.Context,
+			*v1.Binding,
+			time.Duration,
+			time.Duration,
+			bool,
+			*pulseemitter.CounterMetric,
+		) (egress.WriteCloser, error) {
 			called = true
-			return &BlockedWriteCloser{}, nil
+			return &SleepWriterCloser{metric: nullMetric{}}, nil
 		}
 
 		connector := egress.NewSyslogConnector(
 			time.Second,
 			time.Second,
 			true,
-			metricEmitter,
 			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
 				"foo": constructor,
@@ -58,8 +60,16 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("returns a writer that doesn't block even if the constructor's writer blocks", func(done Done) {
 		defer close(done)
-		blockedConstructor := func(context.Context, *v1.Binding, time.Duration, time.Duration, bool, *pulseemitter.CounterMetric) (egress.WriteCloser, error) {
-			return &BlockedWriteCloser{
+		slowConstructor := func(
+			context.Context,
+			*v1.Binding,
+			time.Duration,
+			time.Duration,
+			bool,
+			*pulseemitter.CounterMetric,
+		) (egress.WriteCloser, error) {
+			return &SleepWriterCloser{
+				metric:   nullMetric{},
 				duration: time.Hour,
 			}, nil
 		}
@@ -68,15 +78,14 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			time.Second,
 			true,
-			metricEmitter,
 			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
-				"blocked": blockedConstructor,
+				"slow": slowConstructor,
 			}),
 		)
 
 		binding := &v1.Binding{
-			Drain: "blocked://",
+			Drain: "slow://",
 		}
 		writer, err := connector.Connect(ctx, binding)
 		Expect(err).ToNot(HaveOccurred())
@@ -91,7 +100,6 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			time.Second,
 			true,
-			metricEmitter,
 			spyWaitGroup,
 		)
 
@@ -107,7 +115,6 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			time.Second,
 			true,
-			metricEmitter,
 			spyWaitGroup,
 		)
 
@@ -119,9 +126,61 @@ var _ = Describe("SyslogConnector", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("emits a metric when sending outbound messages", func() {
+		writerConstructor := func(
+			_ context.Context,
+			_ *v1.Binding,
+			_ time.Duration,
+			_ time.Duration,
+			_ bool,
+			m *pulseemitter.CounterMetric,
+		) (egress.WriteCloser, error) {
+			return &SleepWriterCloser{metric: m, duration: 0}, nil
+		}
+		egressMetric := &pulseemitter.CounterMetric{}
+		connector := egress.NewSyslogConnector(
+			time.Second,
+			time.Second,
+			true,
+			spyWaitGroup,
+			egress.WithConstructors(map[string]egress.SyslogConstructor{
+				"protocol": writerConstructor,
+			}),
+			egress.WithEgressMetrics(map[string]*pulseemitter.CounterMetric{
+				"protocol": egressMetric,
+			}),
+		)
+
+		binding := &v1.Binding{
+			Drain: "protocol://",
+		}
+		writer, err := connector.Connect(ctx, binding)
+		Expect(err).ToNot(HaveOccurred())
+
+		go func(writer egress.Writer) {
+			for i := 0; i < 500; i++ {
+				writer.Write(&loggregator_v2.Envelope{
+					SourceId: "test-source-id",
+				})
+			}
+		}(writer)
+
+		Eventually(func() int {
+			return int(egressMetric.GetDelta())
+		}).Should(Equal(500))
+	})
+
 	It("emits a metric on dropped messages", func() {
-		blockedConstructor := func(context.Context, *v1.Binding, time.Duration, time.Duration, bool, *pulseemitter.CounterMetric) (egress.WriteCloser, error) {
-			return &BlockedWriteCloser{
+		droppingConstructor := func(
+			context.Context,
+			*v1.Binding,
+			time.Duration,
+			time.Duration,
+			bool,
+			*pulseemitter.CounterMetric,
+		) (egress.WriteCloser, error) {
+			return &SleepWriterCloser{
+				metric:   nullMetric{},
 				duration: time.Millisecond,
 			}, nil
 		}
@@ -132,25 +191,24 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			time.Second,
 			true,
-			metricEmitter,
 			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
-				"blocked": blockedConstructor,
+				"dropping": droppingConstructor,
 			}),
 			egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{
-				"blocked": droppedMetric,
+				"dropping": droppedMetric,
 			}),
 		)
 
 		binding := &v1.Binding{
-			Drain: "blocked://",
+			Drain: "dropping://",
 		}
 		writer, err := connector.Connect(ctx, binding)
 		Expect(err).ToNot(HaveOccurred())
 
-		go func(writer egress.Writer) {
+		go func(w egress.Writer) {
 			for i := 0; i < 50000; i++ {
-				writer.Write(&loggregator_v2.Envelope{
+				w.Write(&loggregator_v2.Envelope{
 					SourceId: "test-source-id",
 				})
 			}
@@ -162,8 +220,16 @@ var _ = Describe("SyslogConnector", func() {
 	})
 
 	It("does not panic on unknown dropped metrics", func() {
-		unknownConstruct := func(context.Context, *v1.Binding, time.Duration, time.Duration, bool, *pulseemitter.CounterMetric) (egress.WriteCloser, error) {
-			return &BlockedWriteCloser{
+		unknownConstructor := func(
+			context.Context,
+			*v1.Binding,
+			time.Duration,
+			time.Duration,
+			bool,
+			*pulseemitter.CounterMetric,
+		) (egress.WriteCloser, error) {
+			return &SleepWriterCloser{
+				metric:   nullMetric{},
 				duration: time.Millisecond,
 			}, nil
 		}
@@ -172,10 +238,9 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			time.Second,
 			true,
-			metricEmitter,
 			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.SyslogConstructor{
-				"unknown": unknownConstruct,
+				"unknown": unknownConstructor,
 			}),
 			egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{}),
 		)
@@ -197,12 +262,22 @@ var _ = Describe("SyslogConnector", func() {
 	})
 })
 
-type BlockedWriteCloser struct {
-	duration time.Duration
-	io.Closer
+type incrementor interface {
+	Increment(uint64)
 }
 
-func (b *BlockedWriteCloser) Write(*loggregator_v2.Envelope) error {
-	time.Sleep(b.duration)
+type SleepWriterCloser struct {
+	duration time.Duration
+	io.Closer
+	metric incrementor
+}
+
+func (c *SleepWriterCloser) Write(*loggregator_v2.Envelope) error {
+	c.metric.Increment(1)
+	time.Sleep(c.duration)
 	return nil
 }
+
+type nullMetric struct{}
+
+func (nullMetric) Increment(uint64) {}

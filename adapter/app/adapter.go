@@ -129,7 +129,6 @@ func NewAdapter(
 		syslogIOTimeout:        60 * time.Second,
 		skipCertVerify:         true,
 		health:                 health.NewHealth(),
-		metricClient:           metricClient,
 		timeoutWaitGroup:       timeoutwaitgroup.New(time.Minute),
 	}
 
@@ -144,19 +143,59 @@ func NewAdapter(
 		a.logsAPIConnCount,
 		a.logsAPIConnTTL,
 		time.Second)
+
+	constructors := map[string]egress.SyslogConstructor{
+		"https":      egress.NewHTTPSWriter,
+		"syslog":     egress.NewTCPWriter,
+		"syslog-tls": egress.NewTLSWriter,
+	}
+
+	droppedMetrics := map[string]*pulseemitter.CounterMetric{
+		// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
+		// when sending to a syslog drain over https.
+		"https": buildMetric(metricClient, "https", "dropped"),
+		// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
+		// when sending to a syslog drain over syslog.
+		"syslog": buildMetric(metricClient, "syslog", "dropped"),
+		// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
+		// when sending to a syslog drain over syslog-tls.
+		"syslog-tls": buildMetric(metricClient, "syslog-tls", "dropped"),
+	}
+
+	egressMetrics := map[string]*pulseemitter.CounterMetric{
+		// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
+		// to a syslog drain over https.
+		"https": buildMetric(metricClient, "https", "egress"),
+		// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
+		// to a syslog drain over syslog.
+		"syslog": buildMetric(metricClient, "syslog", "egress"),
+		// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
+		// to a syslog drain over syslog-tls.
+		"syslog-tls": buildMetric(metricClient, "syslog-tls", "egress"),
+	}
+
 	syslogConnector := egress.NewSyslogConnector(
 		a.syslogDialTimeout,
 		a.syslogIOTimeout,
 		a.skipCertVerify,
-		a.metricClient,
 		a.timeoutWaitGroup,
+		egress.WithConstructors(constructors),
+		egress.WithDroppedMetrics(droppedMetrics),
+		egress.WithEgressMetrics(egressMetrics),
 	)
-	subscriber := ingress.NewSubscriber(a.ctx, clientManager, syslogConnector, a.metricClient)
+	subscriber := ingress.NewSubscriber(a.ctx, clientManager, syslogConnector, metricClient)
 
 	a.bindingManager = binding.NewBindingManager(subscriber)
 	a.healthAddr = health.StartServer(a.health, a.healthAddr)
 
 	return a
+}
+
+func buildMetric(m MetricClient, protocol, name string) *pulseemitter.CounterMetric {
+	return m.NewCounterMetric(name,
+		pulseemitter.WithVersion(2, 0),
+		pulseemitter.WithTags(map[string]string{"drain-protocol": protocol}),
+	)
 }
 
 // Start starts the adapter health endpoint and gRPC service.
