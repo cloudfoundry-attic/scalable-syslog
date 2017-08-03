@@ -3,13 +3,11 @@ package egress
 import (
 	"crypto/tls"
 	"net"
-	"net/url"
 	"time"
 
 	"golang.org/x/net/context"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
-	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
 // TLSWriter represents a syslog writer that connects over unencrypted TCP.
@@ -19,17 +17,12 @@ type TLSWriter struct {
 
 func NewTLSWriter(
 	ctx context.Context,
-	binding *v1.Binding,
+	binding *URLBinding,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
 	egressMetric *pulseemitter.CounterMetric,
-) (WriteCloser, error) {
-	drainURL, err := url.Parse(binding.Drain)
-	// TODO: remove parsing/error from here
-	if err != nil {
-		return nil, err
-	}
+) WriteCloser {
 
 	dialer := &net.Dialer{
 		Timeout: dialTimeout,
@@ -42,8 +35,8 @@ func NewTLSWriter(
 
 	w := &TLSWriter{
 		TCPWriter{
-			url:          drainURL,
-			appID:        binding.AppId,
+			url:          binding.URL,
+			appID:        binding.AppID,
 			hostname:     binding.Hostname,
 			ioTimeout:    ioTimeout,
 			dialFunc:     df,
@@ -53,5 +46,5 @@ func NewTLSWriter(
 		},
 	}
 
-	return w, nil
+	return w
 }

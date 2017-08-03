@@ -63,12 +63,12 @@ func NewSyslogConnector(
 // syslog-tls drains
 type SyslogConstructor func(
 	ctx context.Context,
-	binding *v1.Binding,
+	binding *URLBinding,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
 	egressMetric *pulseemitter.CounterMetric,
-) (WriteCloser, error)
+) WriteCloser
 type ConnectorOption func(*SyslogConnector)
 
 // WithConstructors allows users to configure the constructors which will
@@ -96,31 +96,57 @@ func WithEgressMetrics(metrics map[string]*pulseemitter.CounterMetric) Connector
 	}
 }
 
-// Connect returns an egress writer based on the scheme of the binding drain
-// URL.
-func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, error) {
+// URLBinding associates a particular application with a syslog URL. The
+// application is identified by AppID and Hostname. The syslog URL is
+// identified by URL.
+type URLBinding struct {
+	AppID    string
+	Hostname string
+	URL      *url.URL
+}
+
+// Scheme is a convenience wrapper around the *url.URL Scheme field
+func (u *URLBinding) Scheme() string {
+	return u.URL.Scheme
+}
+
+func parseBinding(b *v1.Binding) (*URLBinding, error) {
 	url, err := url.Parse(b.Drain)
 	if err != nil {
 		return nil, err
 	}
 
-	droppedMetric := w.droppedMetrics[url.Scheme]
-	egressMetric := w.egressMetrics[url.Scheme]
-	constructor, ok := w.constructors[url.Scheme]
-	if !ok {
-		return nil, errors.New("unsupported scheme")
+	u := &URLBinding{
+		AppID:    b.AppId,
+		URL:      url,
+		Hostname: b.Hostname,
 	}
-	writer, err := constructor(ctx, b, w.dialTimeout, w.ioTimeout, w.skipCertVerify, egressMetric)
+
+	return u, nil
+}
+
+// Connect returns an egress writer based on the scheme of the binding drain
+// URL.
+func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, error) {
+	urlBinding, err := parseBinding(b)
 	if err != nil {
 		return nil, err
 	}
+
+	droppedMetric := w.droppedMetrics[urlBinding.Scheme()]
+	egressMetric := w.egressMetrics[urlBinding.Scheme()]
+	constructor, ok := w.constructors[urlBinding.Scheme()]
+	if !ok {
+		return nil, errors.New("unsupported scheme")
+	}
+	writer := constructor(ctx, urlBinding, w.dialTimeout, w.ioTimeout, w.skipCertVerify, egressMetric)
 
 	dw := NewDiodeWriter(ctx, writer, diodes.AlertFunc(func(missed int) {
 		if droppedMetric != nil {
 			droppedMetric.Increment(uint64(missed))
 		}
 
-		log.Printf("Dropped %d %s logs", missed, url.Scheme)
+		log.Printf("Dropped %d %s logs", missed, urlBinding.Scheme())
 	}), w.wg)
 
 	return dw, nil

@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
-	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -21,8 +21,8 @@ import (
 var _ = Describe("TCPWriter", func() {
 	var (
 		listener net.Listener
-		binding  = &v1.Binding{
-			AppId:    "test-app-id",
+		binding  = &egress.URLBinding{
+			AppID:    "test-app-id",
 			Hostname: "test-hostname",
 		}
 	)
@@ -31,7 +31,7 @@ var _ = Describe("TCPWriter", func() {
 		var err error
 		listener, err = net.Listen("tcp", ":0")
 		Expect(err).ToNot(HaveOccurred())
-		binding.Drain = fmt.Sprintf("syslog://%s", listener.Addr())
+		binding.URL, _ = url.Parse(fmt.Sprintf("syslog://%s", listener.Addr()))
 	})
 
 	AfterEach(func() {
@@ -48,7 +48,7 @@ var _ = Describe("TCPWriter", func() {
 			var err error
 			egressCounter = new(pulseemitter.CounterMetric)
 
-			writer, err = egress.NewTCPWriter(
+			writer = egress.NewTCPWriter(
 				context.TODO(),
 				binding,
 				time.Second,
@@ -140,12 +140,12 @@ var _ = Describe("TCPWriter", func() {
 	Describe("writing with a closed context", func() {
 		It("write returns an error when connect fails", func() {
 			env := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
-			binding.Drain = "syslog://localhost-garbage:9999"
+			binding.URL, _ = url.Parse("syslog://localhost-garbage:9999")
 
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 
-			writer, err := egress.NewTCPWriter(
+			writer := egress.NewTCPWriter(
 				ctx,
 				binding,
 				time.Second,
@@ -153,7 +153,6 @@ var _ = Describe("TCPWriter", func() {
 				false,
 				&pulseemitter.CounterMetric{},
 			)
-			Expect(err).ToNot(HaveOccurred())
 
 			errs := make(chan error, 1)
 			go func() {
@@ -172,7 +171,7 @@ var _ = Describe("TCPWriter", func() {
 		Context("with a happy dialer", func() {
 			BeforeEach(func() {
 				var err error
-				writer, err = egress.NewTCPWriter(
+				writer = egress.NewTCPWriter(
 					context.TODO(),
 					binding,
 					time.Second,

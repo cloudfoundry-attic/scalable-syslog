@@ -30,14 +30,14 @@ var _ = Describe("SyslogConnector", func() {
 		var called bool
 		constructor := func(
 			context.Context,
-			*v1.Binding,
+			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
 			bool,
 			*pulseemitter.CounterMetric,
-		) (egress.WriteCloser, error) {
+		) egress.WriteCloser {
 			called = true
-			return &SleepWriterCloser{metric: nullMetric{}}, nil
+			return &SleepWriterCloser{metric: nullMetric{}}
 		}
 
 		connector := egress.NewSyslogConnector(
@@ -62,16 +62,16 @@ var _ = Describe("SyslogConnector", func() {
 		defer close(done)
 		slowConstructor := func(
 			context.Context,
-			*v1.Binding,
+			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
 			bool,
 			*pulseemitter.CounterMetric,
-		) (egress.WriteCloser, error) {
+		) egress.WriteCloser {
 			return &SleepWriterCloser{
 				metric:   nullMetric{},
 				duration: time.Hour,
-			}, nil
+			}
 		}
 
 		connector := egress.NewSyslogConnector(
@@ -129,13 +129,13 @@ var _ = Describe("SyslogConnector", func() {
 	It("emits a metric when sending outbound messages", func() {
 		writerConstructor := func(
 			_ context.Context,
-			_ *v1.Binding,
+			_ *egress.URLBinding,
 			_ time.Duration,
 			_ time.Duration,
 			_ bool,
 			m *pulseemitter.CounterMetric,
-		) (egress.WriteCloser, error) {
-			return &SleepWriterCloser{metric: m, duration: 0}, nil
+		) egress.WriteCloser {
+			return &SleepWriterCloser{metric: m, duration: 0}
 		}
 		egressMetric := &pulseemitter.CounterMetric{}
 		connector := egress.NewSyslogConnector(
@@ -173,16 +173,16 @@ var _ = Describe("SyslogConnector", func() {
 	It("emits a metric on dropped messages", func() {
 		droppingConstructor := func(
 			context.Context,
-			*v1.Binding,
+			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
 			bool,
 			*pulseemitter.CounterMetric,
-		) (egress.WriteCloser, error) {
+		) egress.WriteCloser {
 			return &SleepWriterCloser{
 				metric:   nullMetric{},
 				duration: time.Millisecond,
-			}, nil
+			}
 		}
 
 		droppedMetric := &pulseemitter.CounterMetric{}
@@ -222,16 +222,16 @@ var _ = Describe("SyslogConnector", func() {
 	It("does not panic on unknown dropped metrics", func() {
 		unknownConstructor := func(
 			context.Context,
-			*v1.Binding,
+			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
 			bool,
 			*pulseemitter.CounterMetric,
-		) (egress.WriteCloser, error) {
+		) egress.WriteCloser {
 			return &SleepWriterCloser{
 				metric:   nullMetric{},
 				duration: time.Millisecond,
-			}, nil
+			}
 		}
 
 		connector := egress.NewSyslogConnector(

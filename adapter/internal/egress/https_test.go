@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"time"
 
 	"github.com/crewjam/rfc5424"
@@ -12,36 +13,17 @@ import (
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
-	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("HTTPWriter", func() {
-	It("does not accept schemes other than http", func() {
-		b := &v1.Binding{
-			Drain: "syslog://example.com:1123",
-		}
-		_, err := egress.NewHTTPSWriter(
-			context.TODO(),
-			b,
-			time.Second,
-			time.Second,
-			true,
-			new(pulseemitter.CounterMetric),
-		)
-		Expect(err).To(HaveOccurred())
-	})
-
 	It("errors when ssl validation is enabled", func() {
 		drain := newMockOKDrain()
 
-		b := &v1.Binding{
-			Drain:    drain.URL,
-			AppId:    "test-app-id",
-			Hostname: "test-hostname",
-		}
-		writer, err := egress.NewHTTPSWriter(
+		b := buildURLBinding(drain.URL, "test-app-id", "test-hostname")
+
+		writer := egress.NewHTTPSWriter(
 			context.TODO(),
 			b,
 			time.Second,
@@ -49,7 +31,6 @@ var _ = Describe("HTTPWriter", func() {
 			false,
 			new(pulseemitter.CounterMetric),
 		)
-		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
 		Expect(writer.Write(env)).To(HaveOccurred())
@@ -58,12 +39,12 @@ var _ = Describe("HTTPWriter", func() {
 	It("errors on an invalid syslog message", func() {
 		drain := newMockOKDrain()
 
-		b := &v1.Binding{
-			Drain:    drain.URL,
-			AppId:    "test-app-id-012345678901234567890012345678901234567890",
-			Hostname: "test-hostname",
-		}
-		writer, err := egress.NewHTTPSWriter(
+		b := buildURLBinding(
+			drain.URL,
+			"test-app-id-012345678901234567890012345678901234567890",
+			"test-hostname",
+		)
+		writer := egress.NewHTTPSWriter(
 			context.TODO(),
 			b,
 			time.Second,
@@ -71,7 +52,6 @@ var _ = Describe("HTTPWriter", func() {
 			true,
 			new(pulseemitter.CounterMetric),
 		)
-		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
 		Expect(writer.Write(env)).To(HaveOccurred())
@@ -80,13 +60,13 @@ var _ = Describe("HTTPWriter", func() {
 	It("errors when the http POST fails", func() {
 		drain := newMockErrorDrain()
 
-		b := &v1.Binding{
-			Drain:    drain.URL,
-			AppId:    "test-app-id",
-			Hostname: "test-hostname",
-		}
+		b := buildURLBinding(
+			drain.URL,
+			"test-app-id",
+			"test-hostname",
+		)
 
-		writer, err := egress.NewHTTPSWriter(
+		writer := egress.NewHTTPSWriter(
 			context.TODO(),
 			b,
 			time.Second,
@@ -94,7 +74,6 @@ var _ = Describe("HTTPWriter", func() {
 			true,
 			new(pulseemitter.CounterMetric),
 		)
-		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
 		Expect(writer.Write(env)).To(HaveOccurred())
@@ -103,12 +82,13 @@ var _ = Describe("HTTPWriter", func() {
 	It("writes syslog formatted messages to http drain", func() {
 		drain := newMockOKDrain()
 
-		b := &v1.Binding{
-			Drain:    drain.URL,
-			AppId:    "test-app-id",
-			Hostname: "test-hostname",
-		}
-		writer, err := egress.NewHTTPSWriter(
+		b := buildURLBinding(
+			drain.URL,
+			"test-app-id",
+			"test-hostname",
+		)
+
+		writer := egress.NewHTTPSWriter(
 			context.TODO(),
 			b,
 			time.Second,
@@ -116,7 +96,6 @@ var _ = Describe("HTTPWriter", func() {
 			true,
 			new(pulseemitter.CounterMetric),
 		)
-		Expect(err).ToNot(HaveOccurred())
 
 		env1 := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
 		Expect(writer.Write(env1)).To(Succeed())
@@ -159,12 +138,13 @@ var _ = Describe("HTTPWriter", func() {
 		drain := newMockOKDrain()
 		metric := new(pulseemitter.CounterMetric)
 
-		b := &v1.Binding{
-			Drain:    drain.URL,
-			AppId:    "test-app-id",
-			Hostname: "test-hostname",
-		}
-		writer, err := egress.NewHTTPSWriter(
+		b := buildURLBinding(
+			drain.URL,
+			"test-app-id",
+			"test-hostname",
+		)
+
+		writer := egress.NewHTTPSWriter(
 			context.TODO(),
 			b,
 			time.Second,
@@ -172,7 +152,6 @@ var _ = Describe("HTTPWriter", func() {
 			true,
 			metric,
 		)
-		Expect(err).ToNot(HaveOccurred())
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
 		writer.Write(env)
@@ -212,4 +191,14 @@ func newMockDrain(status int) *SpyDrain {
 	server := httptest.NewTLSServer(handler)
 	drain.Server = server
 	return drain
+}
+
+func buildURLBinding(u, appID, hostname string) *egress.URLBinding {
+	parsedURL, _ := url.Parse(u)
+
+	return &egress.URLBinding{
+		URL:      parsedURL,
+		AppID:    appID,
+		Hostname: hostname,
+	}
 }

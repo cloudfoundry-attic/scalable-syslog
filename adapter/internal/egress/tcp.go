@@ -14,7 +14,6 @@ import (
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
-	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"github.com/crewjam/rfc5424"
 )
 
@@ -41,18 +40,12 @@ type TCPWriter struct {
 // NewTCPWriter creates a new TCP syslog writer.
 func NewTCPWriter(
 	ctx context.Context,
-	binding *v1.Binding,
+	binding *URLBinding,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
 	egressMetric *pulseemitter.CounterMetric,
-) (WriteCloser, error) {
-	drainURL, err := url.Parse(binding.Drain)
-	// TODO: remove parsing/error from here
-	if err != nil {
-		return nil, err
-	}
-
+) WriteCloser {
 	dialer := &net.Dialer{
 		Timeout: dialTimeout,
 	}
@@ -61,8 +54,8 @@ func NewTCPWriter(
 	}
 
 	w := &TCPWriter{
-		url:          drainURL,
-		appID:        binding.AppId,
+		url:          binding.URL,
+		appID:        binding.AppID,
 		hostname:     binding.Hostname,
 		ioTimeout:    ioTimeout,
 		dialFunc:     df,
@@ -71,7 +64,7 @@ func NewTCPWriter(
 		ctx:          ctx,
 	}
 
-	return w, nil
+	return w
 }
 
 func (w *TCPWriter) connection() (net.Conn, error) {

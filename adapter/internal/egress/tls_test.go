@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"net/url"
 	"time"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
@@ -13,7 +14,6 @@ import (
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
-	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -42,13 +42,14 @@ var _ = Describe("TLSWriter", func() {
 		listener, err := tls.Listen("tcp", ":0", tlsConfig)
 		Expect(err).ToNot(HaveOccurred())
 
-		binding := &v1.Binding{
-			AppId:    "test-app-id",
+		url, _ := url.Parse(fmt.Sprintf("syslog-tls://%s", listener.Addr()))
+		binding := &egress.URLBinding{
+			AppID:    "test-app-id",
 			Hostname: "test-hostname",
-			Drain:    fmt.Sprintf("syslog-tls://%s", listener.Addr()),
+			URL:      url,
 		}
 		egressCounter := new(pulseemitter.CounterMetric)
-		writer, err := egress.NewTLSWriter(
+		writer := egress.NewTLSWriter(
 			context.TODO(),
 			binding,
 			time.Second,
@@ -56,7 +57,6 @@ var _ = Describe("TLSWriter", func() {
 			true,
 			egressCounter,
 		)
-		Expect(err).ToNot(HaveOccurred())
 		defer writer.Close()
 
 		var conn net.Conn

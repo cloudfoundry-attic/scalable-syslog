@@ -15,45 +15,43 @@ import (
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
-	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"github.com/crewjam/rfc5424"
 )
 
 type HTTPSWriter struct {
-	binding      *v1.Binding
+	hostname     string
+	appID        string
+	url          *url.URL
 	client       *http.Client
 	egressMetric *pulseemitter.CounterMetric
 }
 
 func NewHTTPSWriter(
 	ctx context.Context,
-	binding *v1.Binding,
+	binding *URLBinding,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
 	egressMetric *pulseemitter.CounterMetric,
-) (WriteCloser, error) {
-	u, _ := url.Parse(binding.Drain)
-
-	if u.Scheme != "https" {
-		return nil, fmt.Errorf("invalid scheme for syslog HTTPWriter: %s", u.Scheme)
-	}
+) WriteCloser {
 
 	client := httpClient(dialTimeout, ioTimeout, skipCertVerify)
 
 	return &HTTPSWriter{
-		binding:      binding,
+		url:          binding.URL,
+		appID:        binding.AppID,
+		hostname:     binding.Hostname,
 		client:       client,
 		egressMetric: egressMetric,
-	}, nil
+	}
 }
 
 func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
 	msg := rfc5424.Message{
 		Priority:  generatePriority(env.GetLog().Type),
 		Timestamp: time.Unix(0, env.GetTimestamp()).UTC(),
-		Hostname:  w.binding.Hostname,
-		AppName:   w.binding.AppId,
+		Hostname:  w.hostname,
+		AppName:   w.appID,
 		ProcessID: generateProcessID(
 			env.Tags["source_type"].GetText(),
 			env.Tags["source_instance"].GetText(),
@@ -65,7 +63,7 @@ func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
 		return err
 	}
 
-	resp, err := w.client.Post(w.binding.Drain, "text/plain", bytes.NewBuffer(b))
+	resp, err := w.client.Post(w.url.String(), "text/plain", bytes.NewBuffer(b))
 	if err != nil {
 		return err
 	}
