@@ -2,7 +2,6 @@ package egress_test
 
 import (
 	"bufio"
-	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -50,7 +49,6 @@ var _ = Describe("TLSWriter", func() {
 		}
 		egressCounter := new(pulseemitter.CounterMetric)
 		writer := egress.NewTLSWriter(
-			context.TODO(),
 			binding,
 			time.Second,
 			time.Second,

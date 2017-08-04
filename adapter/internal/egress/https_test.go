@@ -1,7 +1,6 @@
 package egress_test
 
 import (
-	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +23,6 @@ var _ = Describe("HTTPWriter", func() {
 		b := buildURLBinding(drain.URL, "test-app-id", "test-hostname")
 
 		writer := egress.NewHTTPSWriter(
-			context.TODO(),
 			b,
 			time.Second,
 			time.Second,
@@ -45,7 +43,6 @@ var _ = Describe("HTTPWriter", func() {
 			"test-hostname",
 		)
 		writer := egress.NewHTTPSWriter(
-			context.TODO(),
 			b,
 			time.Second,
 			time.Second,
@@ -67,7 +64,6 @@ var _ = Describe("HTTPWriter", func() {
 		)
 
 		writer := egress.NewHTTPSWriter(
-			context.TODO(),
 			b,
 			time.Second,
 			time.Second,
@@ -89,7 +85,6 @@ var _ = Describe("HTTPWriter", func() {
 		)
 
 		writer := egress.NewHTTPSWriter(
-			context.TODO(),
 			b,
 			time.Second,
 			time.Second,
@@ -145,7 +140,6 @@ var _ = Describe("HTTPWriter", func() {
 		)
 
 		writer := egress.NewHTTPSWriter(
-			context.TODO(),
 			b,
 			time.Second,
 			time.Second,

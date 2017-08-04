@@ -23,22 +23,26 @@ type RetryWriter struct {
 
 // NewRetryWriter creates a new SyslogConstructor which wraps another
 // SyslogConstructor
-func NewRetryWriter(sc SyslogConstructor, r RetryDuration, maxRetries uint) SyslogConstructor {
+func NewRetryWriter(
+	sc SyslogConstructor,
+	r RetryDuration,
+	maxRetries uint,
+) SyslogConstructor {
+
 	return SyslogConstructor(func(
-		ctx context.Context,
 		binding *URLBinding,
 		dialTimeout time.Duration,
 		ioTimeout time.Duration,
 		skipCertVerify bool,
 		egressMetric *pulseemitter.CounterMetric,
 	) WriteCloser {
-		syslog := sc(ctx, binding, dialTimeout, ioTimeout, skipCertVerify, egressMetric)
+		syslog := sc(binding, dialTimeout, ioTimeout, skipCertVerify, egressMetric)
 
 		return &RetryWriter{
 			syslog:        syslog,
 			retryDuration: r,
 			maxRetries:    maxRetries,
-			ctx:           ctx,
+			ctx:           binding.Context,
 		}
 	})
 }

@@ -2,7 +2,6 @@ package egress_test
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"net"
@@ -49,7 +48,6 @@ var _ = Describe("TCPWriter", func() {
 			egressCounter = new(pulseemitter.CounterMetric)
 
 			writer = egress.NewTCPWriter(
-				context.TODO(),
 				binding,
 				time.Second,
 				time.Second,
@@ -137,16 +135,12 @@ var _ = Describe("TCPWriter", func() {
 		})
 	})
 
-	Describe("writing with a closed context", func() {
-		It("write returns an error when connect fails", func() {
+	Describe("when write fails to connect", func() {
+		It("write returns an error", func() {
 			env := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
 			binding.URL, _ = url.Parse("syslog://localhost-garbage:9999")
 
-			ctx, cancel := context.WithCancel(context.Background())
-			cancel()
-
 			writer := egress.NewTCPWriter(
-				ctx,
 				binding,
 				time.Second,
 				time.Second,
@@ -172,7 +166,6 @@ var _ = Describe("TCPWriter", func() {
 			BeforeEach(func() {
 				var err error
 				writer = egress.NewTCPWriter(
-					context.TODO(),
 					binding,
 					time.Second,
 					time.Second,

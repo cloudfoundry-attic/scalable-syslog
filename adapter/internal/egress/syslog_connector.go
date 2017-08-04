@@ -63,7 +63,6 @@ func NewSyslogConnector(
 // SyslogConstructor creates syslog connections to https, syslog, and
 // syslog-tls drains
 type SyslogConstructor func(
-	ctx context.Context,
 	binding *URLBinding,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
@@ -101,6 +100,7 @@ func WithEgressMetrics(metrics map[string]*pulseemitter.CounterMetric) Connector
 // application is identified by AppID and Hostname. The syslog URL is
 // identified by URL.
 type URLBinding struct {
+	Context  context.Context
 	AppID    string
 	Hostname string
 	URL      *url.URL
@@ -133,6 +133,7 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 	if err != nil {
 		return nil, err
 	}
+	urlBinding.Context = ctx
 
 	droppedMetric := w.droppedMetrics[urlBinding.Scheme()]
 	egressMetric := w.egressMetrics[urlBinding.Scheme()]
@@ -140,7 +141,7 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 	if !ok {
 		return nil, errors.New("unsupported scheme")
 	}
-	writer := constructor(ctx, urlBinding, w.dialTimeout, w.ioTimeout, w.skipCertVerify, egressMetric)
+	writer := constructor(urlBinding, w.dialTimeout, w.ioTimeout, w.skipCertVerify, egressMetric)
 
 	dw := NewDiodeWriter(ctx, writer, diodes.AlertFunc(func(missed int) {
 		if droppedMetric != nil {

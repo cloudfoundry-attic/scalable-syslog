@@ -18,7 +18,9 @@ import (
 var _ = Describe("Retry Writer", func() {
 	It("calls through to a syslog writer", func() {
 		writeCloser := &spyWriteCloser{
-			ctx: context.Background(),
+			binding: &egress.URLBinding{
+				Context: context.Background(),
+			},
 		}
 		r := buildRetryWriter(writeCloser, 1, 0)
 		env := &v2.Envelope{}
@@ -33,7 +35,9 @@ var _ = Describe("Retry Writer", func() {
 		writeCloser := &spyWriteCloser{
 			returnErrCount: 1,
 			writeErr:       errors.New("write error"),
-			ctx:            context.Background(),
+			binding: &egress.URLBinding{
+				Context: context.Background(),
+			},
 		}
 		r := buildRetryWriter(writeCloser, 3, 0)
 		env := &v2.Envelope{}
@@ -47,7 +51,9 @@ var _ = Describe("Retry Writer", func() {
 		writeCloser := &spyWriteCloser{
 			returnErrCount: 3,
 			writeErr:       errors.New("write error"),
-			ctx:            context.Background(),
+			binding: &egress.URLBinding{
+				Context: context.Background(),
+			},
 		}
 		r := buildRetryWriter(writeCloser, 2, 0)
 		env := &v2.Envelope{}
@@ -68,7 +74,9 @@ var _ = Describe("Retry Writer", func() {
 		writeCloser := &spyWriteCloser{
 			returnErrCount: 2,
 			writeErr:       errors.New("write error"),
-			ctx:            ctx,
+			binding: &egress.URLBinding{
+				Context: ctx,
+			},
 		}
 		r := buildRetryWriter(writeCloser, 2, 0)
 
@@ -86,7 +94,9 @@ var _ = Describe("Retry Writer", func() {
 		writeCloser := &spyWriteCloser{
 			returnErrCount: 2,
 			writeErr:       errors.New("write error"),
-			ctx:            ctx,
+			binding: &egress.URLBinding{
+				Context: ctx,
+			},
 		}
 		r := buildRetryWriter(writeCloser, 5, time.Second)
 
@@ -136,7 +146,7 @@ var _ = Describe("Retry Writer", func() {
 })
 
 type spyWriteCloser struct {
-	ctx           context.Context
+	binding       *egress.URLBinding
 	writeCalled   bool
 	writeEnvelope *v2.Envelope
 	writeAttempts int64
@@ -173,7 +183,6 @@ func buildDelay(mulitplier time.Duration) func(uint) time.Duration {
 
 func buildRetryWriter(w *spyWriteCloser, maxRetries uint, delayMultiplier time.Duration) egress.WriteCloser {
 	constructor := egress.NewRetryWriter(func(
-		ctx context.Context,
 		binding *egress.URLBinding,
 		dialTimeout time.Duration,
 		ioTimeout time.Duration,
@@ -183,5 +192,5 @@ func buildRetryWriter(w *spyWriteCloser, maxRetries uint, delayMultiplier time.D
 		return w
 	}, egress.RetryDuration(buildDelay(delayMultiplier)), maxRetries)
 
-	return constructor(w.ctx, nil, 0, 0, false, nil)
+	return constructor(w.binding, 0, 0, false, nil)
 }

@@ -29,7 +29,6 @@ var _ = Describe("SyslogConnector", func() {
 	It("connects to the passed syslog scheme", func() {
 		var called bool
 		constructor := func(
-			context.Context,
 			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
@@ -61,7 +60,6 @@ var _ = Describe("SyslogConnector", func() {
 	It("returns a writer that doesn't block even if the constructor's writer blocks", func(done Done) {
 		defer close(done)
 		slowConstructor := func(
-			context.Context,
 			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
@@ -128,7 +126,6 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("emits a metric when sending outbound messages", func() {
 		writerConstructor := func(
-			_ context.Context,
 			_ *egress.URLBinding,
 			_ time.Duration,
 			_ time.Duration,
@@ -172,7 +169,6 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("emits a metric on dropped messages", func() {
 		droppingConstructor := func(
-			context.Context,
 			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
@@ -221,7 +217,6 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("does not panic on unknown dropped metrics", func() {
 		unknownConstructor := func(
-			context.Context,
 			*egress.URLBinding,
 			time.Duration,
 			time.Duration,

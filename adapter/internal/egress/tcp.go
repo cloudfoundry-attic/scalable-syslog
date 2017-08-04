@@ -2,15 +2,12 @@ package egress
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"log"
 	"net"
 	"net/url"
 	"strings"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
@@ -31,15 +28,12 @@ type TCPWriter struct {
 	ioTimeout time.Duration
 	scheme    string
 	conn      net.Conn
-	closed    bool
-	ctx       context.Context
 
 	egressMetric *pulseemitter.CounterMetric
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
 func NewTCPWriter(
-	ctx context.Context,
 	binding *URLBinding,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
@@ -61,7 +55,6 @@ func NewTCPWriter(
 		dialFunc:     df,
 		scheme:       "syslog",
 		egressMetric: egressMetric,
-		ctx:          ctx,
 	}
 
 	return w
