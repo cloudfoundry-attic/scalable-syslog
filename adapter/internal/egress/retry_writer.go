@@ -1,13 +1,13 @@
 package egress
 
 import (
+	"log"
 	"math"
 	"math/rand"
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
-	"golang.org/x/net/context"
 )
 
 // RetryDuration calculates a duration based on the number of write attempts
@@ -18,7 +18,7 @@ type RetryWriter struct {
 	syslog        WriteCloser
 	retryDuration RetryDuration
 	maxRetries    uint
-	ctx           context.Context
+	binding       *URLBinding
 }
 
 // NewRetryWriter creates a new SyslogConstructor which wraps another
@@ -42,7 +42,7 @@ func NewRetryWriter(
 			syslog:        syslog,
 			retryDuration: r,
 			maxRetries:    maxRetries,
-			ctx:           binding.Context,
+			binding:       binding,
 		}
 	})
 }
@@ -51,7 +51,7 @@ func NewRetryWriter(
 func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
 	err := r.syslog.Write(e)
 
-	if err != nil && !contextDone(r.ctx) {
+	if err != nil && !contextDone(r.binding.Context) {
 		return r.retry(e)
 	}
 
@@ -68,10 +68,11 @@ func (r *RetryWriter) retry(e *loggregator_v2.Envelope) error {
 
 	for i := uint(1); i < r.maxRetries; i++ {
 		sleepDuration := r.retryDuration(i)
+		log.Printf("failed to write to %s, retrying in %s: %s", r.binding.URL.Host, sleepDuration, err)
 		time.Sleep(sleepDuration)
 
 		err = r.syslog.Write(e)
-		if err == nil || contextDone(r.ctx) {
+		if err == nil || contextDone(r.binding.Context) {
 			break
 		}
 	}

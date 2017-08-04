@@ -3,6 +3,7 @@ package egress_test
 import (
 	"errors"
 	"math/rand"
+	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -20,6 +21,7 @@ var _ = Describe("Retry Writer", func() {
 		It("calls through to a syslog writer", func() {
 			writeCloser := &spyWriteCloser{
 				binding: &egress.URLBinding{
+					URL:     &url.URL{},
 					Context: context.Background(),
 				},
 			}
@@ -37,6 +39,7 @@ var _ = Describe("Retry Writer", func() {
 				returnErrCount: 1,
 				writeErr:       errors.New("write error"),
 				binding: &egress.URLBinding{
+					URL:     &url.URL{},
 					Context: context.Background(),
 				},
 			}
@@ -53,6 +56,7 @@ var _ = Describe("Retry Writer", func() {
 				returnErrCount: 3,
 				writeErr:       errors.New("write error"),
 				binding: &egress.URLBinding{
+					URL:     &url.URL{},
 					Context: context.Background(),
 				},
 			}
@@ -70,6 +74,7 @@ var _ = Describe("Retry Writer", func() {
 				returnErrCount: 2,
 				writeErr:       errors.New("write error"),
 				binding: &egress.URLBinding{
+					URL:     &url.URL{},
 					Context: ctx,
 				},
 			}
@@ -90,6 +95,7 @@ var _ = Describe("Retry Writer", func() {
 				returnErrCount: 2,
 				writeErr:       errors.New("write error"),
 				binding: &egress.URLBinding{
+					URL:     &url.URL{},
 					Context: ctx,
 				},
 			}
@@ -111,7 +117,9 @@ var _ = Describe("Retry Writer", func() {
 	Describe("Close()", func() {
 		It("delegates to the syslog writer", func() {
 			writeCloser := &spyWriteCloser{
-				binding: &egress.URLBinding{},
+				binding: &egress.URLBinding{
+					URL: &url.URL{},
+				},
 			}
 			r := buildRetryWriter(writeCloser, 2, 0)
 
