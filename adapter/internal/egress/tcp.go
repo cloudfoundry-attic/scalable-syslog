@@ -68,37 +68,19 @@ func (w *TCPWriter) connection() (net.Conn, error) {
 }
 
 func (w *TCPWriter) connect() (net.Conn, error) {
-	for {
-		if w.closed {
-			return nil, errors.New("attempting connect after close")
-		}
-
-		conn, err := w.dialFunc(w.url.Host)
-		if err != nil {
-			if contextDone(w.ctx) {
-				return nil, err
-			}
-
-			duration := time.Minute
-			log.Printf("failed to connect to %s, retrying in %s: %s", w.url.Host, duration, err)
-			time.Sleep(duration)
-			continue
-		}
-		w.conn = conn
-
-		log.Printf("created conn to syslog drain: %s", w.url.Host)
-
-		return conn, nil
+	conn, err := w.dialFunc(w.url.Host)
+	if err != nil {
+		return nil, err
 	}
+	w.conn = conn
+
+	log.Printf("created conn to syslog drain: %s", w.url.Host)
+
+	return conn, nil
 }
 
 // Close tears down any active connections to the drain and prevents reconnect.
 func (w *TCPWriter) Close() error {
-	w.closed = true
-	return w.connClose()
-}
-
-func (w *TCPWriter) connClose() error {
 	if w.conn != nil {
 		err := w.conn.Close()
 		w.conn = nil
@@ -135,7 +117,7 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 	conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
 	_, err = msg.WriteTo(conn)
 	if err != nil {
-		_ = w.connClose()
+		_ = w.Close()
 
 		return err
 	}

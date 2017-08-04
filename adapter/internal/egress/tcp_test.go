@@ -194,13 +194,6 @@ var _ = Describe("TCPWriter", func() {
 				_, err := conn.Read(b)
 				Expect(err).To(Equal(io.EOF))
 			})
-
-			It("returns an error after writing to a closed connection", func() {
-				Expect(writer.Close()).To(Succeed())
-
-				env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
-				Expect(writer.Write(env)).To(MatchError("attempting connect after close"))
-			})
 		})
 	})
 })
