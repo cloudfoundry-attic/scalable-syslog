@@ -39,7 +39,8 @@ type SyslogConnector struct {
 
 // NewSyslogConnector configures and returns a new SyslogConnector.
 func NewSyslogConnector(
-	dialTimeout, ioTimeout time.Duration,
+	dialTimeout time.Duration,
+	ioTimeout time.Duration,
 	skipCertVerify bool,
 	wg WaitGroup,
 	opts ...ConnectorOption,

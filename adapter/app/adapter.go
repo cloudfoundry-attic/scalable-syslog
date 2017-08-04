@@ -105,6 +105,9 @@ func WithSyslogSkipCertVerify(b bool) func(*Adapter) {
 	}
 }
 
+// maxRetries for the backoff, results in around an hour of total delay
+const maxRetries uint = 22
+
 // NewAdapter returns an Adapter
 func NewAdapter(
 	logsEgressAPIAddr string,
@@ -145,9 +148,21 @@ func NewAdapter(
 		time.Second)
 
 	constructors := map[string]egress.SyslogConstructor{
-		"https":      egress.NewHTTPSWriter,
-		"syslog":     egress.NewTCPWriter,
-		"syslog-tls": egress.NewTLSWriter,
+		"https": egress.NewRetryWriter(
+			egress.NewHTTPSWriter,
+			egress.ExponentialDuration,
+			maxRetries,
+		),
+		"syslog": egress.NewRetryWriter(
+			egress.NewTCPWriter,
+			egress.ExponentialDuration,
+			maxRetries,
+		),
+		"syslog-tls": egress.NewRetryWriter(
+			egress.NewTLSWriter,
+			egress.ExponentialDuration,
+			maxRetries,
+		),
 	}
 
 	droppedMetrics := map[string]*pulseemitter.CounterMetric{
