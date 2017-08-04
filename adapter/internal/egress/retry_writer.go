@@ -58,9 +58,9 @@ func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
 	return err
 }
 
+// Close delegates to the syslog writer.
 func (r *RetryWriter) Close() error {
-	// TODO fix this
-	return nil
+	return r.syslog.Close()
 }
 
 func (r *RetryWriter) retry(e *loggregator_v2.Envelope) error {

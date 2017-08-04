@@ -16,100 +16,108 @@ import (
 )
 
 var _ = Describe("Retry Writer", func() {
-	It("calls through to a syslog writer", func() {
-		writeCloser := &spyWriteCloser{
-			binding: &egress.URLBinding{
-				Context: context.Background(),
-			},
-		}
-		r := buildRetryWriter(writeCloser, 1, 0)
-		env := &v2.Envelope{}
+	Describe("Write()", func() {
+		It("calls through to a syslog writer", func() {
+			writeCloser := &spyWriteCloser{
+				binding: &egress.URLBinding{
+					Context: context.Background(),
+				},
+			}
+			r := buildRetryWriter(writeCloser, 1, 0)
+			env := &v2.Envelope{}
 
-		r.Write(env)
+			r.Write(env)
 
-		Expect(writeCloser.writeCalled).To(BeTrue())
-		Expect(writeCloser.writeEnvelope).To(Equal(env))
-	})
+			Expect(writeCloser.writeCalled).To(BeTrue())
+			Expect(writeCloser.writeEnvelope).To(Equal(env))
+		})
 
-	It("retries writes if the delegation to syslog writer fails", func() {
-		writeCloser := &spyWriteCloser{
-			returnErrCount: 1,
-			writeErr:       errors.New("write error"),
-			binding: &egress.URLBinding{
-				Context: context.Background(),
-			},
-		}
-		r := buildRetryWriter(writeCloser, 3, 0)
-		env := &v2.Envelope{}
+		It("retries writes if the delegation to syslog writer fails", func() {
+			writeCloser := &spyWriteCloser{
+				returnErrCount: 1,
+				writeErr:       errors.New("write error"),
+				binding: &egress.URLBinding{
+					Context: context.Background(),
+				},
+			}
+			r := buildRetryWriter(writeCloser, 3, 0)
+			env := &v2.Envelope{}
 
-		r.Write(env)
+			r.Write(env)
 
-		Eventually(writeCloser.WriteAttempts).Should(Equal(2))
-	})
+			Eventually(writeCloser.WriteAttempts).Should(Equal(2))
+		})
 
-	It("returns an error when there are no more retries", func() {
-		writeCloser := &spyWriteCloser{
-			returnErrCount: 3,
-			writeErr:       errors.New("write error"),
-			binding: &egress.URLBinding{
-				Context: context.Background(),
-			},
-		}
-		r := buildRetryWriter(writeCloser, 2, 0)
-		env := &v2.Envelope{}
+		It("returns an error when there are no more retries", func() {
+			writeCloser := &spyWriteCloser{
+				returnErrCount: 3,
+				writeErr:       errors.New("write error"),
+				binding: &egress.URLBinding{
+					Context: context.Background(),
+				},
+			}
+			r := buildRetryWriter(writeCloser, 2, 0)
+			env := &v2.Envelope{}
 
-		err := r.Write(env)
+			err := r.Write(env)
 
-		Expect(err).To(HaveOccurred())
-	})
+			Expect(err).To(HaveOccurred())
+		})
 
-	// It returns an error when the retry fails
-	// It bails out on try when the binding is deleted
+		It("does not back off if context is done and error occurrs", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			writeCloser := &spyWriteCloser{
+				returnErrCount: 2,
+				writeErr:       errors.New("write error"),
+				binding: &egress.URLBinding{
+					Context: ctx,
+				},
+			}
+			r := buildRetryWriter(writeCloser, 2, 0)
 
-	// It("closes a connection", func() {
-	// })
+			env := &v2.Envelope{}
 
-	It("does not back off if context is done and error occurrs", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		writeCloser := &spyWriteCloser{
-			returnErrCount: 2,
-			writeErr:       errors.New("write error"),
-			binding: &egress.URLBinding{
-				Context: ctx,
-			},
-		}
-		r := buildRetryWriter(writeCloser, 2, 0)
-
-		env := &v2.Envelope{}
-
-		cancel()
-
-		err := r.Write(env)
-		Expect(err).To(HaveOccurred())
-		Expect(writeCloser.WriteAttempts()).To(Equal(1))
-	})
-
-	It("returns error during backoff strategy if context is canceled", func() {
-		ctx, cancel := context.WithCancel(context.Background())
-		writeCloser := &spyWriteCloser{
-			returnErrCount: 2,
-			writeErr:       errors.New("write error"),
-			binding: &egress.URLBinding{
-				Context: ctx,
-			},
-		}
-		r := buildRetryWriter(writeCloser, 5, time.Second)
-
-		env := &v2.Envelope{}
-
-		go func() {
-			Eventually(writeCloser.WriteAttempts).Should(Equal(1))
 			cancel()
-		}()
 
-		err := r.Write(env)
-		Expect(err).To(HaveOccurred())
-		Expect(writeCloser.WriteAttempts()).To(Equal(2))
+			err := r.Write(env)
+			Expect(err).To(HaveOccurred())
+			Expect(writeCloser.WriteAttempts()).To(Equal(1))
+		})
+
+		It("returns error during backoff strategy if context is canceled", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			writeCloser := &spyWriteCloser{
+				returnErrCount: 2,
+				writeErr:       errors.New("write error"),
+				binding: &egress.URLBinding{
+					Context: ctx,
+				},
+			}
+			r := buildRetryWriter(writeCloser, 5, time.Second)
+
+			env := &v2.Envelope{}
+
+			go func() {
+				Eventually(writeCloser.WriteAttempts).Should(Equal(1))
+				cancel()
+			}()
+
+			err := r.Write(env)
+			Expect(err).To(HaveOccurred())
+			Expect(writeCloser.WriteAttempts()).To(Equal(2))
+		})
+	})
+
+	Describe("Close()", func() {
+		It("delegates to the syslog writer", func() {
+			writeCloser := &spyWriteCloser{
+				binding: &egress.URLBinding{},
+			}
+			r := buildRetryWriter(writeCloser, 2, 0)
+
+			Expect(r.Close()).To(Succeed())
+			Expect(writeCloser.closeCalled).To(BeTrue())
+		})
 	})
 
 	Describe("ExponentialDuration", func() {
@@ -153,6 +161,8 @@ type spyWriteCloser struct {
 
 	returnErrCount int
 	writeErr       error
+
+	closeCalled bool
 }
 
 func (s *spyWriteCloser) Write(env *v2.Envelope) error {
@@ -167,7 +177,9 @@ func (s *spyWriteCloser) Write(env *v2.Envelope) error {
 	return err
 }
 
-func (*spyWriteCloser) Close() error {
+func (s *spyWriteCloser) Close() error {
+	s.closeCalled = true
+
 	return nil
 }
 
