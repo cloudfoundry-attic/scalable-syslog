@@ -10,36 +10,29 @@ import (
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 )
 
-// RetryDuration calculates a duration based on the number of write attempts
-type RetryDuration func(attempt uint) time.Duration
-
-// RetryWriter wraps a WriteCloser and will retry writes if the first fails
-type RetryWriter struct {
-	syslog        WriteCloser
-	retryDuration RetryDuration
-	maxRetries    uint
-	binding       *URLBinding
-}
-
-// NewRetryWriter creates a new SyslogConstructor which wraps another
-// SyslogConstructor
-func NewRetryWriter(
-	sc SyslogConstructor,
+// RetryWrapper wraps a WriterConstructer, allowing it to retry writes.
+func RetryWrapper(
+	wc WriterConstructor,
 	r RetryDuration,
 	maxRetries uint,
-) SyslogConstructor {
-
-	return SyslogConstructor(func(
+) WriterConstructor {
+	return WriterConstructor(func(
 		binding *URLBinding,
 		dialTimeout time.Duration,
 		ioTimeout time.Duration,
 		skipCertVerify bool,
 		egressMetric *pulseemitter.CounterMetric,
 	) WriteCloser {
-		syslog := sc(binding, dialTimeout, ioTimeout, skipCertVerify, egressMetric)
+		writer := wc(
+			binding,
+			dialTimeout,
+			ioTimeout,
+			skipCertVerify,
+			egressMetric,
+		)
 
 		return &RetryWriter{
-			syslog:        syslog,
+			writer:        writer,
 			retryDuration: r,
 			maxRetries:    maxRetries,
 			binding:       binding,
@@ -47,9 +40,20 @@ func NewRetryWriter(
 	})
 }
 
-// Write will retry writes unitl maxRetries has been reached
+// RetryDuration calculates a duration based on the number of write attempts.
+type RetryDuration func(attempt uint) time.Duration
+
+// RetryWriter wraps a WriteCloser and will retry writes if the first fails.
+type RetryWriter struct {
+	writer        WriteCloser
+	retryDuration RetryDuration
+	maxRetries    uint
+	binding       *URLBinding
+}
+
+// Write will retry writes unitl maxRetries has been reached.
 func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
-	err := r.syslog.Write(e)
+	err := r.writer.Write(e)
 
 	if err != nil && !contextDone(r.binding.Context) {
 		return r.retry(e)
@@ -60,7 +64,7 @@ func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
 
 // Close delegates to the syslog writer.
 func (r *RetryWriter) Close() error {
-	return r.syslog.Close()
+	return r.writer.Close()
 }
 
 func (r *RetryWriter) retry(e *loggregator_v2.Envelope) error {
@@ -71,7 +75,7 @@ func (r *RetryWriter) retry(e *loggregator_v2.Envelope) error {
 		log.Printf("failed to write to %s, retrying in %s: %s", r.binding.URL.Host, sleepDuration, err)
 		time.Sleep(sleepDuration)
 
-		err = r.syslog.Write(e)
+		err = r.writer.Write(e)
 		if err == nil || contextDone(r.binding.Context) {
 			break
 		}
@@ -80,6 +84,8 @@ func (r *RetryWriter) retry(e *loggregator_v2.Envelope) error {
 	return err
 }
 
+// ExponentialDuration returns a duration that grows exponentially with each
+// attempt. It is maxed out at about 35 minutes.
 func ExponentialDuration(attempt uint) time.Duration {
 	if attempt == 0 {
 		return time.Millisecond

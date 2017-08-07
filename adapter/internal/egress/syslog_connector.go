@@ -31,7 +31,7 @@ type SyslogConnector struct {
 	skipCertVerify bool
 	ioTimeout      time.Duration
 	dialTimeout    time.Duration
-	constructors   map[string]SyslogConstructor
+	constructors   map[string]WriterConstructor
 	droppedMetrics map[string]*pulseemitter.CounterMetric
 	egressMetrics  map[string]*pulseemitter.CounterMetric
 	wg             WaitGroup
@@ -50,7 +50,7 @@ func NewSyslogConnector(
 		dialTimeout:    dialTimeout,
 		skipCertVerify: skipCertVerify,
 		wg:             wg,
-		constructors:   make(map[string]SyslogConstructor),
+		constructors:   make(map[string]WriterConstructor),
 		droppedMetrics: make(map[string]*pulseemitter.CounterMetric),
 		egressMetrics:  make(map[string]*pulseemitter.CounterMetric),
 	}
@@ -60,21 +60,23 @@ func NewSyslogConnector(
 	return sc
 }
 
-// SyslogConstructor creates syslog connections to https, syslog, and
+// WriterConstructor creates syslog connections to https, syslog, and
 // syslog-tls drains
-type SyslogConstructor func(
+type WriterConstructor func(
 	binding *URLBinding,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
 	egressMetric *pulseemitter.CounterMetric,
 ) WriteCloser
+
+// ConnectorOption allows a syslog connector to be customized.
 type ConnectorOption func(*SyslogConnector)
 
 // WithConstructors allows users to configure the constructors which will
 // create syslog network connections. The string key in the constructors map
 // should name the protocol.
-func WithConstructors(constructors map[string]SyslogConstructor) ConnectorOption {
+func WithConstructors(constructors map[string]WriterConstructor) ConnectorOption {
 	return func(sc *SyslogConnector) {
 		sc.constructors = constructors
 	}

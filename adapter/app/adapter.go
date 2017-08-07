@@ -147,18 +147,18 @@ func NewAdapter(
 		a.logsAPIConnTTL,
 		time.Second)
 
-	constructors := map[string]egress.SyslogConstructor{
-		"https": egress.NewRetryWriter(
+	constructors := map[string]egress.WriterConstructor{
+		"https": egress.RetryWrapper(
 			egress.NewHTTPSWriter,
 			egress.ExponentialDuration,
 			maxRetries,
 		),
-		"syslog": egress.NewRetryWriter(
+		"syslog": egress.RetryWrapper(
 			egress.NewTCPWriter,
 			egress.ExponentialDuration,
 			maxRetries,
 		),
-		"syslog-tls": egress.NewRetryWriter(
+		"syslog-tls": egress.RetryWrapper(
 			egress.NewTLSWriter,
 			egress.ExponentialDuration,
 			maxRetries,

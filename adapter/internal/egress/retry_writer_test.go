@@ -202,7 +202,7 @@ func buildDelay(mulitplier time.Duration) func(uint) time.Duration {
 }
 
 func buildRetryWriter(w *spyWriteCloser, maxRetries uint, delayMultiplier time.Duration) egress.WriteCloser {
-	constructor := egress.NewRetryWriter(func(
+	constructor := egress.RetryWrapper(func(
 		binding *egress.URLBinding,
 		dialTimeout time.Duration,
 		ioTimeout time.Duration,

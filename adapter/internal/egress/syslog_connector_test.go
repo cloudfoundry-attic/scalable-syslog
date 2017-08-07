@@ -44,7 +44,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
-			egress.WithConstructors(map[string]egress.SyslogConstructor{
+			egress.WithConstructors(map[string]egress.WriterConstructor{
 				"foo": constructor,
 			}),
 		)
@@ -77,7 +77,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
-			egress.WithConstructors(map[string]egress.SyslogConstructor{
+			egress.WithConstructors(map[string]egress.WriterConstructor{
 				"slow": slowConstructor,
 			}),
 		)
@@ -140,7 +140,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
-			egress.WithConstructors(map[string]egress.SyslogConstructor{
+			egress.WithConstructors(map[string]egress.WriterConstructor{
 				"protocol": writerConstructor,
 			}),
 			egress.WithEgressMetrics(map[string]*pulseemitter.CounterMetric{
@@ -188,7 +188,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
-			egress.WithConstructors(map[string]egress.SyslogConstructor{
+			egress.WithConstructors(map[string]egress.WriterConstructor{
 				"dropping": droppingConstructor,
 			}),
 			egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{
@@ -234,7 +234,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
-			egress.WithConstructors(map[string]egress.SyslogConstructor{
+			egress.WithConstructors(map[string]egress.WriterConstructor{
 				"unknown": unknownConstructor,
 			}),
 			egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{}),
