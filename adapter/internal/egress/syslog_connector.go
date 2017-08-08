@@ -156,6 +156,9 @@ func buildBinding(b *v1.Binding, c context.Context) (*URLBinding, error) {
 func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, error) {
 	urlBinding, err := buildBinding(b, ctx)
 	if err != nil {
+		// Note: the scheduler ensures the URL is valid. It is unlikely that
+		// a binding with an invalid URL would make it this far. Nonetheless,
+		// we handle the error case all the same.
 		w.emitErrorLog(b.AppId, "parse failure")
 		return nil, err
 	}

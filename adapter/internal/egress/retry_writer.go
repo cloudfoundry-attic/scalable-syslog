@@ -82,9 +82,10 @@ func (r *RetryWriter) retry(e *loggregator_v2.Envelope) error {
 	)
 	for i := uint(1); i < r.maxRetries; i++ {
 		sleepDuration := r.retryDuration(i)
+
+		log.Printf("failed to write to %s, retrying in %s: %s", r.binding.URL.Host, sleepDuration, err)
 		msg := fmt.Sprintf("Syslog Drain: Error when writing. Backing off for %s.", sleepDuration)
 		r.logClient.EmitLog(msg, option)
-		log.Printf("failed to write to %s, retrying in %s: %s", r.binding.URL.Host, sleepDuration, err)
 
 		time.Sleep(sleepDuration)
 
