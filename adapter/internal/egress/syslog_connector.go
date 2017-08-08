@@ -135,7 +135,7 @@ func (u *URLBinding) Scheme() string {
 	return u.URL.Scheme
 }
 
-func parseBinding(b *v1.Binding) (*URLBinding, error) {
+func buildBinding(b *v1.Binding, c context.Context) (*URLBinding, error) {
 	url, err := url.Parse(b.Drain)
 	if err != nil {
 		return nil, err
@@ -145,6 +145,7 @@ func parseBinding(b *v1.Binding) (*URLBinding, error) {
 		AppID:    b.AppId,
 		URL:      url,
 		Hostname: b.Hostname,
+		Context:  c,
 	}
 
 	return u, nil
@@ -153,12 +154,11 @@ func parseBinding(b *v1.Binding) (*URLBinding, error) {
 // Connect returns an egress writer based on the scheme of the binding drain
 // URL.
 func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, error) {
-	urlBinding, err := parseBinding(b)
+	urlBinding, err := buildBinding(b, ctx)
 	if err != nil {
 		w.emitErrorLog(b.AppId, "parse failure")
 		return nil, err
 	}
-	urlBinding.Context = ctx
 
 	droppedMetric := w.droppedMetrics[urlBinding.Scheme()]
 	egressMetric := w.egressMetrics[urlBinding.Scheme()]
