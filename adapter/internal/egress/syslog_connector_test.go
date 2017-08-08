@@ -108,6 +108,28 @@ var _ = Describe("SyslogConnector", func() {
 		Expect(err).To(MatchError("unsupported scheme"))
 	})
 
+	It("writes an LGR error for an unsupported syslog scheme", func() {
+		logClient := &spyLogClient{}
+		connector := egress.NewSyslogConnector(
+			time.Second,
+			time.Second,
+			true,
+			spyWaitGroup,
+			egress.WithLogClient(logClient),
+		)
+
+		binding := &v1.Binding{
+			AppId: "some-app-id",
+			Drain: "bla://some-domain.tld",
+		}
+
+		_, _ = connector.Connect(ctx, binding)
+
+		Expect(logClient.calledWith).To(Equal("Invalid syslog drain URL: unsupported scheme"))
+		Expect(logClient.appID).To(Equal("some-app-id"))
+		Expect(logClient.sourceType).To(Equal("LGR"))
+	})
+
 	It("returns an error for an inproperly formatted drain", func() {
 		connector := egress.NewSyslogConnector(
 			time.Second,
@@ -122,6 +144,28 @@ var _ = Describe("SyslogConnector", func() {
 
 		_, err := connector.Connect(ctx, binding)
 		Expect(err).To(HaveOccurred())
+	})
+
+	It("writes an LGR error for inproperly formatted drains", func() {
+		logClient := &spyLogClient{}
+		connector := egress.NewSyslogConnector(
+			time.Second,
+			time.Second,
+			true,
+			spyWaitGroup,
+			egress.WithLogClient(logClient),
+		)
+
+		binding := &v1.Binding{
+			AppId: "some-app-id",
+			Drain: "://syslog/laksjdflk:asdfdsaf:2232",
+		}
+
+		_, _ = connector.Connect(ctx, binding)
+
+		Expect(logClient.calledWith).To(Equal("Invalid syslog drain URL: parse failure"))
+		Expect(logClient.appID).To(Equal("some-app-id"))
+		Expect(logClient.sourceType).To(Equal("LGR"))
 	})
 
 	It("emits a metric when sending outbound messages", func() {

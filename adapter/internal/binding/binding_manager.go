@@ -38,9 +38,10 @@ func (c *BindingManager) Add(binding *v1.Binding) {
 
 	key := *binding
 	if _, ok := c.subscriptions[key]; !ok {
+		unsub := c.subscriber.Start(binding)
 		c.subscriptions[key] = subscription{
 			binding:     binding,
-			unsubscribe: c.subscriber.Start(binding),
+			unsubscribe: unsub,
 		}
 	}
 }

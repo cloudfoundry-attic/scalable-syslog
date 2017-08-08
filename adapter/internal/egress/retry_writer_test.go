@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
@@ -25,10 +26,11 @@ var _ = Describe("Retry Writer", func() {
 					Context: context.Background(),
 				},
 			}
-			r := buildRetryWriter(writeCloser, 1, 0)
+			logClient := &spyLogClient{}
+			r := buildRetryWriter(writeCloser, 1, 0, logClient)
 			env := &v2.Envelope{}
 
-			r.Write(env)
+			_ = r.Write(env)
 
 			Expect(writeCloser.writeCalled).To(BeTrue())
 			Expect(writeCloser.writeEnvelope).To(Equal(env))
@@ -43,10 +45,10 @@ var _ = Describe("Retry Writer", func() {
 					Context: context.Background(),
 				},
 			}
-			r := buildRetryWriter(writeCloser, 3, 0)
-			env := &v2.Envelope{}
+			logClient := &spyLogClient{}
+			r := buildRetryWriter(writeCloser, 3, 0, logClient)
 
-			r.Write(env)
+			_ = r.Write(&v2.Envelope{})
 
 			Eventually(writeCloser.WriteAttempts).Should(Equal(2))
 		})
@@ -60,10 +62,10 @@ var _ = Describe("Retry Writer", func() {
 					Context: context.Background(),
 				},
 			}
-			r := buildRetryWriter(writeCloser, 2, 0)
-			env := &v2.Envelope{}
+			logClient := &spyLogClient{}
+			r := buildRetryWriter(writeCloser, 2, 0, logClient)
 
-			err := r.Write(env)
+			err := r.Write(&v2.Envelope{})
 
 			Expect(err).To(HaveOccurred())
 		})
@@ -78,13 +80,12 @@ var _ = Describe("Retry Writer", func() {
 					Context: ctx,
 				},
 			}
-			r := buildRetryWriter(writeCloser, 2, 0)
-
-			env := &v2.Envelope{}
+			logClient := &spyLogClient{}
+			r := buildRetryWriter(writeCloser, 2, 0, logClient)
 
 			cancel()
 
-			err := r.Write(env)
+			err := r.Write(&v2.Envelope{})
 			Expect(err).To(HaveOccurred())
 			Expect(writeCloser.WriteAttempts()).To(Equal(1))
 		})
@@ -99,18 +100,44 @@ var _ = Describe("Retry Writer", func() {
 					Context: ctx,
 				},
 			}
-			r := buildRetryWriter(writeCloser, 5, time.Second)
-
-			env := &v2.Envelope{}
+			logClient := &spyLogClient{}
+			r := buildRetryWriter(writeCloser, 5, time.Second, logClient)
 
 			go func() {
 				Eventually(writeCloser.WriteAttempts).Should(Equal(1))
 				cancel()
 			}()
 
-			err := r.Write(env)
+			err := r.Write(&v2.Envelope{})
 			Expect(err).To(HaveOccurred())
 			Expect(writeCloser.WriteAttempts()).To(Equal(2))
+		})
+
+		It("writes out the LGR message", func() {
+			writeCloser := &spyWriteCloser{
+				returnErrCount: 1,
+				writeErr:       errors.New("write error"),
+				binding: &egress.URLBinding{
+					URL:     &url.URL{},
+					AppID:   "some-app-id",
+					Context: context.Background(),
+				},
+			}
+			logClient := &spyLogClient{}
+			r := buildRetryWriter(writeCloser, 2, 0, logClient)
+
+			_ = r.Write(&v2.Envelope{Tags: map[string]*v2.Value{
+				"source_instance": &v2.Value{
+					Data: &v2.Value_Text{
+						Text: "a source instance",
+					},
+				},
+			}})
+
+			Expect(logClient.calledWith).To(Equal("Syslog Drain: Error when writing. Backing off for 0s."))
+			Expect(logClient.appID).To(Equal("some-app-id"))
+			Expect(logClient.sourceType).To(Equal("LGR"))
+			Expect(logClient.sourceInstance).To(Equal("a source instance"))
 		})
 	})
 
@@ -121,7 +148,8 @@ var _ = Describe("Retry Writer", func() {
 					URL: &url.URL{},
 				},
 			}
-			r := buildRetryWriter(writeCloser, 2, 0)
+			logClient := &spyLogClient{}
+			r := buildRetryWriter(writeCloser, 2, 0, logClient)
 
 			Expect(r.Close()).To(Succeed())
 			Expect(writeCloser.closeCalled).To(BeTrue())
@@ -195,22 +223,52 @@ func (s *spyWriteCloser) WriteAttempts() int {
 	return int(atomic.LoadInt64(&s.writeAttempts))
 }
 
+type spyLogClient struct {
+	calledWith     string
+	appID          string
+	sourceType     string
+	sourceInstance string
+}
+
+func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
+	s.calledWith = message
+	env := &v2.Envelope{
+		Tags: make(map[string]*v2.Value),
+	}
+	for _, o := range opts {
+		o(env)
+	}
+	s.appID = env.SourceId
+	s.sourceType = env.GetTags()["source_type"].GetText()
+	s.sourceInstance = env.GetTags()["source_instance"].GetText()
+}
+
 func buildDelay(mulitplier time.Duration) func(uint) time.Duration {
 	return func(attempt uint) time.Duration {
 		return time.Duration(attempt) * mulitplier
 	}
 }
 
-func buildRetryWriter(w *spyWriteCloser, maxRetries uint, delayMultiplier time.Duration) egress.WriteCloser {
-	constructor := egress.RetryWrapper(func(
-		binding *egress.URLBinding,
-		dialTimeout time.Duration,
-		ioTimeout time.Duration,
-		skipCertVerify bool,
-		egressMetric *pulseemitter.CounterMetric,
-	) egress.WriteCloser {
-		return w
-	}, egress.RetryDuration(buildDelay(delayMultiplier)), maxRetries)
+func buildRetryWriter(
+	w *spyWriteCloser,
+	maxRetries uint,
+	delayMultiplier time.Duration,
+	logClient egress.LogClient,
+) egress.WriteCloser {
+	constructor := egress.RetryWrapper(
+		func(
+			binding *egress.URLBinding,
+			dialTimeout time.Duration,
+			ioTimeout time.Duration,
+			skipCertVerify bool,
+			egressMetric *pulseemitter.CounterMetric,
+		) egress.WriteCloser {
+			return w
+		},
+		egress.RetryDuration(buildDelay(delayMultiplier)),
+		maxRetries,
+		logClient,
+	)
 
 	return constructor(w.binding, 0, 0, false, nil)
 }

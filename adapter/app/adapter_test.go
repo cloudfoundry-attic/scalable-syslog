@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/go-loggregator/testhelpers"
@@ -71,6 +72,7 @@ var _ = Describe("Adapter", func() {
 				rlpTLSConfig,
 				tlsConfig,
 				testhelper.NewMetricClient(),
+				&spyLogClient{},
 				app.WithHealthAddr("localhost:0"),
 				app.WithAdapterServerAddr("localhost:0"),
 				app.WithLogsEgressAPIConnCount(1),
@@ -147,6 +149,7 @@ var _ = Describe("Adapter", func() {
 					rlpTLSConfig,
 					tlsConfig,
 					testhelper.NewMetricClient(),
+					&spyLogClient{},
 					app.WithHealthAddr("localhost:0"),
 					app.WithAdapterServerAddr("localhost:0"),
 					app.WithLogsEgressAPIConnCount(1),
@@ -193,6 +196,7 @@ var _ = Describe("Adapter", func() {
 					rlpTLSConfig,
 					tlsConfig,
 					testhelper.NewMetricClient(),
+					&spyLogClient{},
 					app.WithHealthAddr("localhost:0"),
 					app.WithAdapterServerAddr("localhost:0"),
 					app.WithLogsEgressAPIConnCount(1),
@@ -231,6 +235,7 @@ var _ = Describe("Adapter", func() {
 					rlpTLSConfig,
 					tlsConfig,
 					testhelper.NewMetricClient(),
+					&spyLogClient{},
 					app.WithHealthAddr("localhost:0"),
 					app.WithAdapterServerAddr("localhost:0"),
 					app.WithLogsEgressAPIConnCount(1),
@@ -402,4 +407,9 @@ func buildLogEnvelope(i int64) *v2.Envelope {
 			},
 		},
 	}
+}
+
+type spyLogClient struct{}
+
+func (*spyLogClient) EmitLog(string, ...loggregator.EmitLogOption) {
 }

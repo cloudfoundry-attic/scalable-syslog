@@ -2,6 +2,7 @@ package egress
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
@@ -26,6 +28,18 @@ type WriteCloser interface {
 	io.Closer
 }
 
+// LogClient is used to emit logs.
+type LogClient interface {
+	EmitLog(message string, opts ...loggregator.EmitLogOption)
+}
+
+// nullLogClient ensures that the LogClient is in fact optional.
+type nullLogClient struct{}
+
+// EmitLog drops all messages into /dev/null.
+func (nullLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
+}
+
 // SyslogConnector creates the various egress syslog writers.
 type SyslogConnector struct {
 	skipCertVerify bool
@@ -34,6 +48,7 @@ type SyslogConnector struct {
 	constructors   map[string]WriterConstructor
 	droppedMetrics map[string]*pulseemitter.CounterMetric
 	egressMetrics  map[string]*pulseemitter.CounterMetric
+	logClient      LogClient
 	wg             WaitGroup
 }
 
@@ -50,6 +65,7 @@ func NewSyslogConnector(
 		dialTimeout:    dialTimeout,
 		skipCertVerify: skipCertVerify,
 		wg:             wg,
+		logClient:      nullLogClient{},
 		constructors:   make(map[string]WriterConstructor),
 		droppedMetrics: make(map[string]*pulseemitter.CounterMetric),
 		egressMetrics:  make(map[string]*pulseemitter.CounterMetric),
@@ -98,6 +114,12 @@ func WithEgressMetrics(metrics map[string]*pulseemitter.CounterMetric) Connector
 	}
 }
 
+func WithLogClient(logClient LogClient) ConnectorOption {
+	return func(sc *SyslogConnector) {
+		sc.logClient = logClient
+	}
+}
+
 // URLBinding associates a particular application with a syslog URL. The
 // application is identified by AppID and Hostname. The syslog URL is
 // identified by URL.
@@ -133,6 +155,7 @@ func parseBinding(b *v1.Binding) (*URLBinding, error) {
 func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, error) {
 	urlBinding, err := parseBinding(b)
 	if err != nil {
+		w.emitErrorLog(b.AppId, "parse failure")
 		return nil, err
 	}
 	urlBinding.Context = ctx
@@ -141,6 +164,7 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 	egressMetric := w.egressMetrics[urlBinding.Scheme()]
 	constructor, ok := w.constructors[urlBinding.Scheme()]
 	if !ok {
+		w.emitErrorLog(b.AppId, "unsupported scheme")
 		return nil, errors.New("unsupported scheme")
 	}
 	writer := constructor(urlBinding, w.dialTimeout, w.ioTimeout, w.skipCertVerify, egressMetric)
@@ -154,4 +178,13 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 	}), w.wg)
 
 	return dw, nil
+}
+
+func (w *SyslogConnector) emitErrorLog(appID, message string) {
+	option := loggregator.WithAppInfo(
+		appID,
+		"LGR",
+		"", // source instance is unavailable
+	)
+	w.logClient.EmitLog(fmt.Sprintf("Invalid syslog drain URL: %s", message), option)
 }

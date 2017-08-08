@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/net/context"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/binding"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
@@ -21,10 +22,18 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+// MetricClient is used to emit metrics.
 type MetricClient interface {
 	NewCounterMetric(string, ...pulseemitter.MetricOption) *pulseemitter.CounterMetric
 }
 
+// LogClient is used to emit logs.
+type LogClient interface {
+	EmitLog(message string, opts ...loggregator.EmitLogOption)
+}
+
+// Adapter receives bindings from the scheduler, connects to the RLP for log
+// data, and streams it out to a syslog endpoint.
 type Adapter struct {
 	mu                sync.Mutex
 	healthAddr        string
@@ -44,7 +53,6 @@ type Adapter struct {
 	syslogIOTimeout        time.Duration
 	skipCertVerify         bool
 	health                 *health.Health
-	metricClient           MetricClient
 	timeoutWaitGroup       *timeoutwaitgroup.TimeoutWaitGroup
 }
 
@@ -114,6 +122,7 @@ func NewAdapter(
 	logsEgressAPITLSConfig *tls.Config,
 	adapterServerTLSConfig *tls.Config,
 	metricClient MetricClient,
+	logClient LogClient,
 	opts ...AdapterOption,
 ) *Adapter {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -152,16 +161,19 @@ func NewAdapter(
 			egress.NewHTTPSWriter,
 			egress.ExponentialDuration,
 			maxRetries,
+			logClient,
 		),
 		"syslog": egress.RetryWrapper(
 			egress.NewTCPWriter,
 			egress.ExponentialDuration,
 			maxRetries,
+			logClient,
 		),
 		"syslog-tls": egress.RetryWrapper(
 			egress.NewTLSWriter,
 			egress.ExponentialDuration,
 			maxRetries,
+			logClient,
 		),
 	}
 
@@ -197,6 +209,7 @@ func NewAdapter(
 		egress.WithConstructors(constructors),
 		egress.WithDroppedMetrics(droppedMetrics),
 		egress.WithEgressMetrics(egressMetrics),
+		egress.WithLogClient(logClient),
 	)
 	subscriber := ingress.NewSubscriber(a.ctx, clientManager, syslogConnector, metricClient)
 
@@ -207,7 +220,8 @@ func NewAdapter(
 }
 
 func buildMetric(m MetricClient, protocol, name string) *pulseemitter.CounterMetric {
-	return m.NewCounterMetric(name,
+	return m.NewCounterMetric(
+		name,
 		pulseemitter.WithVersion(2, 0),
 		pulseemitter.WithTags(map[string]string{"drain-protocol": protocol}),
 	)

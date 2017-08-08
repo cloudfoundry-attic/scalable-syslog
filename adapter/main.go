@@ -49,7 +49,7 @@ func main() {
 		log.Fatalf("Invalid Metric Ingress TLS config: %s", err)
 	}
 
-	loggClient, err := loggregator.NewIngressClient(
+	logClient, err := loggregator.NewIngressClient(
 		metricIngressTLS,
 		loggregator.WithStringTag("origin", "scalablesyslog.adapter"),
 		loggregator.WithAddr(cfg.MetricIngressAddr),
@@ -58,9 +58,8 @@ func main() {
 		log.Fatalf("Couldn't connect to metric ingress server: %s", err)
 	}
 
-	// metric-documentation-v2: setup function
 	metricClient := pulseemitter.New(
-		loggClient,
+		logClient,
 		pulseemitter.WithPulseInterval(cfg.MetricEmitterInterval),
 	)
 
@@ -71,6 +70,7 @@ func main() {
 		rlpTlsConfig,
 		tlsConfig,
 		metricClient,
+		logClient,
 		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithAdapterServerAddr(cfg.AdapterHostport),
 		app.WithSyslogDialTimeout(cfg.SyslogDialTimeout),
