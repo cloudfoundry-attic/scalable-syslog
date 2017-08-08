@@ -52,7 +52,7 @@ func main() {
 		log.Fatalf("Invalid Metric Ingress TLS config: %s", err)
 	}
 
-	loggClient, err := loggregator.NewIngressClient(
+	logClient, err := loggregator.NewIngressClient(
 		metricIngressTLS,
 		loggregator.WithStringTag("origin", "scalablesyslog.scheduler"),
 		loggregator.WithAddr(cfg.MetricIngressAddr),
@@ -63,7 +63,7 @@ func main() {
 
 	// metric-documentation-v2: setup function
 	metricClient := pulseemitter.New(
-		loggClient,
+		logClient,
 		pulseemitter.WithPulseInterval(cfg.MetricEmitterInterval),
 	)
 
