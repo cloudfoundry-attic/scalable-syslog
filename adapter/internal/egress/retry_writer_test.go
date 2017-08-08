@@ -70,7 +70,7 @@ var _ = Describe("Retry Writer", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("does not back off if context is done and error occurrs", func() {
+		It("continues retrying when context is done", func() {
 			ctx, cancel := context.WithCancel(context.Background())
 			writeCloser := &spyWriteCloser{
 				returnErrCount: 2,
@@ -82,15 +82,15 @@ var _ = Describe("Retry Writer", func() {
 			}
 			logClient := &spyLogClient{}
 			r := buildRetryWriter(writeCloser, 2, 0, logClient)
-
 			cancel()
 
 			err := r.Write(&v2.Envelope{})
+
 			Expect(err).To(HaveOccurred())
 			Expect(writeCloser.WriteAttempts()).To(Equal(1))
 		})
 
-		It("returns error during backoff strategy if context is canceled", func() {
+		It("returns an error if the context is canceled", func(done Done) {
 			ctx, cancel := context.WithCancel(context.Background())
 			writeCloser := &spyWriteCloser{
 				returnErrCount: 2,
@@ -101,16 +101,18 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}
 			logClient := &spyLogClient{}
-			r := buildRetryWriter(writeCloser, 5, time.Second, logClient)
+			r := buildRetryWriter(writeCloser, 5, time.Millisecond, logClient)
 
 			go func() {
 				Eventually(writeCloser.WriteAttempts).Should(Equal(1))
 				cancel()
+				done <- struct{}{}
 			}()
 
 			err := r.Write(&v2.Envelope{})
 			Expect(err).To(HaveOccurred())
 			Expect(writeCloser.WriteAttempts()).To(Equal(2))
+			Eventually(done).Should(Receive())
 		})
 
 		It("writes out the LGR message", func() {
