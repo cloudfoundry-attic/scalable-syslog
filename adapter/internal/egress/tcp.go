@@ -91,24 +91,31 @@ func (w *TCPWriter) Close() error {
 	return nil
 }
 
-// Write writes an envelope to the syslog drain connection.
-func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
-	if env.GetLog() == nil {
-		return nil
-	}
-
-	msg := rfc5424.Message{
+func generateRFC5424Message(
+	env *loggregator_v2.Envelope,
+	hostname string,
+	appID string,
+) rfc5424.Message {
+	return rfc5424.Message{
 		Priority:  generatePriority(env.GetLog().Type),
 		Timestamp: time.Unix(0, env.GetTimestamp()).UTC(),
-		Hostname:  w.hostname,
-		AppName:   w.appID,
+		Hostname:  hostname,
+		AppName:   appID,
 		ProcessID: generateProcessID(
 			env.Tags["source_type"].GetText(),
 			env.Tags["source_instance"].GetText(),
 		),
 		Message: appendNewline(removeNulls(env.GetLog().Payload)),
 	}
+}
 
+// Write writes an envelope to the syslog drain connection.
+func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
+	if env.GetLog() == nil {
+		return nil
+	}
+
+	msg := generateRFC5424Message(env, w.hostname, w.appID)
 	conn, err := w.connection()
 	if err != nil {
 		return err

@@ -13,7 +13,6 @@ import (
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
-	"github.com/crewjam/rfc5424"
 )
 
 type HTTPSWriter struct {
@@ -48,17 +47,7 @@ func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
 		return nil
 	}
 
-	msg := rfc5424.Message{
-		Priority:  generatePriority(env.GetLog().Type),
-		Timestamp: time.Unix(0, env.GetTimestamp()).UTC(),
-		Hostname:  w.hostname,
-		AppName:   w.appID,
-		ProcessID: generateProcessID(
-			env.Tags["source_type"].GetText(),
-			env.Tags["source_instance"].GetText(),
-		),
-		Message: appendNewline(removeNulls(env.GetLog().Payload)),
-	}
+	msg := generateRFC5424Message(env, w.hostname, w.appID)
 	b, err := msg.MarshalBinary()
 	if err != nil {
 		return err
