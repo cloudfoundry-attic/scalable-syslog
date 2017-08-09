@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/scalable-syslog/internal/health"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/egress"
@@ -22,21 +23,25 @@ type Scheduler struct {
 	adapterAddrs     []string
 	adapterTLSConfig *tls.Config
 	enableOptIn      bool
-
-	healthAddr string
-	health     *health.Health
-	emitter    Emitter
-	client     *http.Client
-	interval   time.Duration
-
-	adapterService *egress.AdapterService
-	fetcher        *ingress.BlacklistFilter
-
-	blacklist *ingress.IPRanges
+	healthAddr       string
+	health           *health.Health
+	emitter          Emitter
+	client           *http.Client
+	interval         time.Duration
+	adapterService   *egress.AdapterService
+	fetcher          *ingress.FilteredBindingFetcher
+	logClient        LogClient
+	blacklist        *ingress.BlacklistRanges
 }
 
+// Emitter sends gauge metrics
 type Emitter interface {
 	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) *pulseemitter.GaugeMetric
+}
+
+// LogClient is used to emit logs.
+type LogClient interface {
+	EmitLog(message string, opts ...loggregator.EmitLogOption)
 }
 
 // NewScheduler returns a new unstarted scheduler.
@@ -45,6 +50,7 @@ func NewScheduler(
 	adapterAddrs []string,
 	adapterTLSConfig *tls.Config,
 	e Emitter,
+	logClient LogClient,
 	opts ...SchedulerOption,
 ) *Scheduler {
 	s := &Scheduler{
@@ -54,8 +60,9 @@ func NewScheduler(
 		healthAddr:       ":8080",
 		client:           http.DefaultClient,
 		interval:         15 * time.Second,
-		blacklist:        &ingress.IPRanges{},
+		blacklist:        &ingress.BlacklistRanges{},
 		health:           health.NewHealth(),
+		logClient:        logClient,
 		emitter:          e,
 	}
 	for _, o := range opts {
@@ -98,7 +105,7 @@ func WithPollingInterval(interval time.Duration) func(*Scheduler) {
 }
 
 // WithBlacklist sets the blacklist for the syslog IPs.
-func WithBlacklist(r *ingress.IPRanges) func(*Scheduler) {
+func WithBlacklist(r *ingress.BlacklistRanges) func(*Scheduler) {
 	return func(s *Scheduler) {
 		s.blacklist = r
 	}
@@ -126,7 +133,7 @@ func (s *Scheduler) setupIngress() {
 		fetcher = ingress.NewVersionFilter(fetcher)
 	}
 
-	s.fetcher = ingress.NewBlacklistFilter(s.blacklist, fetcher)
+	s.fetcher = ingress.NewFilteredBindingFetcher(s.blacklist, fetcher, s.logClient)
 }
 
 func (s *Scheduler) startEgress() {

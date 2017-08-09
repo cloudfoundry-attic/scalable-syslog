@@ -32,10 +32,10 @@ var _ = Describe("Config", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(config.Blacklist.Ranges).To(ContainElement(
-				ingress.IPRange{Start: "12.12.12.0", End: "12.12.12.10"},
+				ingress.BlacklistRange{Start: "12.12.12.0", End: "12.12.12.10"},
 			))
 			Expect(config.Blacklist.Ranges).To(ContainElement(
-				ingress.IPRange{Start: "1.1.1.1", End: "1.1.1.10"},
+				ingress.BlacklistRange{Start: "1.1.1.1", End: "1.1.1.10"},
 			))
 		})
 
