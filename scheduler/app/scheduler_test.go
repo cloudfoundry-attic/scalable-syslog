@@ -64,8 +64,8 @@ var _ = Describe("Scheduler", func() {
 				},
 			},
 		})
-		blacklistIPs, err := ingress.NewIPRanges(
-			ingress.IPRange{
+		blacklistIPs, err := ingress.NewBlacklistRanges(
+			ingress.BlacklistRange{
 				Start: "14.15.16.17",
 				End:   "14.15.16.20",
 			},

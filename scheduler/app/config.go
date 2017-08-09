@@ -28,7 +28,7 @@ type Config struct {
 	AdapterCommonName  string
 	AdapterPort        string
 	AdapterAddrs       []string
-	Blacklist          *ingress.IPRanges
+	Blacklist          *ingress.BlacklistRanges
 
 	MetricIngressAddr     string
 	MetricIngressCN       string
@@ -101,9 +101,9 @@ func LoadConfig(args []string) (*Config, error) {
 	return &cfg, nil
 }
 
-func parseBlacklist(blacklist string) (*ingress.IPRanges, error) {
+func parseBlacklist(blacklist string) (*ingress.BlacklistRanges, error) {
 	ipRanges := strings.Split(blacklist, ",")
-	blacklistRanges := make([]ingress.IPRange, 0)
+	blacklistRanges := make([]ingress.BlacklistRange, 0)
 
 	if len(ipRanges) == 1 && len(ipRanges[0]) == 0 {
 		ipRanges = []string{}
@@ -111,14 +111,14 @@ func parseBlacklist(blacklist string) (*ingress.IPRanges, error) {
 
 	for _, ipRange := range ipRanges {
 		ips := strings.Split(ipRange, "-")
-		r := ingress.IPRange{
+		r := ingress.BlacklistRange{
 			Start: ips[0],
 			End:   ips[1],
 		}
 		blacklistRanges = append(blacklistRanges, r)
 	}
 
-	result, err := ingress.NewIPRanges(blacklistRanges...)
+	result, err := ingress.NewBlacklistRanges(blacklistRanges...)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse blacklist ip ranges: %s", err)
 	}
