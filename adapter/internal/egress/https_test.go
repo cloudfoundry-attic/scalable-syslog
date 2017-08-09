@@ -152,6 +152,30 @@ var _ = Describe("HTTPWriter", func() {
 
 		Expect(metric.GetDelta()).To(Equal(uint64(1)))
 	})
+
+	It("ignores non-log envelopes", func() {
+		drain := newMockOKDrain()
+
+		b := buildURLBinding(
+			drain.URL,
+			"test-app-id",
+			"test-hostname",
+		)
+
+		writer := egress.NewHTTPSWriter(
+			b,
+			time.Second,
+			time.Second,
+			true,
+			new(pulseemitter.CounterMetric),
+		)
+
+		counterEnv := buildCounterEnvelope()
+		logEnv := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
+
+		Expect(writer.Write(counterEnv)).To(Succeed())
+		Expect(writer.Write(logEnv)).To(Succeed())
+	})
 })
 
 type SpyDrain struct {

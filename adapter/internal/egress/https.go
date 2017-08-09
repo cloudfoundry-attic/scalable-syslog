@@ -44,6 +44,10 @@ func NewHTTPSWriter(
 }
 
 func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
+	if env.GetLog() == nil {
+		return nil
+	}
+
 	msg := rfc5424.Message{
 		Priority:  generatePriority(env.GetLog().Type),
 		Timestamp: time.Unix(0, env.GetTimestamp()).UTC(),
