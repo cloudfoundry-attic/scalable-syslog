@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/scalable-syslog/internal/health"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/egress"
@@ -29,6 +30,7 @@ type Scheduler struct {
 	interval         time.Duration
 	adapterService   *egress.AdapterService
 	fetcher          *ingress.FilteredBindingFetcher
+	logClient        LogClient
 	blacklist        *ingress.BlacklistRanges
 }
 
@@ -37,12 +39,18 @@ type Emitter interface {
 	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) *pulseemitter.GaugeMetric
 }
 
+// LogClient is used to emit logs.
+type LogClient interface {
+	EmitLog(message string, opts ...loggregator.EmitLogOption)
+}
+
 // NewScheduler returns a new unstarted scheduler.
 func NewScheduler(
 	apiURL string,
 	adapterAddrs []string,
 	adapterTLSConfig *tls.Config,
 	e Emitter,
+	logClient LogClient,
 	opts ...SchedulerOption,
 ) *Scheduler {
 	s := &Scheduler{
@@ -54,6 +62,7 @@ func NewScheduler(
 		interval:         15 * time.Second,
 		blacklist:        &ingress.BlacklistRanges{},
 		health:           health.NewHealth(),
+		logClient:        logClient,
 		emitter:          e,
 	}
 	for _, o := range opts {
@@ -124,7 +133,7 @@ func (s *Scheduler) setupIngress() {
 		fetcher = ingress.NewVersionFilter(fetcher)
 	}
 
-	s.fetcher = ingress.NewFilteredBindingFetcher(s.blacklist, fetcher)
+	s.fetcher = ingress.NewFilteredBindingFetcher(s.blacklist, fetcher, s.logClient)
 }
 
 func (s *Scheduler) startEgress() {

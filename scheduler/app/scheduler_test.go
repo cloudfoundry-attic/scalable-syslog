@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
@@ -371,7 +372,13 @@ func startScheduler(dataSourceURL string, adapterCount int, opts []app.Scheduler
 		adapterAddrs,
 		tlsConfig,
 		testhelper.NewMetricClient(),
+		&spyLogClient{},
 		opts...,
 	)
 	return scheduler.Start(), spyAdapterServers
+}
+
+type spyLogClient struct{}
+
+func (*spyLogClient) EmitLog(string, ...loggregator.EmitLogOption) {
 }
