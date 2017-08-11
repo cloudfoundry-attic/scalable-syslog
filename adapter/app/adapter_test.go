@@ -258,7 +258,7 @@ var _ = Describe("Adapter", func() {
 
 				adapter.Stop()
 				idx := waitForLastSentIdx(lastIdx)
-				Eventually(syslogTCPServer.LastReceivedIdx).Should(BeNumerically("~", idx, 1))
+				Eventually(syslogTCPServer.LastReceivedIdx).Should(BeNumerically("~", idx, 3))
 			}, 5)
 		})
 	})
