@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -136,10 +137,10 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}})
 
-			Expect(logClient.calledWith).To(Equal("Syslog Drain: Error when writing. Backing off for 0s."))
-			Expect(logClient.appID).To(Equal("some-app-id"))
-			Expect(logClient.sourceType).To(Equal("LGR"))
-			Expect(logClient.sourceInstance).To(Equal("a source instance"))
+			Expect(logClient.message()).To(Equal("Syslog Drain: Error when writing. Backing off for 0s."))
+			Expect(logClient.appID()).To(Equal("some-app-id"))
+			Expect(logClient.sourceType()).To(Equal("LGR"))
+			Expect(logClient.sourceInstance()).To(Equal("a source instance"))
 		})
 	})
 
@@ -226,23 +227,55 @@ func (s *spyWriteCloser) WriteAttempts() int {
 }
 
 type spyLogClient struct {
-	calledWith     string
-	appID          string
-	sourceType     string
-	sourceInstance string
+	mu              sync.Mutex
+	_message        string
+	_appID          string
+	_sourceType     string
+	_sourceInstance string
 }
 
 func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
-	s.calledWith = message
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s._message = message
 	env := &v2.Envelope{
 		Tags: make(map[string]*v2.Value),
 	}
 	for _, o := range opts {
 		o(env)
 	}
-	s.appID = env.SourceId
-	s.sourceType = env.GetTags()["source_type"].GetText()
-	s.sourceInstance = env.GetTags()["source_instance"].GetText()
+	s._appID = env.SourceId
+	s._sourceType = env.GetTags()["source_type"].GetText()
+	s._sourceInstance = env.GetTags()["source_instance"].GetText()
+}
+
+func (s *spyLogClient) message() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s._message
+}
+
+func (s *spyLogClient) appID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s._appID
+}
+
+func (s *spyLogClient) sourceType() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s._sourceType
+}
+
+func (s *spyLogClient) sourceInstance() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s._sourceInstance
 }
 
 func buildDelay(mulitplier time.Duration) func(uint) time.Duration {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/url"
 	"time"
 
 	"golang.org/x/net/context"
@@ -120,37 +119,6 @@ func WithLogClient(logClient LogClient) ConnectorOption {
 	}
 }
 
-// URLBinding associates a particular application with a syslog URL. The
-// application is identified by AppID and Hostname. The syslog URL is
-// identified by URL.
-type URLBinding struct {
-	Context  context.Context
-	AppID    string
-	Hostname string
-	URL      *url.URL
-}
-
-// Scheme is a convenience wrapper around the *url.URL Scheme field
-func (u *URLBinding) Scheme() string {
-	return u.URL.Scheme
-}
-
-func buildBinding(b *v1.Binding, c context.Context) (*URLBinding, error) {
-	url, err := url.Parse(b.Drain)
-	if err != nil {
-		return nil, err
-	}
-
-	u := &URLBinding{
-		AppID:    b.AppId,
-		URL:      url,
-		Hostname: b.Hostname,
-		Context:  c,
-	}
-
-	return u, nil
-}
-
 // Connect returns an egress writer based on the scheme of the binding drain
 // URL.
 func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, error) {
@@ -159,7 +127,7 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 		// Note: the scheduler ensures the URL is valid. It is unlikely that
 		// a binding with an invalid URL would make it this far. Nonetheless,
 		// we handle the error case all the same.
-		w.emitErrorLog(b.AppId, "parse failure")
+		w.emitErrorLog(b.AppId, "Invalid syslog drain URL: parse failure")
 		return nil, err
 	}
 
@@ -167,7 +135,7 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 	egressMetric := w.egressMetrics[urlBinding.Scheme()]
 	constructor, ok := w.constructors[urlBinding.Scheme()]
 	if !ok {
-		w.emitErrorLog(b.AppId, "unsupported protocol")
+		w.emitErrorLog(b.AppId, "Invalid syslog drain URL: unsupported protocol")
 		return nil, errors.New("unsupported protocol")
 	}
 	writer := constructor(urlBinding, w.dialTimeout, w.ioTimeout, w.skipCertVerify, egressMetric)
@@ -176,6 +144,8 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 		if droppedMetric != nil {
 			droppedMetric.Increment(uint64(missed))
 		}
+
+		w.emitErrorLog(b.AppId, fmt.Sprintf("%d messages lost in user provided syslog drain", missed))
 
 		log.Printf("Dropped %d %s logs", missed, urlBinding.Scheme())
 	}), w.wg)
@@ -189,5 +159,5 @@ func (w *SyslogConnector) emitErrorLog(appID, message string) {
 		"LGR",
 		"", // source instance is unavailable
 	)
-	w.logClient.EmitLog(fmt.Sprintf("Invalid syslog drain URL: %s", message), option)
+	w.logClient.EmitLog(message, option)
 }
