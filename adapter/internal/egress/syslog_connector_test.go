@@ -124,9 +124,9 @@ var _ = Describe("SyslogConnector", func() {
 
 		_, _ = connector.Connect(ctx, binding)
 
-		Expect(logClient.Message()).To(Equal("Invalid syslog drain URL: unsupported protocol"))
-		Expect(logClient.AppID()).To(Equal("some-app-id"))
-		Expect(logClient.SourceType()).To(Equal("LGR"))
+		Expect(logClient.message()).To(Equal("Invalid syslog drain URL: unsupported protocol"))
+		Expect(logClient.appID()).To(Equal("some-app-id"))
+		Expect(logClient.sourceType()).To(Equal("LGR"))
 	})
 
 	It("returns an error for an inproperly formatted drain", func() {
@@ -162,9 +162,9 @@ var _ = Describe("SyslogConnector", func() {
 
 		_, _ = connector.Connect(ctx, binding)
 
-		Expect(logClient.Message()).To(Equal("Invalid syslog drain URL: parse failure"))
-		Expect(logClient.AppID()).To(Equal("some-app-id"))
-		Expect(logClient.SourceType()).To(Equal("LGR"))
+		Expect(logClient.message()).To(Equal("Invalid syslog drain URL: parse failure"))
+		Expect(logClient.appID()).To(Equal("some-app-id"))
+		Expect(logClient.sourceType()).To(Equal("LGR"))
 	})
 
 	It("emits a metric when sending outbound messages", func() {
@@ -286,9 +286,9 @@ var _ = Describe("SyslogConnector", func() {
 				}
 			}(writer)
 
-			Eventually(logClient.Message).Should(MatchRegexp("\\d messages lost in user provided syslog drain"))
-			Eventually(logClient.AppID).Should(Equal("app-id"))
-			Eventually(logClient.SourceType).Should(Equal("LGR"))
+			Eventually(logClient.message).Should(MatchRegexp("\\d messages lost in user provided syslog drain"))
+			Eventually(logClient.appID).Should(Equal("app-id"))
+			Eventually(logClient.sourceType).Should(Equal("LGR"))
 		})
 
 		It("does not panic on unknown dropped metrics", func() {

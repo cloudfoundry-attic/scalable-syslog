@@ -137,10 +137,10 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}})
 
-			Expect(logClient.Message()).To(Equal("Syslog Drain: Error when writing. Backing off for 0s."))
-			Expect(logClient.AppID()).To(Equal("some-app-id"))
-			Expect(logClient.SourceType()).To(Equal("LGR"))
-			Expect(logClient.SourceInstance()).To(Equal("a source instance"))
+			Expect(logClient.message()).To(Equal("Syslog Drain: Error when writing. Backing off for 0s."))
+			Expect(logClient.appID()).To(Equal("some-app-id"))
+			Expect(logClient.sourceType()).To(Equal("LGR"))
+			Expect(logClient.sourceInstance()).To(Equal("a source instance"))
 		})
 	})
 
@@ -227,55 +227,55 @@ func (s *spyWriteCloser) WriteAttempts() int {
 }
 
 type spyLogClient struct {
-	mu             sync.Mutex
-	message        string
-	appID          string
-	sourceType     string
-	sourceInstance string
+	mu              sync.Mutex
+	_message        string
+	_appID          string
+	_sourceType     string
+	_sourceInstance string
 }
 
 func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.message = message
+	s._message = message
 	env := &v2.Envelope{
 		Tags: make(map[string]*v2.Value),
 	}
 	for _, o := range opts {
 		o(env)
 	}
-	s.appID = env.SourceId
-	s.sourceType = env.GetTags()["source_type"].GetText()
-	s.sourceInstance = env.GetTags()["source_instance"].GetText()
+	s._appID = env.SourceId
+	s._sourceType = env.GetTags()["source_type"].GetText()
+	s._sourceInstance = env.GetTags()["source_instance"].GetText()
 }
 
-func (s *spyLogClient) Message() string {
+func (s *spyLogClient) message() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.message
+	return s._message
 }
 
-func (s *spyLogClient) AppID() string {
+func (s *spyLogClient) appID() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.appID
+	return s._appID
 }
 
-func (s *spyLogClient) SourceType() string {
+func (s *spyLogClient) sourceType() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.sourceType
+	return s._sourceType
 }
 
-func (s *spyLogClient) SourceInstance() string {
+func (s *spyLogClient) sourceInstance() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.sourceInstance
+	return s._sourceInstance
 }
 
 func buildDelay(mulitplier time.Duration) func(uint) time.Duration {
