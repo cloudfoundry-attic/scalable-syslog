@@ -201,11 +201,11 @@ var _ = Describe("TCPWriter", func() {
 func buildLogEnvelope(srcType, srcInstance, payload string, logType loggregator_v2.Log_Type) *loggregator_v2.Envelope {
 	return &loggregator_v2.Envelope{
 		Tags: map[string]*loggregator_v2.Value{
-			"source_type":     {&loggregator_v2.Value_Text{srcType}},
-			"source_instance": {&loggregator_v2.Value_Text{srcInstance}},
+			"source_type": {&loggregator_v2.Value_Text{srcType}},
 		},
-		Timestamp: 12345678,
-		SourceId:  "source-id",
+		InstanceId: srcInstance,
+		Timestamp:  12345678,
+		SourceId:   "source-id",
 		Message: &loggregator_v2.Envelope_Log{
 			Log: &loggregator_v2.Log{
 				Payload: []byte(payload),
