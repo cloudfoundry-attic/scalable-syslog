@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/rand"
 	"net/url"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -136,10 +137,10 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}})
 
-			Expect(logClient.calledWith).To(Equal("Syslog Drain: Error when writing. Backing off for 0s."))
-			Expect(logClient.appID).To(Equal("some-app-id"))
-			Expect(logClient.sourceType).To(Equal("LGR"))
-			Expect(logClient.sourceInstance).To(Equal("a source instance"))
+			Expect(logClient.Message()).To(Equal("Syslog Drain: Error when writing. Backing off for 0s."))
+			Expect(logClient.AppID()).To(Equal("some-app-id"))
+			Expect(logClient.SourceType()).To(Equal("LGR"))
+			Expect(logClient.SourceInstance()).To(Equal("a source instance"))
 		})
 	})
 
@@ -226,14 +227,18 @@ func (s *spyWriteCloser) WriteAttempts() int {
 }
 
 type spyLogClient struct {
-	calledWith     string
+	mu             sync.Mutex
+	message        string
 	appID          string
 	sourceType     string
 	sourceInstance string
 }
 
 func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
-	s.calledWith = message
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.message = message
 	env := &v2.Envelope{
 		Tags: make(map[string]*v2.Value),
 	}
@@ -243,6 +248,34 @@ func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption
 	s.appID = env.SourceId
 	s.sourceType = env.GetTags()["source_type"].GetText()
 	s.sourceInstance = env.GetTags()["source_instance"].GetText()
+}
+
+func (s *spyLogClient) Message() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.message
+}
+
+func (s *spyLogClient) AppID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.appID
+}
+
+func (s *spyLogClient) SourceType() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.sourceType
+}
+
+func (s *spyLogClient) SourceInstance() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.sourceInstance
 }
 
 func buildDelay(mulitplier time.Duration) func(uint) time.Duration {

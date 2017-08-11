@@ -57,8 +57,7 @@ var _ = Describe("SyslogConnector", func() {
 		Expect(called).To(BeTrue())
 	})
 
-	It("returns a writer that doesn't block even if the constructor's writer blocks", func(done Done) {
-		defer close(done)
+	It("returns a writer that doesn't block even if the constructor's writer blocks", func() {
 		slowConstructor := func(
 			*egress.URLBinding,
 			time.Duration,
@@ -125,9 +124,9 @@ var _ = Describe("SyslogConnector", func() {
 
 		_, _ = connector.Connect(ctx, binding)
 
-		Expect(logClient.calledWith).To(Equal("Invalid syslog drain URL: unsupported protocol"))
-		Expect(logClient.appID).To(Equal("some-app-id"))
-		Expect(logClient.sourceType).To(Equal("LGR"))
+		Expect(logClient.Message()).To(Equal("Invalid syslog drain URL: unsupported protocol"))
+		Expect(logClient.AppID()).To(Equal("some-app-id"))
+		Expect(logClient.SourceType()).To(Equal("LGR"))
 	})
 
 	It("returns an error for an inproperly formatted drain", func() {
@@ -163,9 +162,9 @@ var _ = Describe("SyslogConnector", func() {
 
 		_, _ = connector.Connect(ctx, binding)
 
-		Expect(logClient.calledWith).To(Equal("Invalid syslog drain URL: parse failure"))
-		Expect(logClient.appID).To(Equal("some-app-id"))
-		Expect(logClient.sourceType).To(Equal("LGR"))
+		Expect(logClient.Message()).To(Equal("Invalid syslog drain URL: parse failure"))
+		Expect(logClient.AppID()).To(Equal("some-app-id"))
+		Expect(logClient.SourceType()).To(Equal("LGR"))
 	})
 
 	It("emits a metric when sending outbound messages", func() {
@@ -211,8 +210,8 @@ var _ = Describe("SyslogConnector", func() {
 		}).Should(Equal(500))
 	})
 
-	It("emits a metric on dropped messages", func() {
-		droppingConstructor := func(
+	Describe("dropping messages", func() {
+		var droppingConstructor = func(
 			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
@@ -225,79 +224,99 @@ var _ = Describe("SyslogConnector", func() {
 			}
 		}
 
-		droppedMetric := &pulseemitter.CounterMetric{}
+		It("emits a metric on dropped messages", func() {
+			droppedMetric := &pulseemitter.CounterMetric{}
 
-		connector := egress.NewSyslogConnector(
-			time.Second,
-			time.Second,
-			true,
-			spyWaitGroup,
-			egress.WithConstructors(map[string]egress.WriterConstructor{
-				"dropping": droppingConstructor,
-			}),
-			egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{
-				"dropping": droppedMetric,
-			}),
-		)
+			connector := egress.NewSyslogConnector(
+				time.Second,
+				time.Second,
+				true,
+				spyWaitGroup,
+				egress.WithConstructors(map[string]egress.WriterConstructor{
+					"dropping": droppingConstructor,
+				}),
+				egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{
+					"dropping": droppedMetric,
+				}),
+			)
 
-		binding := &v1.Binding{
-			Drain: "dropping://",
-		}
-		writer, err := connector.Connect(ctx, binding)
-		Expect(err).ToNot(HaveOccurred())
+			binding := &v1.Binding{Drain: "dropping://"}
 
-		go func(w egress.Writer) {
-			for i := 0; i < 50000; i++ {
-				w.Write(&loggregator_v2.Envelope{
-					SourceId: "test-source-id",
-				})
+			writer, err := connector.Connect(ctx, binding)
+			Expect(err).ToNot(HaveOccurred())
+
+			go func(w egress.Writer) {
+				for i := 0; i < 50000; i++ {
+					w.Write(&loggregator_v2.Envelope{
+						SourceId: "test-source-id",
+					})
+				}
+			}(writer)
+
+			Eventually(droppedMetric.GetDelta).Should(BeNumerically(">", 10000))
+		})
+
+		It("emits a log to the log client about logs that have been dropped", func() {
+			droppedMetric := &pulseemitter.CounterMetric{}
+			binding := &v1.Binding{AppId: "app-id", Drain: "dropping://"}
+			logClient := &spyLogClient{}
+
+			connector := egress.NewSyslogConnector(
+				time.Second,
+				time.Second,
+				true,
+				spyWaitGroup,
+				egress.WithConstructors(map[string]egress.WriterConstructor{
+					"dropping": droppingConstructor,
+				}),
+				egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{
+					"dropping": droppedMetric,
+				}),
+				egress.WithLogClient(logClient),
+			)
+
+			writer, err := connector.Connect(ctx, binding)
+			Expect(err).ToNot(HaveOccurred())
+
+			go func(w egress.Writer) {
+				for i := 0; i < 50000; i++ {
+					w.Write(&loggregator_v2.Envelope{
+						SourceId: "test-source-id",
+					})
+				}
+			}(writer)
+
+			Eventually(logClient.Message).Should(MatchRegexp("\\d messages lost in user provided syslog drain"))
+			Eventually(logClient.AppID).Should(Equal("app-id"))
+			Eventually(logClient.SourceType).Should(Equal("LGR"))
+		})
+
+		It("does not panic on unknown dropped metrics", func() {
+			binding := &v1.Binding{Drain: "dropping://"}
+
+			connector := egress.NewSyslogConnector(
+				time.Second,
+				time.Second,
+				true,
+				spyWaitGroup,
+				egress.WithConstructors(map[string]egress.WriterConstructor{
+					"dropping": droppingConstructor,
+				}),
+				egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{}),
+			)
+
+			writer, err := connector.Connect(ctx, binding)
+			Expect(err).ToNot(HaveOccurred())
+
+			f := func() {
+				for i := 0; i < 50000; i++ {
+					writer.Write(&loggregator_v2.Envelope{
+						SourceId: "test-source-id",
+					})
+				}
 			}
-		}(writer)
-
-		Eventually(func() uint64 {
-			return droppedMetric.GetDelta()
-		}).Should(BeNumerically(">", 10000))
-	})
-
-	It("does not panic on unknown dropped metrics", func() {
-		unknownConstructor := func(
-			*egress.URLBinding,
-			time.Duration,
-			time.Duration,
-			bool,
-			*pulseemitter.CounterMetric,
-		) egress.WriteCloser {
-			return &SleepWriterCloser{
-				metric:   nullMetric{},
-				duration: time.Millisecond,
-			}
-		}
-
-		connector := egress.NewSyslogConnector(
-			time.Second,
-			time.Second,
-			true,
-			spyWaitGroup,
-			egress.WithConstructors(map[string]egress.WriterConstructor{
-				"unknown": unknownConstructor,
-			}),
-			egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{}),
-		)
-
-		binding := &v1.Binding{
-			Drain: "unknown://",
-		}
-		writer, err := connector.Connect(ctx, binding)
-		Expect(err).ToNot(HaveOccurred())
-
-		f := func() {
-			for i := 0; i < 50000; i++ {
-				writer.Write(&loggregator_v2.Envelope{
-					SourceId: "test-source-id",
-				})
-			}
-		}
-		Expect(f).ToNot(Panic())
+			Expect(f).ToNot(Panic())
+		})
 	})
 })
 
