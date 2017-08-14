@@ -22,7 +22,7 @@ function kill_cf {
 }
 
 function datadog_url {
-    echo "https://app.datadoghq.com/api/v1/series?api_key=$DATADOG_API_KEY"
+    echo "https://app.datadoghq.com/api/v1/series?api_key=$1"
 }
 
 function post_to_datadog {
@@ -44,8 +44,11 @@ function post_to_datadog {
 }
 JSON
 )
-    curl -X POST -H "Content-type: application/json" -d "$payload" "$(datadog_url)"
-    echo
+
+for api_key in $DATADOG_API_KEY; do
+    curl -X POST -H "Content-type: application/json" -d "$payload" "$(datadog_url($api_key))"
+        echo
+done
 }
 
 function validate_report {
