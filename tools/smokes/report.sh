@@ -46,7 +46,7 @@ JSON
 )
 
 for api_key in $DATADOG_API_KEY; do
-    curl -X POST -H "Content-type: application/json" -d "$payload" "`datadog_url($api_key)`"
+    curl -X POST -H "Content-type: application/json" -d "$payload" "$(datadog_url "$api_key")"
         echo
 done
 }
