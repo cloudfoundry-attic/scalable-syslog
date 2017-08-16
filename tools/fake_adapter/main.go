@@ -24,7 +24,7 @@ func main() {
 
 	tlsConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *commonName)
 
-	c, closer, err := loggregator.NewEgressClient(*addr, tlsConfig)
+	c, closer, err := loggregator.NewRawEgressClient(*addr, tlsConfig)
 	if err != nil {
 		log.Fatalf("did not create client: %s", err)
 	}

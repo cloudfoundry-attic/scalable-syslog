@@ -36,7 +36,7 @@ func (c *Connector) Connect() (io.Closer, LogsProviderClient, error) {
 		return nil, nil, err
 	}
 
-	client, closer, err := loggregator.NewEgressClient(hp, c.tlsConf)
+	client, closer, err := loggregator.NewRawEgressClient(hp, c.tlsConf)
 	if err != nil {
 		return nil, nil, err
 	}

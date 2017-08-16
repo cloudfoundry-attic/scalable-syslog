@@ -3,6 +3,7 @@ package app_test
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -14,13 +15,12 @@ import (
 	"time"
 
 	loggregator "code.cloudfoundry.org/go-loggregator"
-	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
-	"code.cloudfoundry.org/go-loggregator/testhelpers"
 	"code.cloudfoundry.org/scalable-syslog/adapter/app"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/test_util"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
+	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -38,7 +38,7 @@ var _ = Describe("Adapter", func() {
 		adapterHealthAddr string
 		client            v1.AdapterClient
 		binding           *v1.Binding
-		egressServer      *testhelpers.TestEgressServer
+		egressServer      *testEgressServer
 		syslogTCPServer   *SyslogTCPServer
 
 		lastIdx *int64
@@ -279,30 +279,18 @@ func startAdapterClient(addr string) v1.AdapterClient {
 	return v1.NewAdapterClient(conn)
 }
 
-func startLogsAPIServer() (*testhelpers.TestEgressServer, string, *int64) {
-	server, err := testhelpers.NewTestEgressServer(
+func startLogsAPIServer() (*testEgressServer, string, *int64) {
+	server, err := newTestEgressServer(
 		test_util.Cert("fake-log-provider.crt"),
 		test_util.Cert("fake-log-provider.key"),
 		test_util.Cert("loggregator-ca.crt"),
+		0,
 	)
-
-	var lastIdx int64
 	Expect(err).ToNot(HaveOccurred())
-	callback := func(req *v2.EgressRequest, rx v2.Egress_ReceiverServer) error {
 
-		for i := 0; ; i++ {
-			err := rx.Send(buildLogEnvelope(int64(i)))
-			if err != nil {
-				// Subtract 1 due to the last one failing
-				atomic.StoreInt64(&lastIdx, int64(i-1))
-				return err
-			}
-			time.Sleep(time.Millisecond)
-		}
-	}
-	Expect(server.Start(callback)).To(Succeed())
+	Expect(server.start()).To(Succeed())
 
-	return server, server.Addr(), &lastIdx
+	return server, server.addr(), &server.lastIdx
 }
 
 func waitForLastSentIdx(lastIdx *int64) int64 {
@@ -394,9 +382,9 @@ func (m *SyslogTCPServer) addr() net.Addr {
 
 func buildLogEnvelope(i int64) *v2.Envelope {
 	return &v2.Envelope{
-		Tags: map[string]*v2.Value{
-			"source_type":     {&v2.Value_Text{"APP"}},
-			"source_instance": {&v2.Value_Text{"2"}},
+		Tags: map[string]string{
+			"source_type":     "APP",
+			"source_instance": "2",
 		},
 		Timestamp: 12345678,
 		SourceId:  "app-guid",
@@ -412,4 +400,107 @@ func buildLogEnvelope(i int64) *v2.Envelope {
 type spyLogClient struct{}
 
 func (*spyLogClient) EmitLog(string, ...loggregator.EmitLogOption) {
+}
+
+type testEgressServer struct {
+	addr_      string
+	cn         string
+	delay      time.Duration
+	lastIdx    int64
+	tlsConfig  *tls.Config
+	grpcServer *grpc.Server
+	grpc.Stream
+}
+
+type egressServerOption func(*testEgressServer)
+
+func withCN(cn string) egressServerOption {
+	return func(s *testEgressServer) {
+		s.cn = cn
+	}
+}
+
+func withAddr(addr string) egressServerOption {
+	return func(s *testEgressServer) {
+		s.addr_ = addr
+	}
+}
+
+func newTestEgressServer(serverCert, serverKey, caCert string, delay time.Duration, opts ...egressServerOption) (*testEgressServer, error) {
+	s := &testEgressServer{
+		addr_: "localhost:0",
+		delay: delay,
+	}
+
+	for _, o := range opts {
+		o(s)
+	}
+
+	cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
+	if err != nil {
+		return nil, err
+	}
+
+	s.tlsConfig = &tls.Config{
+		Certificates:       []tls.Certificate{cert},
+		ClientAuth:         tls.RequestClientCert,
+		InsecureSkipVerify: false,
+		ServerName:         s.cn,
+	}
+	caCertBytes, err := ioutil.ReadFile(caCert)
+	if err != nil {
+		return nil, err
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCertBytes)
+	s.tlsConfig.RootCAs = caCertPool
+
+	return s, nil
+}
+
+func (t *testEgressServer) addr() string {
+	return t.addr_
+}
+
+func (t *testEgressServer) Receiver(r *v2.EgressRequest, server v2.Egress_ReceiverServer) error {
+
+	for i := 0; ; i++ {
+		err := server.Send(buildLogEnvelope(int64(i)))
+		if err != nil {
+			// Subtract 1 due to the last one failing
+			atomic.StoreInt64(&t.lastIdx, int64(i-1))
+			return err
+		}
+		time.Sleep(time.Millisecond)
+	}
+	return nil
+}
+
+func (t *testEgressServer) BatchedReceiver(*v2.EgressBatchRequest, v2.Egress_BatchedReceiverServer) error {
+	return nil
+}
+
+func (t *testEgressServer) start() error {
+	listener, err := net.Listen("tcp4", t.addr_)
+	if err != nil {
+		return err
+	}
+	t.addr_ = listener.Addr().String()
+
+	var opts []grpc.ServerOption
+	if t.tlsConfig != nil {
+		opts = append(opts, grpc.Creds(credentials.NewTLS(t.tlsConfig)))
+	}
+	t.grpcServer = grpc.NewServer(opts...)
+
+	v2.RegisterEgressServer(t.grpcServer, t)
+
+	go t.grpcServer.Serve(listener)
+
+	return nil
+}
+
+func (t *testEgressServer) stop() {
+	t.grpcServer.Stop()
 }

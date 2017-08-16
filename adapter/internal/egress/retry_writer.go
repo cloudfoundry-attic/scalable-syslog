@@ -78,7 +78,7 @@ func (r *RetryWriter) retry(e *loggregator_v2.Envelope) error {
 	option := loggregator.WithAppInfo(
 		r.binding.AppID,
 		"LGR",
-		e.GetTags()["source_instance"].GetText(),
+		e.GetTags()["source_instance"],
 	)
 	for i := uint(1); i < r.maxRetries; i++ {
 		sleepDuration := r.retryDuration(i)

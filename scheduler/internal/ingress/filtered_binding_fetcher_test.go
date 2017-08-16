@@ -189,11 +189,11 @@ type spyLogClient struct {
 func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
 	s.calledWith = message
 	env := &v2.Envelope{
-		Tags: make(map[string]*v2.Value),
+		Tags: make(map[string]string),
 	}
 	for _, o := range opts {
 		o(env)
 	}
 	s.appID = env.SourceId
-	s.sourceType = env.GetTags()["source_type"].GetText()
+	s.sourceType = env.GetTags()["source_type"]
 }
