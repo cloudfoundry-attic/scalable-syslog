@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/crewjam/rfc5424"
+	"code.cloudfoundry.org/rfc5424"
 )
 
 var (

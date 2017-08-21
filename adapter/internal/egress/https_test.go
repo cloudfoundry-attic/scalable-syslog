@@ -7,10 +7,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/crewjam/rfc5424"
-
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/rfc5424"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

@@ -16,6 +16,7 @@ import (
 
 	loggregator "code.cloudfoundry.org/go-loggregator"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/rfc5424"
 	"code.cloudfoundry.org/scalable-syslog/adapter/app"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/test_util"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
@@ -24,7 +25,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/crewjam/rfc5424"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

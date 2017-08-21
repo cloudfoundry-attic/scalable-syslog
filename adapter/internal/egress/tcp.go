@@ -11,7 +11,7 @@ import (
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
-	"github.com/crewjam/rfc5424"
+	"code.cloudfoundry.org/rfc5424"
 )
 
 // DialFunc represents a method for creating a connection, either TCP or TLS.
