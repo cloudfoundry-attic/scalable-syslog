@@ -68,7 +68,7 @@ var _ = Describe("TCPWriter", func() {
 			actual, err := buf.ReadString('\n')
 			Expect(err).ToNot(HaveOccurred())
 
-			expected := fmt.Sprintf("87 <%d>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [APP/2] - - just a test\n", expectedPriority)
+			expected := fmt.Sprintf("89 <%d>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [APP/2] - - just a test\n", expectedPriority)
 			Expect(actual).To(Equal(expected))
 		},
 			Entry("stdout", loggregator_v2.Log_OUT, 14),
@@ -87,11 +87,11 @@ var _ = Describe("TCPWriter", func() {
 			actual, err := buf.ReadString('\n')
 			Expect(err).ToNot(HaveOccurred())
 
-			expected := fmt.Sprintf("%d <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [%s] - - just a test\n", expectedLength, expectedProcessID)
+			expected := fmt.Sprintf("%d <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [%s] - - just a test\n", expectedLength, expectedProcessID)
 			Expect(actual).To(Equal(expected))
 		},
-			Entry("app source type", "app/foo/bar", "26", "APP/FOO/BAR/26", 96),
-			Entry("other source type", "other", "1", "OTHER/1", 89),
+			Entry("app source type", "app/foo/bar", "26", "APP/FOO/BAR/26", 98),
+			Entry("other source type", "other", "1", "OTHER/1", 91),
 		)
 
 		It("strips null termination char from message", func() {
@@ -105,7 +105,7 @@ var _ = Describe("TCPWriter", func() {
 			actual, err := buf.ReadString('\n')
 			Expect(err).ToNot(HaveOccurred())
 
-			expected := fmt.Sprintf("95 <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [OTHER/1] - - no null `` please\n")
+			expected := fmt.Sprintf("97 <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [OTHER/1] - - no null `` please\n")
 			Expect(actual).To(Equal(expected))
 		})
 
@@ -123,7 +123,7 @@ var _ = Describe("TCPWriter", func() {
 			actual, err := buf.ReadString('\n')
 			Expect(err).ToNot(HaveOccurred())
 
-			expected := "87 <14>1 1970-01-01T00:00:00.012345678Z test-hostname test-app-id [APP/2] - - just a test\n"
+			expected := "89 <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [APP/2] - - just a test\n"
 			Expect(actual).To(Equal(expected))
 		})
 
