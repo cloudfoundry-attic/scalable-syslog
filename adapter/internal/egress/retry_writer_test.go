@@ -242,7 +242,7 @@ func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption
 	}
 	s._appID = env.SourceId
 	s._sourceType = env.GetTags()["source_type"]
-	s._sourceInstance = env.GetTags()["source_instance"]
+	s._sourceInstance = env.GetInstanceId()
 }
 
 func (s *spyLogClient) message() string {
