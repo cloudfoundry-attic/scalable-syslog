@@ -22,7 +22,7 @@ func (u *URLBinding) Scheme() string {
 	return u.URL.Scheme
 }
 
-func buildBinding(b *v1.Binding, c context.Context) (*URLBinding, error) {
+func buildBinding(c context.Context, b *v1.Binding) (*URLBinding, error) {
 	url, err := url.Parse(b.Drain)
 	if err != nil {
 		return nil, err

@@ -122,7 +122,7 @@ func WithLogClient(logClient LogClient) ConnectorOption {
 // Connect returns an egress writer based on the scheme of the binding drain
 // URL.
 func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, error) {
-	urlBinding, err := buildBinding(b, ctx)
+	urlBinding, err := buildBinding(ctx, b)
 	if err != nil {
 		// Note: the scheduler ensures the URL is valid. It is unlikely that
 		// a binding with an invalid URL would make it this far. Nonetheless,

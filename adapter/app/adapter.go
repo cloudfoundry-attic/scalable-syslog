@@ -114,7 +114,7 @@ func WithSyslogSkipCertVerify(b bool) func(*Adapter) {
 }
 
 // maxRetries for the backoff, results in around an hour of total delay
-const maxRetries uint = 22
+const maxRetries int = 22
 
 // NewAdapter returns an Adapter
 func NewAdapter(

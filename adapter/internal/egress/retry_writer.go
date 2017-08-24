@@ -16,7 +16,7 @@ import (
 func RetryWrapper(
 	wc WriterConstructor,
 	r RetryDuration,
-	maxRetries uint,
+	maxRetries int,
 	logClient LogClient,
 ) WriterConstructor {
 	return WriterConstructor(func(
@@ -45,23 +45,47 @@ func RetryWrapper(
 }
 
 // RetryDuration calculates a duration based on the number of write attempts.
-type RetryDuration func(attempt uint) time.Duration
+type RetryDuration func(attempt int) time.Duration
 
 // RetryWriter wraps a WriteCloser and will retry writes if the first fails.
 type RetryWriter struct {
 	writer        WriteCloser
 	retryDuration RetryDuration
-	maxRetries    uint
+	maxRetries    int
 	binding       *URLBinding
 	logClient     LogClient
 }
 
 // Write will retry writes unitl maxRetries has been reached.
 func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
-	err := r.writer.Write(e)
+	logMsgOption := loggregator.WithAppInfo(
+		r.binding.AppID,
+		"LGR",
+		e.GetTags()["source_instance"],
+	)
+	logMsgTemplate := "Syslog Drain: Error when writing. Backing off for %s."
+	logTemplate := "failed to write to %s, retrying in %s, err: %s"
 
-	if err != nil && !contextDone(r.binding.Context) {
-		return r.retry(e)
+	var err error
+
+	for i := 0; i < r.maxRetries; i++ {
+		log.Println("attempting write")
+		err = r.writer.Write(e)
+		log.Printf("got err: %s", err)
+
+		if err == nil {
+			return nil
+		}
+		if contextDone(r.binding.Context) {
+			return err
+		}
+
+		sleepDuration := r.retryDuration(i)
+		log.Printf(logTemplate, r.binding.URL.Host, sleepDuration, err)
+		msg := fmt.Sprintf(logMsgTemplate, sleepDuration)
+		r.logClient.EmitLog(msg, logMsgOption)
+
+		time.Sleep(sleepDuration)
 	}
 
 	return err
@@ -72,35 +96,9 @@ func (r *RetryWriter) Close() error {
 	return r.writer.Close()
 }
 
-func (r *RetryWriter) retry(e *loggregator_v2.Envelope) error {
-	var err error
-
-	option := loggregator.WithAppInfo(
-		r.binding.AppID,
-		"LGR",
-		e.GetTags()["source_instance"],
-	)
-	for i := uint(1); i < r.maxRetries; i++ {
-		sleepDuration := r.retryDuration(i)
-
-		log.Printf("failed to write to %s, retrying in %s: %s", r.binding.URL.Host, sleepDuration, err)
-		msg := fmt.Sprintf("Syslog Drain: Error when writing. Backing off for %s.", sleepDuration)
-		r.logClient.EmitLog(msg, option)
-
-		time.Sleep(sleepDuration)
-
-		err = r.writer.Write(e)
-		if err == nil || contextDone(r.binding.Context) {
-			break
-		}
-	}
-
-	return err
-}
-
 // ExponentialDuration returns a duration that grows exponentially with each
 // attempt. It is maxed out at about 35 minutes.
-func ExponentialDuration(attempt uint) time.Duration {
+func ExponentialDuration(attempt int) time.Duration {
 	if attempt == 0 {
 		return time.Millisecond
 	}

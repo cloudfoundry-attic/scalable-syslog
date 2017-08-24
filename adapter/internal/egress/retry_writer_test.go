@@ -132,7 +132,7 @@ var _ = Describe("Retry Writer", func() {
 
 	Describe("ExponentialDuration", func() {
 		var backoffTests = []struct {
-			attempt  uint
+			attempt  int
 			expected time.Duration
 		}{
 			{0, 1000},
@@ -249,15 +249,15 @@ func (s *spyLogClient) sourceInstance() string {
 	return s._sourceInstance
 }
 
-func buildDelay(mulitplier time.Duration) func(uint) time.Duration {
-	return func(attempt uint) time.Duration {
+func buildDelay(mulitplier time.Duration) func(int) time.Duration {
+	return func(attempt int) time.Duration {
 		return time.Duration(attempt) * mulitplier
 	}
 }
 
 func buildRetryWriter(
 	w *spyWriteCloser,
-	maxRetries uint,
+	maxRetries int,
 	delayMultiplier time.Duration,
 	logClient egress.LogClient,
 ) egress.WriteCloser {
