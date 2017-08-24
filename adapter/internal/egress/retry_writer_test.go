@@ -91,30 +91,6 @@ var _ = Describe("Retry Writer", func() {
 			Expect(writeCloser.WriteAttempts()).To(Equal(1))
 		})
 
-		It("returns an error if the context is canceled", func() {
-			ctx, cancel := context.WithCancel(context.Background())
-			writeCloser := &spyWriteCloser{
-				returnErrCount: 2,
-				writeErr:       errors.New("write error"),
-				binding: &egress.URLBinding{
-					URL:     &url.URL{},
-					Context: ctx,
-				},
-			}
-			logClient := &spyLogClient{}
-			r := buildRetryWriter(writeCloser, 5, 100*time.Millisecond, logClient)
-
-			go func() {
-				Eventually(writeCloser.WriteAttempts).Should(Equal(1))
-				cancel()
-			}()
-
-			err := r.Write(&v2.Envelope{})
-			Expect(err).To(HaveOccurred())
-			Expect(writeCloser.WriteAttempts()).To(Equal(2))
-			Eventually(ctx.Done()).Should(BeClosed())
-		})
-
 		It("writes out the LGR message", func() {
 			writeCloser := &spyWriteCloser{
 				returnErrCount: 1,
