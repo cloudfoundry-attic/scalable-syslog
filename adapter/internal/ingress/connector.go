@@ -19,8 +19,17 @@ type Connector struct {
 }
 
 type LogsProviderClient interface {
-	Receiver(ctx context.Context, in *loggregator_v2.EgressRequest, opts ...grpc.CallOption) (loggregator_v2.Egress_ReceiverClient, error)
-	BatchedReceiver(ctx context.Context, in *loggregator_v2.EgressBatchRequest, opts ...grpc.CallOption) (loggregator_v2.Egress_BatchedReceiverClient, error)
+	Receiver(
+		ctx context.Context,
+		in *loggregator_v2.EgressRequest,
+		opts ...grpc.CallOption,
+	) (loggregator_v2.Egress_ReceiverClient, error)
+
+	BatchedReceiver(
+		ctx context.Context,
+		in *loggregator_v2.EgressBatchRequest,
+		opts ...grpc.CallOption,
+	) (loggregator_v2.Egress_BatchedReceiverClient, error)
 }
 
 // NewConnector returns a new Connector

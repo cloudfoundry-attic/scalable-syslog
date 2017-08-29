@@ -9,6 +9,8 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type ClientPool interface {
@@ -112,7 +114,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		}
 	}()
 
-	receiver, err := client.Receiver(ctx, &v2.EgressRequest{
+	batchReceiver, err := client.BatchedReceiver(ctx, &v2.EgressBatchRequest{
 		ShardId:          buildShardId(binding),
 		UsePreferredTags: true,
 		Filter: &v2.Filter{
@@ -122,14 +124,40 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 			},
 		},
 	})
+
+	status, ok := status.FromError(err)
+
+	if ok && status.Code() == codes.Unimplemented {
+		receiver, err := client.Receiver(ctx, &v2.EgressRequest{
+			ShardId:          buildShardId(binding),
+			UsePreferredTags: true,
+			Filter: &v2.Filter{
+				SourceId: binding.AppId,
+				Message: &v2.Filter_Log{
+					Log: &v2.LogFilter{},
+				},
+			},
+		})
+		close(ready)
+		if err != nil {
+			log.Printf("failed to open stream for binding %s: %s", binding.AppId, err)
+			return true
+		}
+		defer receiver.CloseSend()
+
+		err = s.readWriteLoop(receiver, writer)
+		log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
+
+		return true
+	}
 	close(ready)
 	if err != nil {
 		log.Printf("failed to open stream for binding %s: %s", binding.AppId, err)
 		return true
 	}
-	defer receiver.CloseSend()
+	defer batchReceiver.CloseSend()
 
-	err = s.readWriteLoop(receiver, writer)
+	err = s.batchReadWriteLoop(batchReceiver, writer)
 	log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
 
 	return true
@@ -150,6 +178,27 @@ func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.Writer) 
 		// situations the connector will provide a diode writer and the diode
 		// writer never returns an error.
 		_ = w.Write(env)
+	}
+}
+
+func (s *Subscriber) batchReadWriteLoop(r v2.Egress_BatchedReceiverClient, w egress.Writer) error {
+	for {
+		envBatch, err := r.Recv()
+		if err != nil {
+			return err
+		}
+
+		for _, env := range envBatch.Batch {
+			if env.GetLog() == nil {
+				continue
+			}
+
+			s.ingressMetric.Increment(1)
+			// We decided to ignore the error from the writer since in most
+			// situations the connector will provide a diode writer and the diode
+			// writer never returns an error.
+			_ = w.Write(env)
+		}
 	}
 }
 

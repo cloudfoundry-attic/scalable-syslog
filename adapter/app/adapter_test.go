@@ -477,7 +477,22 @@ func (t *testEgressServer) Receiver(r *v2.EgressRequest, server v2.Egress_Receiv
 	return nil
 }
 
-func (t *testEgressServer) BatchedReceiver(*v2.EgressBatchRequest, v2.Egress_BatchedReceiverServer) error {
+func (t *testEgressServer) BatchedReceiver(r *v2.EgressBatchRequest, server v2.Egress_BatchedReceiverServer) error {
+	for i := 0; ; i++ {
+		err := server.Send(
+			&v2.EnvelopeBatch{
+				Batch: []*v2.Envelope{
+					buildLogEnvelope(int64(i)),
+				},
+			},
+		)
+		if err != nil {
+			// Subtract 1 due to the last one failing
+			atomic.StoreInt64(&t.lastIdx, int64(i-1))
+			return err
+		}
+		time.Sleep(time.Millisecond)
+	}
 	return nil
 }
 

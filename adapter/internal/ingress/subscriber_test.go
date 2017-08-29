@@ -10,6 +10,8 @@ import (
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -42,7 +44,35 @@ var _ = Describe("Subscriber", func() {
 		}
 	})
 
-	It("opens a stream to an egress client", func() {
+	It("opens a stream to a batching egress client", func() {
+		closeWriter := newSpyCloseWriter()
+		syslogConnector.ConnectOutput.W <- closeWriter
+		close(syslogConnector.ConnectOutput.Err)
+
+		client := newMockLogsProviderClient()
+		mockClientPool.NextOutput.Client <- client
+
+		batchedReceiverClient := newMockBatchedReceiverClient()
+		client.BatchedReceiverOutput.Ret0 <- batchedReceiverClient
+		close(client.BatchedReceiverOutput.Ret1)
+
+		subscriber.Start(binding)
+
+		var request *v2.EgressBatchRequest
+		Eventually(client.BatchedReceiverInput.In).Should(Receive(&request))
+		Expect(request.Filter.GetSourceId()).To(Equal(binding.AppId))
+		Expect(request.Filter.GetLog()).ToNot(BeNil())
+		Expect(request.ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
+		Expect(request.UsePreferredTags).To(BeTrue())
+
+		Eventually(batchedReceiverClient.RecvCalled).Should(Receive())
+		close(batchedReceiverClient.RecvOutput.Ret1)
+		batchedReceiverClient.RecvOutput.Ret0 <- buildBatchedLogs(3)
+
+		Eventually(closeWriter.writes).Should(HaveLen(3))
+	})
+
+	It("opens a stream to an egress client when batching is unavailable", func() {
 		closeWriter := newSpyCloseWriter()
 		syslogConnector.ConnectOutput.W <- closeWriter
 		close(syslogConnector.ConnectOutput.Err)
@@ -53,6 +83,9 @@ var _ = Describe("Subscriber", func() {
 		receiverClient := newMockReceiverClient()
 		client.ReceiverOutput.Ret0 <- receiverClient
 		close(client.ReceiverOutput.Ret1)
+		close(client.BatchedReceiverOutput.Ret0)
+		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
+		client.BatchedReceiverOutput.Ret1 <- unimplemented
 
 		subscriber.Start(binding)
 
@@ -82,6 +115,8 @@ var _ = Describe("Subscriber", func() {
 		mockClientPool.NextOutput.Client <- client
 		mockClientPool.NextOutput.Client <- client
 
+		client.BatchedReceiverOutput.Ret1 <- errors.New("no batched receiver")
+		close(client.BatchedReceiverOutput.Ret0)
 		close(client.ReceiverOutput.Ret0)
 		client.ReceiverOutput.Ret1 <- errors.New("some-error")
 
@@ -89,7 +124,7 @@ var _ = Describe("Subscriber", func() {
 		Eventually(mockClientPool.NextCalled).Should(HaveLen(2))
 	})
 
-	It("gets a new client and reciever if Recv() fails", func() {
+	It("gets a new client and receiver if Recv() fails", func() {
 		closeWriter := newSpyCloseWriter()
 		syslogConnector.ConnectOutput.W <- closeWriter
 		syslogConnector.ConnectOutput.W <- closeWriter
@@ -104,6 +139,10 @@ var _ = Describe("Subscriber", func() {
 		client.ReceiverOutput.Ret0 <- receiverClient
 		close(client.ReceiverOutput.Ret1)
 		close(receiverClient.CloseSendOutput.Ret0)
+		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
+		client.BatchedReceiverOutput.Ret1 <- unimplemented
+		client.BatchedReceiverOutput.Ret1 <- unimplemented
+		close(client.BatchedReceiverOutput.Ret0)
 
 		subscriber.Start(binding)
 
@@ -150,6 +189,9 @@ var _ = Describe("Subscriber", func() {
 		client.ReceiverOutput.Ret0 <- receiverClient
 		close(client.ReceiverOutput.Ret1)
 		close(receiverClient.CloseSendOutput.Ret0)
+		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
+		client.BatchedReceiverOutput.Ret1 <- unimplemented
+		close(client.BatchedReceiverOutput.Ret0)
 
 		unsubscribe := subscriber.Start(binding)
 
@@ -197,6 +239,9 @@ var _ = Describe("Subscriber", func() {
 		client.ReceiverOutput.Ret0 <- receiverClient
 		close(client.ReceiverOutput.Ret1)
 		close(receiverClient.CloseSendOutput.Ret0)
+		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
+		client.BatchedReceiverOutput.Ret1 <- unimplemented
+		close(client.BatchedReceiverOutput.Ret0)
 
 		subscriber.Start(binding)
 
@@ -224,6 +269,9 @@ var _ = Describe("Subscriber", func() {
 		client.ReceiverOutput.Ret0 <- receiverClient
 		close(client.ReceiverOutput.Ret1)
 		close(receiverClient.CloseSendOutput.Ret0)
+		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
+		client.BatchedReceiverOutput.Ret1 <- unimplemented
+		close(client.BatchedReceiverOutput.Ret0)
 
 		subscriber.Start(binding)
 
@@ -247,6 +295,9 @@ var _ = Describe("Subscriber", func() {
 		subscriber.Start(binding)
 		Eventually(mockClientPool.NextCalled).Should(Receive())
 
+		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
+		client.BatchedReceiverOutput.Ret1 <- unimplemented
+		close(client.BatchedReceiverOutput.Ret0)
 		close(client.ReceiverOutput.Ret0)
 		ctx := <-client.ReceiverInput.Ctx
 		Eventually(ctx.Done).Should(BeClosed())
@@ -278,6 +329,12 @@ func (s *spyCloseWriter) Close() error {
 	return nil
 }
 
+type spyBatchedReceiverClient struct {
+}
+
+func newSpyBatchedReceiverClient() *spyBatchedReceiverClient {
+	return &spyBatchedReceiverClient{}
+}
 func buildLogEnvelope() *v2.Envelope {
 	return &v2.Envelope{
 		Tags: map[string]string{
@@ -304,3 +361,28 @@ func buildCounterEnvelope() *v2.Envelope {
 		},
 	}
 }
+func buildBatchedLogs(size int) *v2.EnvelopeBatch {
+	batch := &v2.EnvelopeBatch{
+		Batch: make([]*v2.Envelope, 0),
+	}
+
+	for i := 0; i < size; i++ {
+		env := buildLogEnvelope()
+		batch.Batch = append(batch.Batch, env)
+	}
+
+	return batch
+}
+
+// func buildBatchedCounter(size int) *v2.EnvelopeBatch {
+// 	batch := &v2.EnvelopeBatch{
+// 		Batch: make([]*v2.Envelope, 0),
+// 	}
+
+// 	for i := 0; i < size; i++ {
+// 		env := buildCounterEnvelope()
+// 		batch.Batch = append(batch.Batch, env)
+// 	}
+// 	fmt.Printf("your batched counter: %#v", batch)
+// 	return batch
+// }

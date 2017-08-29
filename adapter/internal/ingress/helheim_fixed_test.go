@@ -109,6 +109,98 @@ func (m *mockReceiverClient) RecvMsg(m_ interface{}) error {
 	return <-m.RecvMsgOutput.Ret0
 }
 
+type mockBatchedReceiverClient struct {
+	RecvCalled chan bool
+	RecvOutput struct {
+		Ret0 chan *v2.EnvelopeBatch
+		Ret1 chan error
+	}
+	HeaderCalled chan bool
+	HeaderOutput struct {
+		Ret0 chan metadata.MD
+		Ret1 chan error
+	}
+	TrailerCalled chan bool
+	TrailerOutput struct {
+		Ret0 chan metadata.MD
+	}
+	CloseSendCalled chan bool
+	CloseSendOutput struct {
+		Ret0 chan error
+	}
+	ContextCalled chan bool
+	ContextOutput struct {
+		Ret0 chan context.Context
+	}
+	SendMsgCalled chan bool
+	SendMsgInput  struct {
+		M chan interface{}
+	}
+	SendMsgOutput struct {
+		Ret0 chan error
+	}
+	RecvMsgCalled chan bool
+	RecvMsgInput  struct {
+		M chan interface{}
+	}
+	RecvMsgOutput struct {
+		Ret0 chan error
+	}
+}
+
+func newMockBatchedReceiverClient() *mockBatchedReceiverClient {
+	m := &mockBatchedReceiverClient{}
+	m.RecvCalled = make(chan bool, 100)
+	m.RecvOutput.Ret0 = make(chan *v2.EnvelopeBatch, 100)
+	m.RecvOutput.Ret1 = make(chan error, 100)
+	m.HeaderCalled = make(chan bool, 100)
+	m.HeaderOutput.Ret0 = make(chan metadata.MD, 100)
+	m.HeaderOutput.Ret1 = make(chan error, 100)
+	m.TrailerCalled = make(chan bool, 100)
+	m.TrailerOutput.Ret0 = make(chan metadata.MD, 100)
+	m.CloseSendCalled = make(chan bool, 100)
+	m.CloseSendOutput.Ret0 = make(chan error, 100)
+	m.ContextCalled = make(chan bool, 100)
+	m.ContextOutput.Ret0 = make(chan context.Context, 100)
+	m.SendMsgCalled = make(chan bool, 100)
+	m.SendMsgInput.M = make(chan interface{}, 100)
+	m.SendMsgOutput.Ret0 = make(chan error, 100)
+	m.RecvMsgCalled = make(chan bool, 100)
+	m.RecvMsgInput.M = make(chan interface{}, 100)
+	m.RecvMsgOutput.Ret0 = make(chan error, 100)
+	return m
+}
+func (m *mockBatchedReceiverClient) Recv() (*v2.EnvelopeBatch, error) {
+	m.RecvCalled <- true
+	return <-m.RecvOutput.Ret0, <-m.RecvOutput.Ret1
+}
+func (m *mockBatchedReceiverClient) Header() (metadata.MD, error) {
+	m.HeaderCalled <- true
+	return <-m.HeaderOutput.Ret0, <-m.HeaderOutput.Ret1
+}
+func (m *mockBatchedReceiverClient) Trailer() metadata.MD {
+	m.TrailerCalled <- true
+	return <-m.TrailerOutput.Ret0
+}
+func (m *mockBatchedReceiverClient) CloseSend() error {
+	m.CloseSendCalled <- true
+	return <-m.CloseSendOutput.Ret0
+}
+func (m *mockBatchedReceiverClient) Context() context.Context {
+	m.ContextCalled <- true
+	return <-m.ContextOutput.Ret0
+}
+func (m *mockBatchedReceiverClient) SendMsg(m_ interface{}) error {
+	m.SendMsgCalled <- true
+	m.SendMsgInput.M <- m_
+	return <-m.SendMsgOutput.Ret0
+}
+func (m *mockBatchedReceiverClient) RecvMsg(m_ interface{}) error {
+	m.RecvMsgCalled <- true
+	m.RecvMsgInput.M <- m_
+	return <-m.RecvMsgOutput.Ret0
+}
+
 type mockClientPool struct {
 	NextCalled chan bool
 	NextOutput struct {
@@ -165,6 +257,15 @@ type mockLogsProviderClient struct {
 		Ret0 chan v2.Egress_ReceiverClient
 		Ret1 chan error
 	}
+	BatchedReceiverCalled chan bool
+	BatchedReceiverInput  struct {
+		Ctx chan context.Context
+		In  chan *v2.EgressBatchRequest
+	}
+	BatchedReceiverOutput struct {
+		Ret0 chan v2.Egress_BatchedReceiverClient
+		Ret1 chan error
+	}
 }
 
 func newMockLogsProviderClient() *mockLogsProviderClient {
@@ -174,6 +275,11 @@ func newMockLogsProviderClient() *mockLogsProviderClient {
 	m.ReceiverInput.In = make(chan *v2.EgressRequest, 100)
 	m.ReceiverOutput.Ret0 = make(chan v2.Egress_ReceiverClient, 100)
 	m.ReceiverOutput.Ret1 = make(chan error, 100)
+	m.BatchedReceiverCalled = make(chan bool, 100)
+	m.BatchedReceiverInput.Ctx = make(chan context.Context, 100)
+	m.BatchedReceiverInput.In = make(chan *v2.EgressBatchRequest, 100)
+	m.BatchedReceiverOutput.Ret0 = make(chan v2.Egress_BatchedReceiverClient, 100)
+	m.BatchedReceiverOutput.Ret1 = make(chan error, 100)
 	return m
 }
 func (m *mockLogsProviderClient) Receiver(ctx context.Context, in *v2.EgressRequest, opts ...grpc.CallOption) (v2.Egress_ReceiverClient, error) {
@@ -184,7 +290,10 @@ func (m *mockLogsProviderClient) Receiver(ctx context.Context, in *v2.EgressRequ
 }
 
 func (m *mockLogsProviderClient) BatchedReceiver(ctx context.Context, in *v2.EgressBatchRequest, opts ...grpc.CallOption) (v2.Egress_BatchedReceiverClient, error) {
-	return nil, nil
+	m.BatchedReceiverCalled <- true
+	m.BatchedReceiverInput.Ctx <- ctx
+	m.BatchedReceiverInput.In <- in
+	return <-m.BatchedReceiverOutput.Ret0, <-m.BatchedReceiverOutput.Ret1
 }
 
 type mockContext struct {
