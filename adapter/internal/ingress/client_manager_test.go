@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
@@ -155,6 +156,10 @@ type MockReceiver struct {
 	n int
 }
 
-func (m *MockReceiver) Receiver(ctx context.Context, in *v2.EgressRequest) (v2.Egress_ReceiverClient, error) {
+func (m *MockReceiver) Receiver(ctx context.Context, in *v2.EgressRequest, opts ...grpc.CallOption) (v2.Egress_ReceiverClient, error) {
+	return nil, nil
+}
+
+func (m *MockReceiver) BatchedReceiver(ctx context.Context, in *v2.EgressBatchRequest, opts ...grpc.CallOption) (v2.Egress_BatchedReceiverClient, error) {
 	return nil, nil
 }
