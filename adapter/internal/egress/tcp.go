@@ -102,7 +102,7 @@ func generateRFC5424Message(
 		Hostname:  hostname,
 		AppName:   appID,
 		ProcessID: generateProcessID(
-			env.Tags["source_type"],
+			env.Tags["source_type"].GetText(),
 			env.InstanceId,
 		),
 		Message: appendNewline(removeNulls(env.GetLog().Payload)),

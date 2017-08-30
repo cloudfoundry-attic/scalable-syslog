@@ -14,9 +14,9 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	loggregator "code.cloudfoundry.org/go-loggregator"
+	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/app"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 	. "github.com/onsi/ginkgo"

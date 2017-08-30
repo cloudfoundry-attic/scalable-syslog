@@ -104,8 +104,12 @@ var _ = Describe("Retry Writer", func() {
 			logClient := &spyLogClient{}
 			r := buildRetryWriter(writeCloser, 2, 0, logClient)
 
-			_ = r.Write(&v2.Envelope{Tags: map[string]string{
-				"source_instance": "a source instance",
+			_ = r.Write(&v2.Envelope{Tags: map[string]*v2.Value{
+				"source_instance": &v2.Value{
+					Data: &v2.Value_Text{
+						Text: "a source instance",
+					},
+				},
 			}})
 
 			Expect(logClient.message()).To(Equal("Syslog Drain: Error when writing. Backing off for 0s."))
@@ -211,13 +215,13 @@ func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption
 
 	s._message = message
 	env := &v2.Envelope{
-		Tags: make(map[string]string),
+		Tags: make(map[string]*v2.Value),
 	}
 	for _, o := range opts {
 		o(env)
 	}
 	s._appID = env.SourceId
-	s._sourceType = env.GetTags()["source_type"]
+	s._sourceType = env.GetTags()["source_type"].GetText()
 	s._sourceInstance = env.GetInstanceId()
 }
 

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/egress"
 
 	. "github.com/onsi/ginkgo"

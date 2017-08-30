@@ -1,19 +1,13 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/go-loggregator/testhelpers"
 )
 
 func main() {
@@ -29,23 +23,46 @@ func main() {
 	log.Print("Starting fake logs provider...")
 	defer log.Print("Closing fake logs provider.")
 
-	egressServer, err := newTestEgressServer(*certFile, *keyFile, *caFile, *delay,
-		withCN(*commonName),
-		withAddr(*addr),
+	logServer := &logServer{delay: *delay}
+
+	egressServer, err := testhelpers.NewTestEgressServer(*certFile, *keyFile, *caFile,
+		testhelpers.WithCN(*commonName),
+		testhelpers.WithAddr(*addr),
 	)
 	if err != nil {
 		log.Fatalf("failed to build egress server: %s", err)
 	}
-	egressServer.start()
+	egressServer.Start(logServer.Receiver)
 
 	var wait chan struct{}
 	<-wait
 }
 
+type logServer struct {
+	delay time.Duration
+}
+
+func (s *logServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator_v2.Egress_ReceiverServer) error {
+	var i int
+	for {
+		e := buildEnvelope(i%2 == 0, r.GetFilter().GetSourceId(), i)
+
+		log.Printf("sending envelope: %d", i)
+		if err := server.Send(e); err != nil {
+			return err
+		}
+		log.Printf("sent envelope: %d", i)
+		i++
+		time.Sleep(s.delay)
+	}
+
+	return nil
+}
+
 func buildEnvelope(isLog bool, sourceId string, id int) *loggregator_v2.Envelope {
 	if isLog {
 		return &loggregator_v2.Envelope{
-			DeprecatedTags: map[string]*loggregator_v2.Value{
+			Tags: map[string]*loggregator_v2.Value{
 				"source_type":     {&loggregator_v2.Value_Text{"APP"}},
 				"source_instance": {&loggregator_v2.Value_Text{"3"}},
 			},
@@ -60,7 +77,7 @@ func buildEnvelope(isLog bool, sourceId string, id int) *loggregator_v2.Envelope
 		}
 	}
 	return &loggregator_v2.Envelope{
-		DeprecatedTags: map[string]*loggregator_v2.Value{
+		Tags: map[string]*loggregator_v2.Value{
 			"source_type":     {&loggregator_v2.Value_Text{"APP"}},
 			"source_instance": {&loggregator_v2.Value_Text{"3"}},
 		},
@@ -75,109 +92,4 @@ func buildEnvelope(isLog bool, sourceId string, id int) *loggregator_v2.Envelope
 			},
 		},
 	}
-}
-
-type testEgressServer struct {
-	addr_      string
-	cn         string
-	delay      time.Duration
-	tlsConfig  *tls.Config
-	grpcServer *grpc.Server
-	grpc.Stream
-}
-
-type egressServerOption func(*testEgressServer)
-
-func withCN(cn string) egressServerOption {
-	return func(s *testEgressServer) {
-		s.cn = cn
-	}
-}
-
-func withAddr(addr string) egressServerOption {
-	return func(s *testEgressServer) {
-		s.addr_ = addr
-	}
-}
-
-func newTestEgressServer(serverCert, serverKey, caCert string, delay time.Duration, opts ...egressServerOption) (*testEgressServer, error) {
-	s := &testEgressServer{
-		addr_: "localhost:0",
-		delay: delay,
-	}
-
-	for _, o := range opts {
-		o(s)
-	}
-
-	cert, err := tls.LoadX509KeyPair(serverCert, serverKey)
-	if err != nil {
-		return nil, err
-	}
-
-	s.tlsConfig = &tls.Config{
-		Certificates:       []tls.Certificate{cert},
-		ClientAuth:         tls.RequestClientCert,
-		InsecureSkipVerify: false,
-		ServerName:         s.cn,
-	}
-	caCertBytes, err := ioutil.ReadFile(caCert)
-	if err != nil {
-		return nil, err
-	}
-
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCertBytes)
-	s.tlsConfig.RootCAs = caCertPool
-
-	return s, nil
-}
-
-func (t *testEgressServer) addr() string {
-	return t.addr_
-}
-
-func (t *testEgressServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator_v2.Egress_ReceiverServer) error {
-	var i int
-	for {
-		e := buildEnvelope(i%2 == 0, r.GetFilter().GetSourceId(), i)
-
-		log.Printf("sending envelope: %d", i)
-		if err := server.Send(e); err != nil {
-			return err
-		}
-		log.Printf("sent envelope: %d", i)
-		i++
-		time.Sleep(t.delay)
-	}
-
-	return nil
-}
-
-func (t *testEgressServer) BatchedReceiver(*loggregator_v2.EgressBatchRequest, loggregator_v2.Egress_BatchedReceiverServer) error {
-	return nil
-}
-
-func (t *testEgressServer) start() error {
-	listener, err := net.Listen("tcp4", t.addr_)
-	if err != nil {
-		return err
-	}
-	t.addr_ = listener.Addr().String()
-
-	var opts []grpc.ServerOption
-	if t.tlsConfig != nil {
-		opts = append(opts, grpc.Creds(credentials.NewTLS(t.tlsConfig)))
-	}
-	t.grpcServer = grpc.NewServer(opts...)
-
-	loggregator_v2.RegisterEgressServer(t.grpcServer, t)
-
-	go t.grpcServer.Serve(listener)
-
-	return nil
-}
-
-func (t *testEgressServer) stop() {
-	t.grpcServer.Stop()
 }

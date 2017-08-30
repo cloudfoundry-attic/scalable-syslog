@@ -113,8 +113,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 	}()
 
 	receiver, err := client.Receiver(ctx, &v2.EgressRequest{
-		ShardId:          buildShardId(binding),
-		UsePreferredTags: true,
+		ShardId: buildShardId(binding),
 		Filter: &v2.Filter{
 			SourceId: binding.AppId,
 			Message: &v2.Filter_Log{

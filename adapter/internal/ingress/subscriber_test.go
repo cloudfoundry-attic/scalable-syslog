@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter/testhelper"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 	"golang.org/x/net/context"
 
 	. "github.com/onsi/ginkgo"
@@ -61,7 +61,6 @@ var _ = Describe("Subscriber", func() {
 		Expect(request.Filter.GetSourceId()).To(Equal(binding.AppId))
 		Expect(request.Filter.GetLog()).ToNot(BeNil())
 		Expect(request.ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
-		Expect(request.UsePreferredTags).To(BeTrue())
 
 		Eventually(receiverClient.RecvCalled).Should(Receive())
 		close(receiverClient.RecvOutput.Ret1)
@@ -280,9 +279,9 @@ func (s *spyCloseWriter) Close() error {
 
 func buildLogEnvelope() *v2.Envelope {
 	return &v2.Envelope{
-		Tags: map[string]string{
-			"source_type":     "APP",
-			"source_instance": "2",
+		Tags: map[string]*v2.Value{
+			"source_type":     {&v2.Value_Text{"APP"}},
+			"source_instance": {&v2.Value_Text{"2"}},
 		},
 		Timestamp: 12345678,
 		SourceId:  "source-id",

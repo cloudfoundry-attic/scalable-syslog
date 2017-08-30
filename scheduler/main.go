@@ -54,7 +54,7 @@ func main() {
 
 	logClient, err := loggregator.NewIngressClient(
 		metricIngressTLS,
-		loggregator.WithTag("origin", "scalablesyslog.scheduler"),
+		loggregator.WithStringTag("origin", "scalablesyslog.scheduler"),
 		loggregator.WithAddr(cfg.MetricIngressAddr),
 	)
 	if err != nil {
