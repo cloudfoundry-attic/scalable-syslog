@@ -3,13 +3,16 @@ package ingress_test
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
+	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -18,293 +21,277 @@ import (
 )
 
 var _ = Describe("Subscriber", func() {
-	var (
-		mockClientPool  *mockClientPool
-		spyEmitter      *testhelper.SpyMetricClient
-		subscriber      *ingress.Subscriber
-		binding         *v1.Binding
-		syslogConnector *mockSyslogConnector
-	)
-
-	BeforeEach(func() {
-		mockClientPool = newMockClientPool()
-		spyEmitter = testhelper.NewMetricClient()
-		syslogConnector = newMockSyslogConnector()
-		subscriber = ingress.NewSubscriber(
+	It("opens a stream with a batching egress client", func() {
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		batchedReceiverClient := newSpyBatchedReceiverClient()
+		batchedReceiverClient.recv = buildBatchedLogs(3)
+		client.batchedReceiverClient = batchedReceiverClient
+		subscriber := ingress.NewSubscriber(
 			context.TODO(),
-			mockClientPool,
+			spyClientPool,
 			syslogConnector,
 			spyEmitter,
 			ingress.WithStreamOpenTimeout(500*time.Millisecond),
 		)
-		binding = &v1.Binding{
+
+		binding := &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host-name",
 			Drain:    "some-drain",
 		}
-	})
-
-	It("opens a stream to a batching egress client", func() {
-		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.W <- closeWriter
-		close(syslogConnector.ConnectOutput.Err)
-
-		client := newMockLogsProviderClient()
-		mockClientPool.NextOutput.Client <- client
-
-		batchedReceiverClient := newMockBatchedReceiverClient()
-		client.BatchedReceiverOutput.Ret0 <- batchedReceiverClient
-		close(client.BatchedReceiverOutput.Ret1)
-
 		subscriber.Start(binding)
 
-		var request *v2.EgressBatchRequest
-		Eventually(client.BatchedReceiverInput.In).Should(Receive(&request))
-		Expect(request.Filter.GetSourceId()).To(Equal(binding.AppId))
-		Expect(request.Filter.GetLog()).ToNot(BeNil())
-		Expect(request.ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
-		Expect(request.UsePreferredTags).To(BeTrue())
-
-		Eventually(batchedReceiverClient.RecvCalled).Should(Receive())
-		close(batchedReceiverClient.RecvOutput.Ret1)
-		batchedReceiverClient.RecvOutput.Ret0 <- buildBatchedLogs(3)
-
-		Eventually(closeWriter.writes).Should(HaveLen(3))
+		Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
+		Expect(client.batchedReceiverRequest().Filter.GetSourceId()).To(Equal(binding.AppId))
+		Expect(client.batchedReceiverRequest().Filter.GetLog()).ToNot(BeNil())
+		Expect(client.batchedReceiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
+		Expect(client.batchedReceiverRequest().UsePreferredTags).To(BeTrue())
+		Eventually(writer.writes).Should(Equal(3))
 	})
 
-	It("opens a stream to an egress client when batching is unavailable", func() {
-		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.W <- closeWriter
-		close(syslogConnector.ConnectOutput.Err)
-
-		client := newMockLogsProviderClient()
-		mockClientPool.NextOutput.Client <- client
-
-		receiverClient := newMockReceiverClient()
-		client.ReceiverOutput.Ret0 <- receiverClient
-		close(client.ReceiverOutput.Ret1)
-		close(client.BatchedReceiverOutput.Ret0)
-		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
-		client.BatchedReceiverOutput.Ret1 <- unimplemented
-
-		subscriber.Start(binding)
-
-		var request *v2.EgressRequest
-		Eventually(client.ReceiverInput.In).Should(Receive(&request))
-		Expect(request.Filter.GetSourceId()).To(Equal(binding.AppId))
-		Expect(request.Filter.GetLog()).ToNot(BeNil())
-		Expect(request.ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
-		Expect(request.UsePreferredTags).To(BeTrue())
-
-		Eventually(receiverClient.RecvCalled).Should(Receive())
-		close(receiverClient.RecvOutput.Ret1)
-		for i := 0; i < 3; i++ {
-			receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
+	It("opens a stream with an egress client when batching is unavailable", func() {
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
 		}
-
-		Eventually(closeWriter.writes).Should(HaveLen(3))
-	})
-
-	It("uses another egress client if it fails to open a stream", func() {
-		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.W <- closeWriter
-		syslogConnector.ConnectOutput.W <- closeWriter
-		close(syslogConnector.ConnectOutput.Err)
-
-		client := newMockLogsProviderClient()
-		mockClientPool.NextOutput.Client <- client
-		mockClientPool.NextOutput.Client <- client
-
-		client.BatchedReceiverOutput.Ret1 <- errors.New("no batched receiver")
-		close(client.BatchedReceiverOutput.Ret0)
-		close(client.ReceiverOutput.Ret0)
-		client.ReceiverOutput.Ret1 <- errors.New("some-error")
-
-		subscriber.Start(binding)
-		Eventually(mockClientPool.NextCalled).Should(HaveLen(2))
-	})
-
-	It("gets a new client and receiver if Recv() fails", func() {
-		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.W <- closeWriter
-		syslogConnector.ConnectOutput.W <- closeWriter
-		close(syslogConnector.ConnectOutput.Err)
-
-		client := newMockLogsProviderClient()
-		mockClientPool.NextOutput.Client <- client
-		mockClientPool.NextOutput.Client <- client
-
-		receiverClient := newMockReceiverClient()
-		client.ReceiverOutput.Ret0 <- receiverClient
-		client.ReceiverOutput.Ret0 <- receiverClient
-		close(client.ReceiverOutput.Ret1)
-		close(receiverClient.CloseSendOutput.Ret0)
-		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
-		client.BatchedReceiverOutput.Ret1 <- unimplemented
-		client.BatchedReceiverOutput.Ret1 <- unimplemented
-		close(client.BatchedReceiverOutput.Ret0)
+		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
+		receiver := newSpyReceiverClient()
+		receiver.recv = buildLogEnvelope()
+		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
 
 		subscriber.Start(binding)
 
-		By("successfully receiving")
-		receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
-		receiverClient.RecvOutput.Ret1 <- nil
+		Eventually(client.receiverRequest).ShouldNot(BeNil())
+		Expect(client.receiverRequest().Filter.GetSourceId()).To(Equal(binding.AppId))
+		Expect(client.receiverRequest().Filter.GetLog()).ToNot(BeNil())
+		Expect(client.receiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
+		Expect(client.receiverRequest().UsePreferredTags).To(BeTrue())
+		Eventually(writer.writes).Should(Equal(1))
+	})
 
-		By("failing to receive")
-		receiverClient.RecvOutput.Ret0 <- nil
-		receiverClient.RecvOutput.Ret1 <- errors.New("an-error")
-
-		Eventually(receiverClient.CloseSendCalled).Should(Receive())
-
-		var ctx context.Context
-		Eventually(syslogConnector.ConnectInput.Ctx).Should(Receive(&ctx))
-		Eventually(ctx.Done).Should(BeClosed())
-
-		By("get a new client and receiver")
-		Eventually(mockClientPool.NextCalled).Should(HaveLen(2))
-		Eventually(client.ReceiverCalled).Should(HaveLen(2))
-
-		By("receiving more logs")
-		Eventually(receiverClient.RecvCalled).Should(Receive())
-		close(receiverClient.RecvOutput.Ret1)
-		for i := 0; i < 3; i++ {
-			receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
+	It("acquires another client when one client fails", func() {
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
 		}
+		client.batchedReceiverError = errors.New("cannot get batcher")
+		receiver := newSpyReceiverClient()
+		receiver.recv = buildLogEnvelope()
+		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
 
-		Eventually(closeWriter.writes).Should(HaveLen(4))
+		subscriber.Start(binding)
+
+		Eventually(spyClientPool.nextCalls).Should(BeNumerically(">", 1))
 	})
 
-	It("closes all connections when the unsubscribe func is called", func() {
-		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.W <- closeWriter
-		syslogConnector.ConnectOutput.W <- closeWriter
-		close(syslogConnector.ConnectOutput.Err)
-
-		client := newMockLogsProviderClient()
-		mockClientPool.NextOutput.Client <- client
-		mockClientPool.NextOutput.Client <- client
-
-		receiverClient := newMockReceiverClient()
-		client.ReceiverOutput.Ret0 <- receiverClient
-		client.ReceiverOutput.Ret0 <- receiverClient
-		close(client.ReceiverOutput.Ret1)
-		close(receiverClient.CloseSendOutput.Ret0)
+	It("acquires another receiver when Recv() fails", func() {
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
+		}
 		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
-		client.BatchedReceiverOutput.Ret1 <- unimplemented
-		close(client.BatchedReceiverOutput.Ret0)
+		client.batchedReceiverError = unimplemented
+		receiver := newErrorReceiverClient()
+		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
 
-		unsubscribe := subscriber.Start(binding)
+		subscriber.Start(binding)
 
-		Eventually(mockClientPool.NextCalled).Should(Receive())
+		Eventually(receiver.recvCalls).Should(BeNumerically(">", 1))
+	})
 
-		done := make(chan struct{})
-		defer close(done)
-		go func() {
-			for {
-				select {
-				case receiverClient.RecvOutput.Ret0 <- buildLogEnvelope():
-					// Do nothing
-				case <-done:
-					return
-				}
-			}
-		}()
+	It("closes all connections when the cancel function is called", func() {
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
+		}
+		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
+		receiver := newSpyReceiverClient()
+		receiver.recv = buildLogEnvelope()
+		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
 
-		unsubscribe()
-		receiverClient.RecvOutput.Ret1 <- errors.New("some-error")
+		cancel := subscriber.Start(binding)
 
-		Eventually(receiverClient.CloseSendCalled).Should(Receive())
-		Consistently(mockClientPool.NextCalled).ShouldNot(Receive())
+		// Ensure the context is threaded down.
+		Eventually(syslogConnector.connectContext).ShouldNot(BeNil())
+		Eventually(client.receiverContext).ShouldNot(BeNil())
+		syslogConnectorCtx := syslogConnector.connectContext()
+		receiverCtx := client.receiverContext()
 
-		var ctx context.Context
-		Eventually(syslogConnector.ConnectInput.Ctx).Should(Receive(&ctx))
-		Eventually(ctx.Done).Should(BeClosed())
+		cancel()
 
-		Eventually(client.ReceiverInput.Ctx).Should(Receive(&ctx))
-		Eventually(ctx.Done).Should(BeClosed())
+		// Ensure the context is now closed.
+		Eventually(syslogConnectorCtx.Done).Should(BeClosed())
+		Eventually(receiverCtx.Done).Should(BeClosed())
+		Eventually(receiver.closeSendCalled).Should(BeTrue())
+	})
+
+	It("times out after a configuration duration when opening a stream", func() {
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		client.receiveTime = 10 * time.Millisecond
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
+		}
+		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
+		receiver := newEnvelopeReceiverClient()
+		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(0),
+		)
+
+		subscriber.Start(binding)
+
+		// Ensure the context is threaded down.
+		Eventually(syslogConnector.connectContext).ShouldNot(BeNil())
+		Eventually(client.receiverContext).ShouldNot(BeNil())
+		syslogConnectorCtx := syslogConnector.connectContext()
+		receiverCtx := client.receiverContext()
+
+		// Ensure the context is now closed.
+		Eventually(syslogConnectorCtx.Done).Should(BeClosed())
+		Eventually(receiverCtx.Done).Should(BeClosed())
 	})
 
 	It("ignores non log messages", func() {
-		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.W <- closeWriter
-		syslogConnector.ConnectOutput.W <- closeWriter
-		close(syslogConnector.ConnectOutput.Err)
-
-		client := newMockLogsProviderClient()
-		mockClientPool.NextOutput.Client <- client
-		mockClientPool.NextOutput.Client <- client
-
-		receiverClient := newMockReceiverClient()
-		client.ReceiverOutput.Ret0 <- receiverClient
-		client.ReceiverOutput.Ret0 <- receiverClient
-		close(client.ReceiverOutput.Ret1)
-		close(receiverClient.CloseSendOutput.Ret0)
-		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
-		client.BatchedReceiverOutput.Ret1 <- unimplemented
-		close(client.BatchedReceiverOutput.Ret0)
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
+		}
+		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
+		receiver := newSpyReceiverClient()
+		receiver.recv = buildCounterEnvelope()
+		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
 
 		subscriber.Start(binding)
 
-		By("receiving a log message")
-		close(receiverClient.RecvOutput.Ret1)
-		receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
-
-		By("receiving non log messages")
-		receiverClient.RecvOutput.Ret0 <- buildCounterEnvelope()
-		receiverClient.RecvOutput.Ret0 <- buildCounterEnvelope()
-
-		Eventually(closeWriter.writes).Should(HaveLen(1))
-		Consistently(closeWriter.writes).Should(HaveLen(1))
+		Eventually(writer.writes).Should(Equal(0))
+		Consistently(writer.writes).Should(Equal(0))
 	})
 
 	It("emits ingress metrics", func() {
-		closeWriter := newSpyCloseWriter()
-		syslogConnector.ConnectOutput.W <- closeWriter
-		close(syslogConnector.ConnectOutput.Err)
-
-		client := newMockLogsProviderClient()
-		mockClientPool.NextOutput.Client <- client
-
-		receiverClient := newMockReceiverClient()
-		client.ReceiverOutput.Ret0 <- receiverClient
-		close(client.ReceiverOutput.Ret1)
-		close(receiverClient.CloseSendOutput.Ret0)
-		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
-		client.BatchedReceiverOutput.Ret1 <- unimplemented
-		close(client.BatchedReceiverOutput.Ret0)
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
+		}
+		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
+		receiver := newSpyReceiverClient()
+		receiver.recv = buildLogEnvelope()
+		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
 
 		subscriber.Start(binding)
-
-		By("receiving a log message")
-		close(receiverClient.RecvOutput.Ret1)
-		receiverClient.RecvOutput.Ret0 <- buildLogEnvelope()
 
 		Eventually(func() uint64 {
 			return spyEmitter.GetDelta("ingress")
 		}).Should(Equal(uint64(1)))
 	})
 
-	It("times out opening a stream", func() {
-		syslogConnector.ConnectOutput.W <- newSpyCloseWriter()
-		syslogConnector.ConnectOutput.W <- newSpyCloseWriter()
-		close(syslogConnector.ConnectOutput.Err)
-
-		client := newMockLogsProviderClient()
-		mockClientPool.NextOutput.Client <- client
-
-		subscriber.Start(binding)
-		Eventually(mockClientPool.NextCalled).Should(Receive())
-
-		unimplemented := status.Error(codes.Unimplemented, "unimplemented")
-		client.BatchedReceiverOutput.Ret1 <- unimplemented
-		close(client.BatchedReceiverOutput.Ret0)
-		close(client.ReceiverOutput.Ret0)
-		ctx := <-client.ReceiverInput.Ctx
-		Eventually(ctx.Done).Should(BeClosed())
-
-		client.ReceiverOutput.Ret1 <- errors.New("Stream Open Failed")
-		Eventually(mockClientPool.NextCalled).Should(Receive())
-	})
 })
 
 type spyCloseWriter struct {
@@ -329,12 +316,6 @@ func (s *spyCloseWriter) Close() error {
 	return nil
 }
 
-type spyBatchedReceiverClient struct {
-}
-
-func newSpyBatchedReceiverClient() *spyBatchedReceiverClient {
-	return &spyBatchedReceiverClient{}
-}
 func buildLogEnvelope() *v2.Envelope {
 	return &v2.Envelope{
 		Tags: map[string]string{
@@ -361,6 +342,7 @@ func buildCounterEnvelope() *v2.Envelope {
 		},
 	}
 }
+
 func buildBatchedLogs(size int) *v2.EnvelopeBatch {
 	batch := &v2.EnvelopeBatch{
 		Batch: make([]*v2.Envelope, 0),
@@ -374,15 +356,253 @@ func buildBatchedLogs(size int) *v2.EnvelopeBatch {
 	return batch
 }
 
-// func buildBatchedCounter(size int) *v2.EnvelopeBatch {
-// 	batch := &v2.EnvelopeBatch{
-// 		Batch: make([]*v2.Envelope, 0),
-// 	}
+func newSpyClientPool() *spyClientPool {
+	return &spyClientPool{}
+}
 
-// 	for i := 0; i < size; i++ {
-// 		env := buildCounterEnvelope()
-// 		batch.Batch = append(batch.Batch, env)
-// 	}
-// 	fmt.Printf("your batched counter: %#v", batch)
-// 	return batch
-// }
+type spyClientPool struct {
+	mu         sync.Mutex
+	next       ingress.LogsProviderClient
+	nextCalls_ int
+}
+
+func (s *spyClientPool) Next() ingress.LogsProviderClient {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.nextCalls_++
+
+	return s.next
+}
+
+func (s *spyClientPool) nextCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.nextCalls_
+}
+
+type spySyslogConnector struct {
+	mu              sync.Mutex
+	connect         egress.Writer
+	connectContext_ context.Context
+}
+
+func newSpySyslogConnector() *spySyslogConnector {
+	return &spySyslogConnector{}
+}
+
+func (s *spySyslogConnector) Connect(
+	ctx context.Context,
+	binding *v1.Binding,
+) (egress.Writer, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.connectContext_ = ctx
+
+	return s.connect, nil
+}
+
+func (s *spySyslogConnector) connectContext() context.Context {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.connectContext_
+}
+
+type spyLogsProviderClient struct {
+	mu sync.Mutex
+
+	receiverClient   v2.Egress_ReceiverClient
+	receiverContext_ context.Context
+	receiverRequest_ *v2.EgressRequest
+	receiverError    error
+	receiveTime      time.Duration
+
+	batchedReceiverClient   v2.Egress_BatchedReceiverClient
+	batchedReceiverRequest_ *v2.EgressBatchRequest
+	batchedReceiverError    error
+}
+
+func newSpyLogsProviderClient() *spyLogsProviderClient {
+	return &spyLogsProviderClient{}
+}
+
+func (s *spyLogsProviderClient) Receiver(
+	ctx context.Context,
+	in *v2.EgressRequest,
+	opts ...grpc.CallOption,
+) (v2.Egress_ReceiverClient, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	time.Sleep(s.receiveTime)
+	s.receiverContext_ = ctx
+	s.receiverRequest_ = in
+	return s.receiverClient, s.receiverError
+}
+
+func (s *spyLogsProviderClient) receiverContext() context.Context {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.receiverContext_
+}
+
+func (s *spyLogsProviderClient) receiverRequest() *v2.EgressRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.receiverRequest_
+}
+
+func (s *spyLogsProviderClient) BatchedReceiver(
+	ctx context.Context,
+	in *v2.EgressBatchRequest,
+	opts ...grpc.CallOption,
+) (v2.Egress_BatchedReceiverClient, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.batchedReceiverRequest_ = in
+
+	return s.batchedReceiverClient, s.batchedReceiverError
+}
+
+func (s *spyLogsProviderClient) batchedReceiverRequest() *v2.EgressBatchRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.batchedReceiverRequest_
+}
+
+func newSpyReceiverClient() *spyReceiverClient {
+	return &spyReceiverClient{}
+}
+
+type spyReceiverClient struct {
+	mu               sync.Mutex
+	recv             *v2.Envelope
+	done             bool
+	closeSendCalled_ bool
+	grpc.ClientStream
+}
+
+func (s *spyReceiverClient) closeSendCalled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.closeSendCalled_
+}
+
+func (s *spyReceiverClient) CloseSend() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closeSendCalled_ = true
+
+	return nil
+}
+
+func (s *spyReceiverClient) Recv() (*v2.Envelope, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.done {
+		s.done = true
+		return s.recv, nil
+	}
+
+	return nil, errors.New("no more data")
+}
+
+func newSpyBatchedReceiverClient() *spyBatchedReceiverClient {
+	return &spyBatchedReceiverClient{}
+}
+
+type spyBatchedReceiverClient struct {
+	mu   sync.Mutex
+	recv *v2.EnvelopeBatch
+	done bool
+	grpc.ClientStream
+}
+
+func (s *spyBatchedReceiverClient) CloseSend() error {
+	return nil
+}
+
+func (s *spyBatchedReceiverClient) Recv() (*v2.EnvelopeBatch, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.done {
+		s.done = true
+		return s.recv, nil
+	}
+
+	return nil, errors.New("no more data")
+}
+
+func newEnvelopeReceiverClient() *envelopeReceiver {
+	return &envelopeReceiver{}
+}
+
+type envelopeReceiver struct {
+	grpc.ClientStream
+}
+
+func (i *envelopeReceiver) CloseSend() error {
+	return nil
+}
+
+func (i *envelopeReceiver) Recv() (*v2.Envelope, error) {
+	return &v2.Envelope{}, nil
+}
+
+func newErrorReceiverClient() *errorReceiver {
+	return &errorReceiver{}
+}
+
+type errorReceiver struct {
+	mu         sync.Mutex
+	recvCalls_ int
+	grpc.ClientStream
+}
+
+func (e *errorReceiver) CloseSend() error {
+	return nil
+}
+
+func (e *errorReceiver) Recv() (*v2.Envelope, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.recvCalls_++
+
+	return nil, errors.New("never going to work")
+}
+
+func (e *errorReceiver) recvCalls() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.recvCalls_
+}
+
+func newSpyWriter() *spyWriter {
+	return &spyWriter{}
+}
+
+type spyWriter struct {
+	mu      sync.Mutex
+	writes_ int
+}
+
+func (s *spyWriter) Write(*v2.Envelope) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.writes_ += 1
+
+	return nil
+}
+
+func (s *spyWriter) writes() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.writes_
+}
