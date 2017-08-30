@@ -44,7 +44,7 @@ type MetricClient interface {
 
 // NewSubscriber returns a new Subscriber.
 func NewSubscriber(
-	ctx context.Context,
+	ctx context.Context, // TODO Stop saving the context in the struct.
 	p ClientPool,
 	c SyslogConnector,
 	e MetricClient,
