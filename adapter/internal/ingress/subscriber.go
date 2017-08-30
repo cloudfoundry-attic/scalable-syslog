@@ -169,9 +169,6 @@ func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.Writer) 
 		if err != nil {
 			return err
 		}
-		if env.GetLog() == nil {
-			continue
-		}
 
 		s.ingressMetric.Increment(1)
 		// We decided to ignore the error from the writer since in most
@@ -188,12 +185,9 @@ func (s *Subscriber) batchReadWriteLoop(r v2.Egress_BatchedReceiverClient, w egr
 			return err
 		}
 
-		for _, env := range envBatch.Batch {
-			if env.GetLog() == nil {
-				continue
-			}
+		s.ingressMetric.Increment(uint64(len(envBatch.Batch)))
 
-			s.ingressMetric.Increment(1)
+		for _, env := range envBatch.Batch {
 			// We decided to ignore the error from the writer since in most
 			// situations the connector will provide a diode writer and the diode
 			// writer never returns an error.

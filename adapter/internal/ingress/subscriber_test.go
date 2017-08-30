@@ -229,37 +229,6 @@ var _ = Describe("Subscriber", func() {
 		Eventually(receiverCtx.Done).Should(BeClosed())
 	})
 
-	It("ignores non log messages", func() {
-		spyClientPool := newSpyClientPool()
-		spyEmitter := testhelper.NewMetricClient()
-		syslogConnector := newSpySyslogConnector()
-		writer := newSpyWriter()
-		syslogConnector.connect = writer
-		client := newSpyLogsProviderClient()
-		spyClientPool.next = client
-		binding := &v1.Binding{
-			AppId:    "some-app-id",
-			Hostname: "some-host-name",
-			Drain:    "some-drain",
-		}
-		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
-		receiver := newSpyReceiverClient()
-		receiver.recv = buildCounterEnvelope()
-		client.receiverClient = receiver
-		subscriber := ingress.NewSubscriber(
-			context.TODO(),
-			spyClientPool,
-			syslogConnector,
-			spyEmitter,
-			ingress.WithStreamOpenTimeout(500*time.Millisecond),
-		)
-
-		subscriber.Start(binding)
-
-		Eventually(writer.writes).Should(Equal(0))
-		Consistently(writer.writes).Should(Equal(0))
-	})
-
 	It("emits ingress metrics", func() {
 		spyClientPool := newSpyClientPool()
 		spyEmitter := testhelper.NewMetricClient()
