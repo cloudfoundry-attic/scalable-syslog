@@ -60,6 +60,7 @@ func reportCount() {
 		resp, err := http.Post(url, "text/plain", strings.NewReader(countStr))
 		if err != nil {
 			log.Printf("Failed to write count: %s", err)
+			continue
 		}
 
 		if resp.StatusCode != http.StatusOK {
