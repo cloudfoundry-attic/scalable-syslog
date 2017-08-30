@@ -13,7 +13,6 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -176,15 +175,11 @@ func newMockLogsProviderClient() *mockLogsProviderClient {
 	m.ReceiverOutput.Ret1 = make(chan error, 100)
 	return m
 }
-func (m *mockLogsProviderClient) Receiver(ctx context.Context, in *v2.EgressRequest, opts ...grpc.CallOption) (v2.Egress_ReceiverClient, error) {
+func (m *mockLogsProviderClient) Receiver(ctx context.Context, in *v2.EgressRequest) (v2.Egress_ReceiverClient, error) {
 	m.ReceiverCalled <- true
 	m.ReceiverInput.Ctx <- ctx
 	m.ReceiverInput.In <- in
 	return <-m.ReceiverOutput.Ret0, <-m.ReceiverOutput.Ret1
-}
-
-func (m *mockLogsProviderClient) BatchedReceiver(ctx context.Context, in *v2.EgressBatchRequest, opts ...grpc.CallOption) (v2.Egress_BatchedReceiverClient, error) {
-	return nil, nil
 }
 
 type mockContext struct {

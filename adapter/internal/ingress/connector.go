@@ -6,9 +6,8 @@ import (
 	"log"
 
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 )
 
@@ -19,8 +18,7 @@ type Connector struct {
 }
 
 type LogsProviderClient interface {
-	Receiver(ctx context.Context, in *loggregator_v2.EgressRequest, opts ...grpc.CallOption) (loggregator_v2.Egress_ReceiverClient, error)
-	BatchedReceiver(ctx context.Context, in *loggregator_v2.EgressBatchRequest, opts ...grpc.CallOption) (loggregator_v2.Egress_BatchedReceiverClient, error)
+	Receiver(ctx context.Context, in *loggregator_v2.EgressRequest) (loggregator_v2.Egress_ReceiverClient, error)
 }
 
 // NewConnector returns a new Connector
@@ -38,17 +36,12 @@ func (c *Connector) Connect() (io.Closer, LogsProviderClient, error) {
 		return nil, nil, err
 	}
 
-	conn, err := grpc.Dial(
-		hp,
-		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf)),
-	)
-
+	client, closer, err := loggregator.NewRawEgressClient(hp, c.tlsConf)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	client := loggregator_v2.NewEgressClient(conn)
 	log.Println("Created new connection to loggregator egress API")
 
-	return conn, client, nil
+	return closer, client, nil
 }
