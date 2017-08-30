@@ -61,7 +61,7 @@ func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
 	logMsgOption := loggregator.WithAppInfo(
 		r.binding.AppID,
 		"LGR",
-		e.GetTags()["source_instance"].GetText(),
+		e.GetTags()["source_instance"],
 	)
 	logMsgTemplate := "Syslog Drain: Error when writing. Backing off for %s."
 	logTemplate := "failed to write to %s, retrying in %s, err: %s"

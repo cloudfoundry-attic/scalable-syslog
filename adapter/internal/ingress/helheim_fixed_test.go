@@ -13,17 +13,44 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"golang.org/x/net/context"
+	"google.golang.org/grpc/metadata"
 )
 
 type mockReceiverClient struct {
-	v2.Egress_ReceiverClient
 	RecvCalled chan bool
 	RecvOutput struct {
 		Ret0 chan *v2.Envelope
 		Ret1 chan error
 	}
+	HeaderCalled chan bool
+	HeaderOutput struct {
+		Ret0 chan metadata.MD
+		Ret1 chan error
+	}
+	TrailerCalled chan bool
+	TrailerOutput struct {
+		Ret0 chan metadata.MD
+	}
 	CloseSendCalled chan bool
 	CloseSendOutput struct {
+		Ret0 chan error
+	}
+	ContextCalled chan bool
+	ContextOutput struct {
+		Ret0 chan context.Context
+	}
+	SendMsgCalled chan bool
+	SendMsgInput  struct {
+		M chan interface{}
+	}
+	SendMsgOutput struct {
+		Ret0 chan error
+	}
+	RecvMsgCalled chan bool
+	RecvMsgInput  struct {
+		M chan interface{}
+	}
+	RecvMsgOutput struct {
 		Ret0 chan error
 	}
 }
@@ -33,17 +60,52 @@ func newMockReceiverClient() *mockReceiverClient {
 	m.RecvCalled = make(chan bool, 100)
 	m.RecvOutput.Ret0 = make(chan *v2.Envelope, 100)
 	m.RecvOutput.Ret1 = make(chan error, 100)
+	m.HeaderCalled = make(chan bool, 100)
+	m.HeaderOutput.Ret0 = make(chan metadata.MD, 100)
+	m.HeaderOutput.Ret1 = make(chan error, 100)
+	m.TrailerCalled = make(chan bool, 100)
+	m.TrailerOutput.Ret0 = make(chan metadata.MD, 100)
 	m.CloseSendCalled = make(chan bool, 100)
 	m.CloseSendOutput.Ret0 = make(chan error, 100)
+	m.ContextCalled = make(chan bool, 100)
+	m.ContextOutput.Ret0 = make(chan context.Context, 100)
+	m.SendMsgCalled = make(chan bool, 100)
+	m.SendMsgInput.M = make(chan interface{}, 100)
+	m.SendMsgOutput.Ret0 = make(chan error, 100)
+	m.RecvMsgCalled = make(chan bool, 100)
+	m.RecvMsgInput.M = make(chan interface{}, 100)
+	m.RecvMsgOutput.Ret0 = make(chan error, 100)
 	return m
 }
 func (m *mockReceiverClient) Recv() (*v2.Envelope, error) {
 	m.RecvCalled <- true
 	return <-m.RecvOutput.Ret0, <-m.RecvOutput.Ret1
 }
+func (m *mockReceiverClient) Header() (metadata.MD, error) {
+	m.HeaderCalled <- true
+	return <-m.HeaderOutput.Ret0, <-m.HeaderOutput.Ret1
+}
+func (m *mockReceiverClient) Trailer() metadata.MD {
+	m.TrailerCalled <- true
+	return <-m.TrailerOutput.Ret0
+}
 func (m *mockReceiverClient) CloseSend() error {
 	m.CloseSendCalled <- true
 	return <-m.CloseSendOutput.Ret0
+}
+func (m *mockReceiverClient) Context() context.Context {
+	m.ContextCalled <- true
+	return <-m.ContextOutput.Ret0
+}
+func (m *mockReceiverClient) SendMsg(m_ interface{}) error {
+	m.SendMsgCalled <- true
+	m.SendMsgInput.M <- m_
+	return <-m.SendMsgOutput.Ret0
+}
+func (m *mockReceiverClient) RecvMsg(m_ interface{}) error {
+	m.RecvMsgCalled <- true
+	m.RecvMsgInput.M <- m_
+	return <-m.RecvMsgOutput.Ret0
 }
 
 type mockClientPool struct {

@@ -8,9 +8,10 @@ import (
 	"fmt"
 	"log"
 
-	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/internal/api"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 func main() {
@@ -24,12 +25,20 @@ func main() {
 
 	tlsConfig, err := api.NewMutualTLSConfig(*certFile, *keyFile, *caFile, *commonName)
 
-	c, closer, err := loggregator.NewEgressClient(*addr, tlsConfig)
+	conn, err := grpc.Dial(
+		*addr,
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+	)
+	if err != nil {
+		log.Fatalf("Error dialing gRPC: %s", err)
+	}
+
+	c := loggregator_v2.NewEgressClient(conn)
 	if err != nil {
 		log.Fatalf("did not create client: %s", err)
 	}
-	defer closer.Close()
 
+	defer conn.Close()
 	req := &loggregator_v2.EgressRequest{
 		ShardId: "some-shard-id",
 	}
