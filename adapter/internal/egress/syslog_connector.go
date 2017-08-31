@@ -49,6 +49,7 @@ type SyslogConnector struct {
 	egressMetrics  map[string]*pulseemitter.CounterMetric
 	logClient      LogClient
 	wg             WaitGroup
+	sourceIndex    string
 }
 
 // NewSyslogConnector configures and returns a new SyslogConnector.
@@ -57,6 +58,7 @@ func NewSyslogConnector(
 	ioTimeout time.Duration,
 	skipCertVerify bool,
 	wg WaitGroup,
+	sourceIndex string,
 	opts ...ConnectorOption,
 ) *SyslogConnector {
 	sc := &SyslogConnector{
@@ -64,6 +66,7 @@ func NewSyslogConnector(
 		dialTimeout:    dialTimeout,
 		skipCertVerify: skipCertVerify,
 		wg:             wg,
+		sourceIndex:    sourceIndex,
 		logClient:      nullLogClient{},
 		constructors:   make(map[string]WriterConstructor),
 		droppedMetrics: make(map[string]*pulseemitter.CounterMetric),
@@ -162,4 +165,12 @@ func (w *SyslogConnector) emitErrorLog(appID, message string) {
 		"", // source instance is unavailable
 	)
 	w.logClient.EmitLog(message, option)
+
+	option = loggregator.WithAppInfo(
+		appID,
+		"SYS",
+		w.sourceIndex,
+	)
+	w.logClient.EmitLog(message, option)
+
 }

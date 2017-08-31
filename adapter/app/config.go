@@ -23,6 +23,7 @@ type Config struct {
 	SyslogDialTimeout    time.Duration
 	SyslogIOTimeout      time.Duration
 	SyslogSkipCertVerify bool
+	SourceIndex          string
 
 	MetricIngressAddr     string
 	MetricIngressCN       string
@@ -49,6 +50,8 @@ func LoadConfig() *Config {
 	flag.DurationVar(&cfg.SyslogDialTimeout, "syslog-dial-timeout", 5*time.Second, "The timeout for dialing to syslog drains")
 	flag.DurationVar(&cfg.SyslogIOTimeout, "syslog-io-timeout", time.Minute, "The timeout for writing to syslog drains")
 	flag.BoolVar(&cfg.SyslogSkipCertVerify, "syslog-skip-cert-verify", false, "The option to not verify syslog TLS certs")
+
+	flag.StringVar(&cfg.SourceIndex, "source-index", "", "The given index for the adapter")
 
 	flag.StringVar(&cfg.LogsAPIAddr, "logs-api-addr", "", "The address for the logs API")
 	flag.StringVar(&cfg.MetricIngressAddr, "metric-ingress-addr", "", "The ingress adress for the metrics API")

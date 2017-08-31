@@ -71,6 +71,7 @@ func main() {
 		tlsConfig,
 		metricClient,
 		logClient,
+		cfg.SourceIndex,
 		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithAdapterServerAddr(cfg.AdapterHostport),
 		app.WithSyslogDialTimeout(cfg.SyslogDialTimeout),

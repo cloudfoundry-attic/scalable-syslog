@@ -69,13 +69,11 @@ func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
 	var err error
 
 	for i := 0; i < r.maxRetries; i++ {
-		log.Println("attempting write")
 		err = r.writer.Write(e)
-		log.Printf("got err: %s", err)
-
 		if err == nil {
 			return nil
 		}
+
 		if contextDone(r.binding.Context) {
 			return err
 		}

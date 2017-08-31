@@ -44,6 +44,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
+			"3",
 			egress.WithConstructors(map[string]egress.WriterConstructor{
 				"foo": constructor,
 			}),
@@ -76,6 +77,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
+			"3",
 			egress.WithConstructors(map[string]egress.WriterConstructor{
 				"slow": slowConstructor,
 			}),
@@ -98,6 +100,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
+			"3",
 		)
 
 		binding := &v1.Binding{
@@ -114,6 +117,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
+			"3",
 			egress.WithLogClient(logClient),
 		)
 
@@ -124,8 +128,8 @@ var _ = Describe("SyslogConnector", func() {
 
 		_, _ = connector.Connect(ctx, binding)
 
-		Expect(logClient.message()).To(ConsistOf("Invalid syslog drain URL: unsupported protocol"))
-		Expect(logClient.appID()).To(ConsistOf("some-app-id"))
+		Expect(logClient.message()).To(ContainElement("Invalid syslog drain URL: unsupported protocol"))
+		Expect(logClient.appID()).To(ContainElement("some-app-id"))
 		Expect(logClient.sourceType()).To(HaveKey("LGR"))
 	})
 
@@ -135,6 +139,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
+			"3",
 		)
 
 		binding := &v1.Binding{
@@ -145,13 +150,14 @@ var _ = Describe("SyslogConnector", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
-	It("writes an LGR error for inproperly formatted drains", func() {
+	It("writes a LGR error for inproperly formatted drains", func() {
 		logClient := newSpyLogClient()
 		connector := egress.NewSyslogConnector(
 			time.Second,
 			time.Second,
 			true,
 			spyWaitGroup,
+			"3",
 			egress.WithLogClient(logClient),
 		)
 
@@ -162,8 +168,8 @@ var _ = Describe("SyslogConnector", func() {
 
 		_, _ = connector.Connect(ctx, binding)
 
-		Expect(logClient.message()).To(ConsistOf("Invalid syslog drain URL: parse failure"))
-		Expect(logClient.appID()).To(ConsistOf("some-app-id"))
+		Expect(logClient.message()).To(ContainElement("Invalid syslog drain URL: parse failure"))
+		Expect(logClient.appID()).To(ContainElement("some-app-id"))
 		Expect(logClient.sourceType()).To(HaveKey("LGR"))
 	})
 
@@ -183,6 +189,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Second,
 			true,
 			spyWaitGroup,
+			"3",
 			egress.WithConstructors(map[string]egress.WriterConstructor{
 				"protocol": writerConstructor,
 			}),
@@ -197,17 +204,13 @@ var _ = Describe("SyslogConnector", func() {
 		writer, err := connector.Connect(ctx, binding)
 		Expect(err).ToNot(HaveOccurred())
 
-		go func(writer egress.Writer) {
-			for i := 0; i < 500; i++ {
-				writer.Write(&loggregator_v2.Envelope{
-					SourceId: "test-source-id",
-				})
-			}
-		}(writer)
+		for i := 0; i < 500; i++ {
+			writer.Write(&loggregator_v2.Envelope{
+				SourceId: "test-source-id",
+			})
+		}
 
-		Eventually(func() int {
-			return int(egressMetric.GetDelta())
-		}).Should(Equal(500))
+		Eventually(egressMetric.GetDelta).Should(Equal(uint64(500)))
 	})
 
 	Describe("dropping messages", func() {
@@ -232,6 +235,7 @@ var _ = Describe("SyslogConnector", func() {
 				time.Second,
 				true,
 				spyWaitGroup,
+				"3",
 				egress.WithConstructors(map[string]egress.WriterConstructor{
 					"dropping": droppingConstructor,
 				}),
@@ -246,7 +250,7 @@ var _ = Describe("SyslogConnector", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			go func(w egress.Writer) {
-				for i := 0; i < 50000; i++ {
+				for {
 					w.Write(&loggregator_v2.Envelope{
 						SourceId: "test-source-id",
 					})
@@ -256,7 +260,7 @@ var _ = Describe("SyslogConnector", func() {
 			Eventually(droppedMetric.GetDelta).Should(BeNumerically(">", 10000))
 		})
 
-		It("emits a log to the log client about logs that have been dropped", func() {
+		It("emits a LGR and SYS log to the log client about logs that have been dropped", func() {
 			droppedMetric := &pulseemitter.CounterMetric{}
 			binding := &v1.Binding{AppId: "app-id", Drain: "dropping://"}
 			logClient := newSpyLogClient()
@@ -266,6 +270,7 @@ var _ = Describe("SyslogConnector", func() {
 				time.Second,
 				true,
 				spyWaitGroup,
+				"3",
 				egress.WithConstructors(map[string]egress.WriterConstructor{
 					"dropping": droppingConstructor,
 				}),
@@ -288,7 +293,14 @@ var _ = Describe("SyslogConnector", func() {
 
 			Eventually(logClient.message).Should(ContainElement(MatchRegexp("\\d messages lost in user provided syslog drain")))
 			Eventually(logClient.appID).Should(ContainElement("app-id"))
+
+			Eventually(logClient.sourceType).Should(HaveLen(2))
 			Eventually(logClient.sourceType).Should(HaveKey("LGR"))
+			Eventually(logClient.sourceType).Should(HaveKey("SYS"))
+
+			Eventually(logClient.sourceInstance).Should(HaveLen(2))
+			Eventually(logClient.sourceInstance).Should(HaveKey(""))
+			Eventually(logClient.sourceInstance).Should(HaveKey("3"))
 		})
 
 		It("does not panic on unknown dropped metrics", func() {
@@ -299,6 +311,7 @@ var _ = Describe("SyslogConnector", func() {
 				time.Second,
 				true,
 				spyWaitGroup,
+				"3",
 				egress.WithConstructors(map[string]egress.WriterConstructor{
 					"dropping": droppingConstructor,
 				}),

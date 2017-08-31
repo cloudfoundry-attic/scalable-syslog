@@ -54,6 +54,7 @@ type Adapter struct {
 	skipCertVerify         bool
 	health                 *health.Health
 	timeoutWaitGroup       *timeoutwaitgroup.TimeoutWaitGroup
+	sourceIndex            string
 }
 
 // AdapterOption is a type that will manipulate a config
@@ -123,6 +124,7 @@ func NewAdapter(
 	adapterServerTLSConfig *tls.Config,
 	metricClient MetricClient,
 	logClient LogClient,
+	sourceIndex string,
 	opts ...AdapterOption,
 ) *Adapter {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -142,6 +144,7 @@ func NewAdapter(
 		skipCertVerify:         true,
 		health:                 health.NewHealth(),
 		timeoutWaitGroup:       timeoutwaitgroup.New(time.Minute),
+		sourceIndex:            sourceIndex,
 	}
 
 	for _, o := range opts {
@@ -206,6 +209,7 @@ func NewAdapter(
 		a.syslogIOTimeout,
 		a.skipCertVerify,
 		a.timeoutWaitGroup,
+		a.sourceIndex,
 		egress.WithConstructors(constructors),
 		egress.WithDroppedMetrics(droppedMetrics),
 		egress.WithEgressMetrics(egressMetrics),
