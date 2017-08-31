@@ -27,7 +27,7 @@ var _ = Describe("Retry Writer", func() {
 					Context: context.Background(),
 				},
 			}
-			logClient := &spyLogClient{}
+			logClient := newSpyLogClient()
 			r := buildRetryWriter(writeCloser, 1, 0, logClient)
 			env := &v2.Envelope{}
 
@@ -46,7 +46,7 @@ var _ = Describe("Retry Writer", func() {
 					Context: context.Background(),
 				},
 			}
-			logClient := &spyLogClient{}
+			logClient := newSpyLogClient()
 			r := buildRetryWriter(writeCloser, 3, 0, logClient)
 
 			_ = r.Write(&v2.Envelope{})
@@ -63,7 +63,7 @@ var _ = Describe("Retry Writer", func() {
 					Context: context.Background(),
 				},
 			}
-			logClient := &spyLogClient{}
+			logClient := newSpyLogClient()
 			r := buildRetryWriter(writeCloser, 2, 0, logClient)
 
 			err := r.Write(&v2.Envelope{})
@@ -81,7 +81,7 @@ var _ = Describe("Retry Writer", func() {
 					Context: ctx,
 				},
 			}
-			logClient := &spyLogClient{}
+			logClient := newSpyLogClient()
 			r := buildRetryWriter(writeCloser, 2, 0, logClient)
 			cancel()
 
@@ -101,17 +101,17 @@ var _ = Describe("Retry Writer", func() {
 					Context: context.Background(),
 				},
 			}
-			logClient := &spyLogClient{}
+			logClient := newSpyLogClient()
 			r := buildRetryWriter(writeCloser, 2, 0, logClient)
 
 			_ = r.Write(&v2.Envelope{Tags: map[string]string{
 				"source_instance": "a source instance",
 			}})
 
-			Expect(logClient.message()).To(Equal("Syslog Drain: Error when writing. Backing off for 0s."))
-			Expect(logClient.appID()).To(Equal("some-app-id"))
-			Expect(logClient.sourceType()).To(Equal("LGR"))
-			Expect(logClient.sourceInstance()).To(Equal("a source instance"))
+			Expect(logClient.message()).To(ContainElement("Syslog Drain: Error when writing. Backing off for 0s."))
+			Expect(logClient.appID()).To(ContainElement("some-app-id"))
+			Expect(logClient.sourceType()).To(HaveKey("LGR"))
+			Expect(logClient.sourceInstance()).To(HaveKey("a source instance"))
 		})
 	})
 
@@ -122,7 +122,7 @@ var _ = Describe("Retry Writer", func() {
 					URL: &url.URL{},
 				},
 			}
-			logClient := &spyLogClient{}
+			logClient := newSpyLogClient()
 			r := buildRetryWriter(writeCloser, 2, 0, logClient)
 
 			Expect(r.Close()).To(Succeed())
@@ -198,51 +198,62 @@ func (s *spyWriteCloser) WriteAttempts() int {
 }
 
 type spyLogClient struct {
-	mu              sync.Mutex
-	_message        string
-	_appID          string
-	_sourceType     string
-	_sourceInstance string
+	mu       sync.Mutex
+	_message []string
+	_appID   []string
+
+	// We use maps to ensure that we can query the keys
+	_sourceType     map[string]struct{}
+	_sourceInstance map[string]struct{}
+}
+
+func newSpyLogClient() *spyLogClient {
+	return &spyLogClient{
+		_sourceType:     make(map[string]struct{}),
+		_sourceInstance: make(map[string]struct{}),
+	}
 }
 
 func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s._message = message
 	env := &v2.Envelope{
 		Tags: make(map[string]string),
 	}
+
 	for _, o := range opts {
 		o(env)
 	}
-	s._appID = env.SourceId
-	s._sourceType = env.GetTags()["source_type"]
-	s._sourceInstance = env.GetInstanceId()
+
+	s._message = append(s._message, message)
+	s._appID = append(s._appID, env.SourceId)
+	s._sourceType[env.GetTags()["source_type"]] = struct{}{}
+	s._sourceInstance[env.GetInstanceId()] = struct{}{}
 }
 
-func (s *spyLogClient) message() string {
+func (s *spyLogClient) message() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	return s._message
 }
 
-func (s *spyLogClient) appID() string {
+func (s *spyLogClient) appID() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	return s._appID
 }
 
-func (s *spyLogClient) sourceType() string {
+func (s *spyLogClient) sourceType() map[string]struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	return s._sourceType
 }
 
-func (s *spyLogClient) sourceInstance() string {
+func (s *spyLogClient) sourceInstance() map[string]struct{} {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

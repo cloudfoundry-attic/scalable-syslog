@@ -113,6 +113,8 @@ func WithEgressMetrics(metrics map[string]*pulseemitter.CounterMetric) Connector
 	}
 }
 
+// WithLogClient returns a ConnectorOption that will set up logging for any
+// information about a binding.
 func WithLogClient(logClient LogClient) ConnectorOption {
 	return func(sc *SyslogConnector) {
 		sc.logClient = logClient

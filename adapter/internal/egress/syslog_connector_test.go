@@ -108,7 +108,7 @@ var _ = Describe("SyslogConnector", func() {
 	})
 
 	It("writes an LGR error for an unsupported syslog protocol", func() {
-		logClient := &spyLogClient{}
+		logClient := newSpyLogClient()
 		connector := egress.NewSyslogConnector(
 			time.Second,
 			time.Second,
@@ -124,9 +124,9 @@ var _ = Describe("SyslogConnector", func() {
 
 		_, _ = connector.Connect(ctx, binding)
 
-		Expect(logClient.message()).To(Equal("Invalid syslog drain URL: unsupported protocol"))
-		Expect(logClient.appID()).To(Equal("some-app-id"))
-		Expect(logClient.sourceType()).To(Equal("LGR"))
+		Expect(logClient.message()).To(ConsistOf("Invalid syslog drain URL: unsupported protocol"))
+		Expect(logClient.appID()).To(ConsistOf("some-app-id"))
+		Expect(logClient.sourceType()).To(HaveKey("LGR"))
 	})
 
 	It("returns an error for an inproperly formatted drain", func() {
@@ -146,7 +146,7 @@ var _ = Describe("SyslogConnector", func() {
 	})
 
 	It("writes an LGR error for inproperly formatted drains", func() {
-		logClient := &spyLogClient{}
+		logClient := newSpyLogClient()
 		connector := egress.NewSyslogConnector(
 			time.Second,
 			time.Second,
@@ -162,9 +162,9 @@ var _ = Describe("SyslogConnector", func() {
 
 		_, _ = connector.Connect(ctx, binding)
 
-		Expect(logClient.message()).To(Equal("Invalid syslog drain URL: parse failure"))
-		Expect(logClient.appID()).To(Equal("some-app-id"))
-		Expect(logClient.sourceType()).To(Equal("LGR"))
+		Expect(logClient.message()).To(ConsistOf("Invalid syslog drain URL: parse failure"))
+		Expect(logClient.appID()).To(ConsistOf("some-app-id"))
+		Expect(logClient.sourceType()).To(HaveKey("LGR"))
 	})
 
 	It("emits a metric when sending outbound messages", func() {
@@ -259,7 +259,7 @@ var _ = Describe("SyslogConnector", func() {
 		It("emits a log to the log client about logs that have been dropped", func() {
 			droppedMetric := &pulseemitter.CounterMetric{}
 			binding := &v1.Binding{AppId: "app-id", Drain: "dropping://"}
-			logClient := &spyLogClient{}
+			logClient := newSpyLogClient()
 
 			connector := egress.NewSyslogConnector(
 				time.Second,
@@ -279,16 +279,16 @@ var _ = Describe("SyslogConnector", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			go func(w egress.Writer) {
-				for i := 0; i < 50000; i++ {
+				for {
 					w.Write(&loggregator_v2.Envelope{
 						SourceId: "test-source-id",
 					})
 				}
 			}(writer)
 
-			Eventually(logClient.message).Should(MatchRegexp("\\d messages lost in user provided syslog drain"))
-			Eventually(logClient.appID).Should(Equal("app-id"))
-			Eventually(logClient.sourceType).Should(Equal("LGR"))
+			Eventually(logClient.message).Should(ContainElement(MatchRegexp("\\d messages lost in user provided syslog drain")))
+			Eventually(logClient.appID).Should(ContainElement("app-id"))
+			Eventually(logClient.sourceType).Should(HaveKey("LGR"))
 		})
 
 		It("does not panic on unknown dropped metrics", func() {
