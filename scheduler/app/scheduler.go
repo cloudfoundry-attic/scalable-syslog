@@ -22,7 +22,6 @@ type Scheduler struct {
 	apiURL           string
 	adapterAddrs     []string
 	adapterTLSConfig *tls.Config
-	enableOptIn      bool
 	healthAddr       string
 	health           *health.Health
 	emitter          Emitter
@@ -74,15 +73,6 @@ func NewScheduler(
 // SchedulerOption represents a function that can configure a scheduler.
 type SchedulerOption func(c *Scheduler)
 
-// WithOptIn requires users to add `drain-version=2.0` query parameters
-// to opt in to using scalable syslog. This feature is for backwards
-// compatability with legacy syslog drain functionality in loggregator.
-func WithOptIn(enable bool) func(c *Scheduler) {
-	return func(s *Scheduler) {
-		s.enableOptIn = enable
-	}
-}
-
 // WithHealthAddr sets the address for the health endpoint to bind to.
 func WithHealthAddr(addr string) func(*Scheduler) {
 	return func(s *Scheduler) {
@@ -128,10 +118,6 @@ func (s *Scheduler) setupIngress() {
 			Addr:   s.apiURL,
 		},
 	)
-
-	if s.enableOptIn {
-		fetcher = ingress.NewVersionFilter(fetcher)
-	}
 
 	s.fetcher = ingress.NewFilteredBindingFetcher(s.blacklist, fetcher, s.logClient)
 }

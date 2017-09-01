@@ -197,3 +197,12 @@ func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption
 	s.appID = env.SourceId
 	s.sourceType = env.GetTags()["source_type"]
 }
+
+type SpyBindingReader struct {
+	bindings []v1.Binding
+	err      error
+}
+
+func (s *SpyBindingReader) FetchBindings() ([]v1.Binding, error) {
+	return s.bindings, s.err
+}

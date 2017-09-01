@@ -9,6 +9,10 @@ import (
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
+type BindingReader interface {
+	FetchBindings() (appBindings []v1.Binding, err error)
+}
+
 type IPChecker interface {
 	ParseHost(url string) (string, error)
 	ResolveAddr(host string) (net.IP, error)

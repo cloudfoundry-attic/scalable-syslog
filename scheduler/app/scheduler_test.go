@@ -101,45 +101,6 @@ var _ = Describe("Scheduler", func() {
 		Eventually(f).Should(ConsistOf(expectedRequests))
 	})
 
-	It("services only URLs with drain-version=2.0 when opt-in is enabled", func() {
-		dataSource := httptest.NewServer(&fakeCC{
-			results: results{
-				"9be15160-4845-4f05-b089-40e827ba61f1": appBindings{
-					Hostname: "org.space.name",
-					Drains: []string{
-						"syslog://1.1.1.1/?drain-version=2.0",
-						"syslog://2.2.2.2/",
-					},
-				},
-			},
-		})
-		opts := append(defaultOps(), app.WithOptIn(true))
-		_, spyAdapterServers := startScheduler(dataSource.URL, 1, opts)
-		expectedRequests := []*v1.CreateBindingRequest{
-			{
-				Binding: &v1.Binding{
-					AppId:    "9be15160-4845-4f05-b089-40e827ba61f1",
-					Drain:    "syslog://1.1.1.1/?drain-version=2.0",
-					Hostname: "org.space.name",
-				},
-			},
-		}
-		lenCheck := func() int {
-			return len(spyAdapterServers[0].ActualCreateBindingRequest)
-		}
-		Eventually(lenCheck).Should(Equal(1))
-		var actualRequests []*v1.CreateBindingRequest
-		f := func() []*v1.CreateBindingRequest {
-			select {
-			case req := <-spyAdapterServers[0].ActualCreateBindingRequest:
-				actualRequests = append(actualRequests, req)
-			default:
-			}
-			return actualRequests
-		}
-		Eventually(f).Should(ConsistOf(expectedRequests))
-	})
-
 	It("tells the adapters to delete bindings", func() {
 		dataSource := httptest.NewServer(&fakeCC{
 			withEmptyResult: true,
@@ -217,7 +178,7 @@ var _ = Describe("Scheduler", func() {
 				"9be15160-4845-4f05-b089-40e827ba61f1": appBindings{
 					Hostname: "org.space.name",
 					Drains: []string{
-						"syslog://1.1.1.1/?drain-version=2.0",
+						"syslog://1.1.1.1",
 					},
 				},
 			},

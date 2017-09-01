@@ -73,7 +73,6 @@ func main() {
 		adapterTLSConfig,
 		metricClient,
 		logClient,
-		app.WithOptIn(cfg.RequireOptIn),
 		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithHTTPClient(api.NewHTTPSClient(apiTLSConfig, 5*time.Second)),
 		app.WithBlacklist(cfg.Blacklist),
