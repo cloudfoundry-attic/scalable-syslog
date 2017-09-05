@@ -14,7 +14,9 @@ import (
 
 func main() {
 	handler := NewSyslog()
-	go handler.reportCount()
+	if os.Getenv("COUNTER_URL") != "" {
+		go handler.reportCount()
+	}
 
 	http.ListenAndServe(fmt.Sprintf(":%s", os.Getenv("PORT")), handler)
 }
@@ -68,6 +70,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Printf("%s\n", body)
 	if !bytes.Contains(body, []byte("HTTP")) {
 		if bytes.Contains(body, []byte("prime")) {
 			atomic.AddUint64(&h.primeCount, 1)

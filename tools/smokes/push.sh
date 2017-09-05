@@ -76,7 +76,7 @@ function push_counter_app {
 function push_drain_app {
     checkpoint "Pushing Drain App"
 
-    pushd "./${DRAIN_TYPE}_drain"
+    pushd "../${DRAIN_TYPE}_drain"
         if ! [ -e "./${DRAIN_TYPE}_drain" ]; then
             GOOS=linux go build
         fi

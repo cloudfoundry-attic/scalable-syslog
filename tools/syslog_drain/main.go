@@ -32,7 +32,9 @@ func main() {
 
 	log.Print("Listening on " + os.Getenv("PORT"))
 
-	go reportCount()
+	if os.Getenv("COUNTER_URL") != "" {
+		go reportCount()
+	}
 
 	for {
 		conn, err := l.Accept()
@@ -83,6 +85,7 @@ func handleRequest(conn net.Conn) {
 			break
 		}
 
+		fmt.Printf("%s\n", msg.Message)
 		if !bytes.Contains(msg.Message, []byte("HTTP")) {
 			if bytes.Contains(msg.Message, []byte("prime")) {
 				atomic.AddUint64(&primeCount, 1)
