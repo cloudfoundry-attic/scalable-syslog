@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# TODO: receive generated id
+
 # JOB_NAME: the name of the job, this should be unique for each dataset
 # CYCLES: how many log messages to emit
 # DELAY_US: how many microseconds to wait inbetween writing log messages
@@ -14,13 +16,14 @@ set -eu
 source ./shared.sh
 
 function hammer_url {
-    echo "$(app_url "$(drainspinner_app_name)")?cycles=${CYCLES}&delay=${DELAY_US}us&text=live"
+    # TODO: add ID to text param
+    echo "$(app_url "$(drainspinner_app_name)")?cycles=${CYCLES}&delay=${DELAY_US}us&id=$(test_uuid)"
 }
 
 function establish_logs_stream {
     checkpoint "Starting App Logs Stream"
 
-    cf logs "$(drainspinner_app_name)" > output.txt 2>&1 &
+    cf logs "$(drainspinner_app_name)" > output.txt 1>&1 &
     local wait=10
     echo "sleeping for ${wait}s to wait for log stream to be established"
     sleep "$wait"
@@ -40,7 +43,7 @@ function hammer {
 function block_until_count_equals_cycles {
     source ./shared.sh
     while true; do
-        local count=$(curl -s "$(app_url "$(counter_app_name)")/get")
+        local count=$(curl -s "$(app_url "$(counter_app_name)")/get/$(test_uuid)")
         if [ "${count:-0}" -ge "$CYCLES" ]; then
             success "received all messages with count $count"
             break

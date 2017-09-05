@@ -14,6 +14,7 @@ Required environment variables
 
 Usage:
 
+<!-- TODO: add generate id script -->
 ```
 ./push.sh && ./hammer.sh && ./report.sh && ./teardown.sh
 ```

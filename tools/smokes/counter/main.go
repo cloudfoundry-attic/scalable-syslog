@@ -1,19 +1,28 @@
 package main
 
+// TODO: consider backfilling tests
+
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 )
 
+type counter struct {
+	prime uint64
+	msg   uint64
+}
+
 var (
-	primeCount uint64
-	msgCount   uint64
+	mu sync.Mutex
+
+	// TODO This map leaks memory.
+	counters map[string]*counter
 )
 
 func main() {
@@ -22,27 +31,84 @@ func main() {
 		log.SetOutput(ioutil.Discard)
 	}
 
-	http.Handle("/get", http.HandlerFunc(getCountHandler))
-	http.Handle("/get-prime", http.HandlerFunc(getPrimeCountHandler))
+	counters = make(map[string]*counter)
 
-	http.Handle("/set", http.HandlerFunc(setCountHandler))
+	http.Handle("/get/", http.HandlerFunc(getCountHandler))
+	http.Handle("/get-prime/", http.HandlerFunc(getPrimeCountHandler))
+	// TODO: change set to take in a json payload vs a single ID/counters pair
+	http.Handle("/set/", http.HandlerFunc(setCountHandler))
+	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("404 - %+v", r.URL)
+		w.WriteHeader(http.StatusNotFound)
+	}))
 
 	addr := fmt.Sprintf(":%s", os.Getenv("PORT"))
+	log.Print("Listening on " + os.Getenv("PORT"))
 	log.Println(http.ListenAndServe(addr, nil))
+}
+
+func getID(r *http.Request) string {
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 1 {
+		return ""
+	}
+
+	log.Printf("Using ID %s", parts[len(parts)-1])
+	return parts[len(parts)-1]
+}
+
+func getCounter(id string) counter {
+	mu.Lock()
+	defer mu.Unlock()
+	c := counters[id]
+	if c == nil {
+		c = &counter{}
+		counters[id] = c
+	}
+	return *c
+}
+
+func setCounter(id string, prime, msg uint64) {
+	mu.Lock()
+	defer mu.Unlock()
+	c := counters[id]
+	if c == nil {
+		c = &counter{}
+		counters[id] = c
+	}
+	c.prime = prime
+	c.msg = msg
 }
 
 func getCountHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("GET /get")
 
-	w.Write([]byte(fmt.Sprint(atomic.LoadUint64(&msgCount))))
+	counter := getCounter(getID(r))
+
+	w.Write([]byte(fmt.Sprint(counter.msg)))
 }
 
 func getPrimeCountHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("GET /get-prime")
 
-	w.Write([]byte(fmt.Sprint(atomic.LoadUint64(&primeCount))))
+	counter := getCounter(getID(r))
+
+	w.Write([]byte(fmt.Sprint(counter.prime)))
 }
 
+type messageCount struct {
+	ID         string `json:"id"`
+	PrimeCount uint64 `json:"primeCount"`
+	MsgCount   uint64 `json:"msgCount"`
+}
+
+// setCountHandler expects a JSON payload that adheres to the following
+// structure:
+// [{
+//   id: string,
+//   primeCount: number,
+//   msgCount: number,
+// }]
 func setCountHandler(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -50,33 +116,22 @@ func setCountHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
+		log.Printf("Failed to read request body: %s", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	log.Printf("Body: %s", string(body))
 
-	parts := strings.Split(string(body), ":")
-	if len(parts) != 2 {
-		log.Printf("invalid set payload: length not 2: %d", len(parts))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	newPrimeCount, err := strconv.ParseUint(parts[0], 10, 64)
+	var counts []messageCount
+	err = json.Unmarshal(body, &counts)
 	if err != nil {
-		log.Printf("invalid set payload: prime count invalid: %s", parts[0])
+		log.Printf("Failed to unmarshal JSON request body: %s", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	newMsgCount, err := strconv.ParseUint(parts[1], 10, 64)
-	if err != nil {
-		log.Printf("invalid set payload: msg count invalid: %s", parts[1])
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	for _, m := range counts {
+		setCounter(m.ID, m.PrimeCount, m.MsgCount)
 	}
-
-	atomic.SwapUint64(&primeCount, newPrimeCount)
-	atomic.SwapUint64(&msgCount, newMsgCount)
 }

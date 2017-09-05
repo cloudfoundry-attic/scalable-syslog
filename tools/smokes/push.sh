@@ -144,7 +144,7 @@ function prime_service_binding {
 
     # start emitting prime messages
     local timeout_seconds=300
-    curl "$(app_url "$(drainspinner_app_name)")?cycles=$timeout_seconds&delay=1s&text=prime" &> /dev/null
+    curl "$(app_url "$(drainspinner_app_name)")?cycles=$timeout_seconds&delay=1s&primer=true&id=$(test_uuid)" &> /dev/null
 
     export -f block_until_count
     if ! timeout "${timeout_seconds}s" bash -ec "block_until_count"; then
@@ -157,7 +157,7 @@ function block_until_count {
     # wait for first prime message and exit
     source ./shared.sh
     while true; do
-        local count=$(curl -s "$(app_url "$(counter_app_name)")/get-prime")
+        local count=$(curl -s "$(app_url "$(counter_app_name)")/get-prime/$(test_uuid)")
         if [ "${count:-0}" -gt 0 ]; then
             success "received primer message, binding has been setup"
             break

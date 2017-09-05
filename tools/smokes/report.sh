@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# TODO: receive generated id
+
 # JOB_NAME: the name of the job, this should be unique for each dataset
 # CYCLES: how many log messages to emit
 # DELAY_US: how many microseconds to wait inbetween writing log messages
@@ -66,13 +68,13 @@ function main {
 
     local msg_count
     if [ -e output.txt ]; then
-        msg_count=$(grep -c -E 'APP.+live' output.txt)
+        msg_count=$(grep -c -E 'APP.+msgCount' output.txt)
     else
         error "output.txt was not created"
     fi
 
     local drain_msg_count
-    drain_msg_count=$(curl -s "$(app_url "$(counter_app_name)")/get")
+    drain_msg_count=$(curl -s "$(app_url "$(counter_app_name)")/get/$(test_uuid)")
 
     currenttime=$(date +%s)
 

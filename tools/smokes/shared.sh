@@ -111,3 +111,11 @@ function syslog_drain_service_name {
 function syslog_drain_service_url {
     echo "$DRAIN_TYPE://$(app_url $(drain_app_name))/drain?drain-version=$DRAIN_VERSION"
 }
+
+function test_uuid {
+    if [ ! -e /tmp/test_uuid ]; then
+        cat /proc/sys/kernel/random/uuid > /tmp/test_uuid
+    fi
+
+    cat /tmp/test_uuid
+}

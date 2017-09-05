@@ -1,26 +1,27 @@
 package main
 
+// TODO: consider backfilling tests
+
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
-	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"code.cloudfoundry.org/rfc5424"
 )
 
 var (
-	// primeCount will track the primer message count
-	primeCount uint64
-
-	// msgCount will track the actual message count
-	msgCount uint64
+	mu sync.Mutex
+	// TODO: Has a memory leak. Never deletes entries and constantly adding
+	// new and unique keys.
+	counters map[string]*Counter
 )
 
 func main() {
@@ -29,37 +30,39 @@ func main() {
 		log.Fatal(err)
 	}
 	defer l.Close()
-
 	log.Print("Listening on " + os.Getenv("PORT"))
 
+	counters = make(map[string]*Counter)
 	if os.Getenv("COUNTER_URL") != "" {
-		go reportCount()
+		go reportCounts()
 	}
 
 	for {
 		conn, err := l.Accept()
+		log.Printf("Accepted connection")
 		if err != nil {
 			log.Printf("Error accepting: %s", err)
 			continue
 		}
 
-		go handleRequest(conn)
+		go handle(conn)
 	}
 }
 
-func reportCount() {
-	url := os.Getenv("COUNTER_URL") + "/set"
+func reportCounts() {
+	url := os.Getenv("COUNTER_URL") + "/set/"
 	if url == "" {
 		log.Fatalf("Missing COUNTER_URL environment variable")
 	}
 
 	for range time.Tick(time.Second) {
-		newPrimeCount := atomic.LoadUint64(&primeCount)
-		newMsgCount := atomic.LoadUint64(&msgCount)
-		log.Printf("Updating prime count: %d msg count: %d", newPrimeCount, newMsgCount)
+		payload, err := json.Marshal(fetchCounters())
+		if err != nil {
+			log.Panicf("Failed to marshal counters: %s", err)
+		}
 
-		countStr := fmt.Sprintf("%d:%d", newPrimeCount, newMsgCount)
-		resp, err := http.Post(url, "text/plain", strings.NewReader(countStr))
+		log.Printf("Posting %s", string(payload))
+		resp, err := http.Post(url, "application/json", bytes.NewReader(payload))
 		if err != nil {
 			log.Printf("Failed to write count: %s", err)
 			continue
@@ -71,7 +74,7 @@ func reportCount() {
 	}
 }
 
-func handleRequest(conn net.Conn) {
+func handle(conn net.Conn) {
 	defer conn.Close()
 
 	var msg rfc5424.Message
@@ -82,17 +85,55 @@ func handleRequest(conn net.Conn) {
 				return
 			}
 			log.Printf("ReadFrom err: %s", err)
-			break
+			return
 		}
 
-		fmt.Printf("%s\n", msg.Message)
-		if !bytes.Contains(msg.Message, []byte("HTTP")) {
-			if bytes.Contains(msg.Message, []byte("prime")) {
-				atomic.AddUint64(&primeCount, 1)
-			}
-			if bytes.Contains(msg.Message, []byte("live")) {
-				atomic.AddUint64(&msgCount, 1)
-			}
+		if bytes.Contains(msg.Message, []byte("HTTP")) {
+			continue
 		}
+
+		var msgCounts messageCount
+		err = json.Unmarshal(msg.Message, &msgCounts)
+		if err != nil {
+			log.Printf("Failed to unmarshal (via JSON) message (%s): %s", string(msg.Message), err)
+			continue
+		}
+
+		mu.Lock()
+		c, ok := counters[msgCounts.ID]
+		if !ok {
+			c = new(Counter)
+			counters[msgCounts.ID] = c
+		}
+		c.primeCount += msgCounts.PrimeCount
+		c.msgCount += msgCounts.MsgCount
+		mu.Unlock()
 	}
+}
+
+type Counter struct {
+	primeCount uint64
+	msgCount   uint64
+}
+
+type messageCount struct {
+	ID         string `json:"id"`
+	PrimeCount uint64 `json:"primeCount"`
+	MsgCount   uint64 `json:"msgCount"`
+}
+
+// fetchCounters extracts the current counter list and returns a slice of
+// results in a thread safe manner.
+func fetchCounters() []messageCount {
+	mu.Lock()
+	defer mu.Unlock()
+	var results []messageCount
+	for k, v := range counters {
+		results = append(results, messageCount{
+			ID:         k,
+			PrimeCount: v.primeCount,
+			MsgCount:   v.msgCount,
+		})
+	}
+	return results
 }
