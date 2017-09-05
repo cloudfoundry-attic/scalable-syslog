@@ -80,6 +80,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("Body: %s", string(body))
+
 	msg := rfc5424.Message{}
 	err = msg.UnmarshalBinary(body)
 	if err != nil {

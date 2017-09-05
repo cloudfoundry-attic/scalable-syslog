@@ -92,6 +92,8 @@ func handle(conn net.Conn) {
 			continue
 		}
 
+		log.Printf("Msg %s", string(msg.Message))
+
 		var msgCounts messageCount
 		err = json.Unmarshal(msg.Message, &msgCounts)
 		if err != nil {
