@@ -13,6 +13,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 // Scheduler represents the scheduler component. It is responsible for polling
@@ -125,7 +126,16 @@ func (s *Scheduler) setupIngress() {
 func (s *Scheduler) startEgress() {
 	creds := credentials.NewTLS(s.adapterTLSConfig)
 
-	pool := egress.NewAdapterPool(s.adapterAddrs, s.health, grpc.WithTransportCredentials(creds))
+	kp := keepalive.ClientParameters{
+		Time:                15 * time.Second,
+		Timeout:             15 * time.Second,
+		PermitWithoutStream: true,
+	}
+
+	pool := egress.NewAdapterPool(s.adapterAddrs, s.health,
+		grpc.WithTransportCredentials(creds),
+		grpc.WithKeepaliveParams(kp),
+	)
 	s.adapterService = egress.NewAdapterService(pool)
 	orchestrator := egress.NewOrchestrator(s.adapterAddrs, s.fetcher, s.adapterService, s.health, s.emitter)
 	go orchestrator.Run(s.interval)

@@ -4,10 +4,12 @@ import (
 	"crypto/tls"
 	"io"
 	"log"
+	"time"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 )
@@ -47,9 +49,16 @@ func (c *Connector) Connect() (io.Closer, LogsProviderClient, error) {
 		return nil, nil, err
 	}
 
+	kp := keepalive.ClientParameters{
+		Time:                15 * time.Second,
+		Timeout:             15 * time.Second,
+		PermitWithoutStream: true,
+	}
+
 	conn, err := grpc.Dial(
 		hp,
 		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf)),
+		grpc.WithKeepaliveParams(kp),
 	)
 
 	if err != nil {

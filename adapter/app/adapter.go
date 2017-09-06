@@ -20,6 +20,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 // MetricClient is used to emit metrics.
@@ -238,9 +239,15 @@ func (a *Adapter) Start() error {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
+	kp := keepalive.EnforcementPolicy{
+		MinTime:             10 * time.Second,
+		PermitWithoutStream: true,
+	}
+
 	adapterServer := binding.NewAdapterServer(a.bindingManager, a.health)
 	grpcServer := grpc.NewServer(
 		grpc.Creds(credentials.NewTLS(a.adapterServerTLSConfig)),
+		grpc.KeepaliveEnforcementPolicy(kp),
 	)
 	v1.RegisterAdapterServer(grpcServer, adapterServer)
 
