@@ -30,11 +30,12 @@ type AdapterServicer interface {
 
 // Orchestrator manages writes to a number of adapters.
 type Orchestrator struct {
-	addrs      []string
-	reader     BindingReader
-	service    AdapterServicer
-	health     HealthEmitter
-	drainGauge pulseemitter.GaugeMetric
+	addrs        []string
+	reader       BindingReader
+	service      AdapterServicer
+	health       HealthEmitter
+	drainGauge   pulseemitter.GaugeMetric
+	adapterGauge pulseemitter.GaugeMetric
 }
 
 type MetricEmitter interface {
@@ -55,12 +56,17 @@ func NewOrchestrator(
 		pulseemitter.WithVersion(2, 0),
 	)
 
+	adapterGauge := m.NewGaugeMetric("adapters", "count",
+		pulseemitter.WithVersion(2, 0),
+	)
+
 	return &Orchestrator{
-		addrs:      addrs,
-		reader:     r,
-		service:    s,
-		health:     h,
-		drainGauge: drainGauge,
+		addrs:        addrs,
+		reader:       r,
+		service:      s,
+		health:       h,
+		drainGauge:   drainGauge,
+		adapterGauge: adapterGauge,
 	}
 }
 
@@ -80,6 +86,9 @@ func (o *Orchestrator) Run(interval time.Duration) {
 		o.drainGauge.Set(int64(len(freshBindings)))
 
 		actual := o.service.List()
+
+		// The length of actual will be the number of adapters that responded.
+		o.adapterGauge.Set(int64(len(actual)))
 
 		desired := desiredState(freshBindings, pullActiveAddrs(actual, o.addrs))
 		o.service.Transition(actual, desired)

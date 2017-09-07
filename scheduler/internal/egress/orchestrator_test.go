@@ -79,6 +79,7 @@ var _ = Describe("Orchestrator", func() {
 
 		Eventually(adapterService.lastDesiredTransition).ShouldNot(BeEmpty())
 		Expect(adapterService.lastDesiredTransition()).ToNot(HaveKey("invalid-addr"))
+		Expect(metricClient.GetMetric("adapters").GaugeValue()).To(Equal(int64(1)))
 	})
 
 	DescribeTable("it evenly distributes bindings across adapter addrs", func(adapterCount, bindingCount int, dist []int) {
