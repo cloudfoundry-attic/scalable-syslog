@@ -10,6 +10,7 @@ import (
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
+	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -33,7 +34,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Duration,
 			time.Duration,
 			bool,
-			*pulseemitter.CounterMetric,
+			pulseemitter.CounterMetric,
 		) egress.WriteCloser {
 			called = true
 			return &SleepWriterCloser{metric: nullMetric{}}
@@ -64,7 +65,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Duration,
 			time.Duration,
 			bool,
-			*pulseemitter.CounterMetric,
+			pulseemitter.CounterMetric,
 		) egress.WriteCloser {
 			return &SleepWriterCloser{
 				metric:   nullMetric{},
@@ -179,11 +180,11 @@ var _ = Describe("SyslogConnector", func() {
 			_ time.Duration,
 			_ time.Duration,
 			_ bool,
-			m *pulseemitter.CounterMetric,
+			m pulseemitter.CounterMetric,
 		) egress.WriteCloser {
 			return &SleepWriterCloser{metric: m, duration: 0}
 		}
-		egressMetric := &pulseemitter.CounterMetric{}
+		egressMetric := &testhelper.SpyMetric{}
 		connector := egress.NewSyslogConnector(
 			time.Second,
 			time.Second,
@@ -193,7 +194,7 @@ var _ = Describe("SyslogConnector", func() {
 			egress.WithConstructors(map[string]egress.WriterConstructor{
 				"protocol": writerConstructor,
 			}),
-			egress.WithEgressMetrics(map[string]*pulseemitter.CounterMetric{
+			egress.WithEgressMetrics(map[string]pulseemitter.CounterMetric{
 				"protocol": egressMetric,
 			}),
 		)
@@ -210,7 +211,7 @@ var _ = Describe("SyslogConnector", func() {
 			})
 		}
 
-		Eventually(egressMetric.GetDelta).Should(Equal(uint64(500)))
+		Eventually(egressMetric.Delta).Should(Equal(uint64(500)))
 	})
 
 	Describe("dropping messages", func() {
@@ -219,7 +220,7 @@ var _ = Describe("SyslogConnector", func() {
 			time.Duration,
 			time.Duration,
 			bool,
-			*pulseemitter.CounterMetric,
+			pulseemitter.CounterMetric,
 		) egress.WriteCloser {
 			return &SleepWriterCloser{
 				metric:   nullMetric{},
@@ -228,7 +229,7 @@ var _ = Describe("SyslogConnector", func() {
 		}
 
 		It("emits a metric on dropped messages", func() {
-			droppedMetric := &pulseemitter.CounterMetric{}
+			droppedMetric := &testhelper.SpyMetric{}
 
 			connector := egress.NewSyslogConnector(
 				time.Second,
@@ -239,7 +240,7 @@ var _ = Describe("SyslogConnector", func() {
 				egress.WithConstructors(map[string]egress.WriterConstructor{
 					"dropping": droppingConstructor,
 				}),
-				egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{
+				egress.WithDroppedMetrics(map[string]pulseemitter.CounterMetric{
 					"dropping": droppedMetric,
 				}),
 			)
@@ -257,11 +258,11 @@ var _ = Describe("SyslogConnector", func() {
 				}
 			}(writer)
 
-			Eventually(droppedMetric.GetDelta).Should(BeNumerically(">", 10000))
+			Eventually(droppedMetric.Delta).Should(BeNumerically(">", 10000))
 		})
 
 		It("emits a LGR and SYS log to the log client about logs that have been dropped", func() {
-			droppedMetric := &pulseemitter.CounterMetric{}
+			droppedMetric := &testhelper.SpyMetric{}
 			binding := &v1.Binding{AppId: "app-id", Drain: "dropping://"}
 			logClient := newSpyLogClient()
 
@@ -274,7 +275,7 @@ var _ = Describe("SyslogConnector", func() {
 				egress.WithConstructors(map[string]egress.WriterConstructor{
 					"dropping": droppingConstructor,
 				}),
-				egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{
+				egress.WithDroppedMetrics(map[string]pulseemitter.CounterMetric{
 					"dropping": droppedMetric,
 				}),
 				egress.WithLogClient(logClient),
@@ -315,7 +316,7 @@ var _ = Describe("SyslogConnector", func() {
 				egress.WithConstructors(map[string]egress.WriterConstructor{
 					"dropping": droppingConstructor,
 				}),
-				egress.WithDroppedMetrics(map[string]*pulseemitter.CounterMetric{}),
+				egress.WithDroppedMetrics(map[string]pulseemitter.CounterMetric{}),
 			)
 
 			writer, err := connector.Connect(ctx, binding)

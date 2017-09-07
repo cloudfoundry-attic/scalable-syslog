@@ -45,8 +45,8 @@ type SyslogConnector struct {
 	ioTimeout      time.Duration
 	dialTimeout    time.Duration
 	constructors   map[string]WriterConstructor
-	droppedMetrics map[string]*pulseemitter.CounterMetric
-	egressMetrics  map[string]*pulseemitter.CounterMetric
+	droppedMetrics map[string]pulseemitter.CounterMetric
+	egressMetrics  map[string]pulseemitter.CounterMetric
 	logClient      LogClient
 	wg             WaitGroup
 	sourceIndex    string
@@ -69,8 +69,8 @@ func NewSyslogConnector(
 		sourceIndex:    sourceIndex,
 		logClient:      nullLogClient{},
 		constructors:   make(map[string]WriterConstructor),
-		droppedMetrics: make(map[string]*pulseemitter.CounterMetric),
-		egressMetrics:  make(map[string]*pulseemitter.CounterMetric),
+		droppedMetrics: make(map[string]pulseemitter.CounterMetric),
+		egressMetrics:  make(map[string]pulseemitter.CounterMetric),
 	}
 	for _, o := range opts {
 		o(sc)
@@ -85,7 +85,7 @@ type WriterConstructor func(
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
-	egressMetric *pulseemitter.CounterMetric,
+	egressMetric pulseemitter.CounterMetric,
 ) WriteCloser
 
 // ConnectorOption allows a syslog connector to be customized.
@@ -102,7 +102,7 @@ func WithConstructors(constructors map[string]WriterConstructor) ConnectorOption
 
 // WithDroppedMetrics allows users to configure the dropped metrics which will
 // be emitted when a syslog writer drops messages
-func WithDroppedMetrics(metrics map[string]*pulseemitter.CounterMetric) ConnectorOption {
+func WithDroppedMetrics(metrics map[string]pulseemitter.CounterMetric) ConnectorOption {
 	return func(sc *SyslogConnector) {
 		sc.droppedMetrics = metrics
 	}
@@ -110,7 +110,7 @@ func WithDroppedMetrics(metrics map[string]*pulseemitter.CounterMetric) Connecto
 
 // WithEgressMetrics allows users to configure the dropped metrics which will
 // be emitted when a syslog writer drops messages
-func WithEgressMetrics(metrics map[string]*pulseemitter.CounterMetric) ConnectorOption {
+func WithEgressMetrics(metrics map[string]pulseemitter.CounterMetric) ConnectorOption {
 	return func(sc *SyslogConnector) {
 		sc.egressMetrics = metrics
 	}

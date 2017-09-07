@@ -34,12 +34,12 @@ type Subscriber struct {
 	ctx               context.Context
 	pool              ClientPool
 	connector         SyslogConnector
-	ingressMetric     *pulseemitter.CounterMetric
+	ingressMetric     pulseemitter.CounterMetric
 	streamOpenTimeout time.Duration
 }
 
 type MetricClient interface {
-	NewCounterMetric(string, ...pulseemitter.MetricOption) *pulseemitter.CounterMetric
+	NewCounterMetric(string, ...pulseemitter.MetricOption) pulseemitter.CounterMetric
 }
 
 // NewSubscriber returns a new Subscriber.

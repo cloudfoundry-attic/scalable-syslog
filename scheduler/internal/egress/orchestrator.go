@@ -34,11 +34,11 @@ type Orchestrator struct {
 	reader     BindingReader
 	service    AdapterServicer
 	health     HealthEmitter
-	drainGauge *pulseemitter.GaugeMetric
+	drainGauge pulseemitter.GaugeMetric
 }
 
 type MetricEmitter interface {
-	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) *pulseemitter.GaugeMetric
+	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) pulseemitter.GaugeMetric
 }
 
 // NewOrchestrator creates a new orchestrator.
@@ -80,6 +80,7 @@ func (o *Orchestrator) Run(interval time.Duration) {
 		o.drainGauge.Set(int64(len(freshBindings)))
 
 		actual := o.service.List()
+
 		desired := desiredState(freshBindings, pullActiveAddrs(actual, o.addrs))
 		o.service.Transition(actual, desired)
 	}

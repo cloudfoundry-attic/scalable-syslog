@@ -32,12 +32,14 @@ var _ = Describe("Orchestrator", func() {
 			actualState: actualState,
 		}
 
+		spyMetricEmitter := testhelper.NewMetricClient()
+
 		o := egress.NewOrchestrator(
 			nil,
 			&SpyReader{},
 			adapterService,
 			&SpyHealthEmitter{},
-			testhelper.NewMetricClient(),
+			spyMetricEmitter,
 		)
 		go o.Run(time.Millisecond)
 
@@ -58,6 +60,8 @@ var _ = Describe("Orchestrator", func() {
 			actualState: actualState,
 		}
 
+		metricClient := testhelper.NewMetricClient()
+
 		o := egress.NewOrchestrator(
 			[]string{"test-addr", "invalid-addr"},
 			&SpyReader{drains: []v1.Binding{
@@ -69,7 +73,7 @@ var _ = Describe("Orchestrator", func() {
 			}},
 			adapterService,
 			&SpyHealthEmitter{},
-			testhelper.NewMetricClient(),
+			metricClient,
 		)
 		go o.Run(time.Millisecond)
 

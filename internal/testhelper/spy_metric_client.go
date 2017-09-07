@@ -1,32 +1,67 @@
 package testhelper
 
-import "code.cloudfoundry.org/go-loggregator/pulseemitter"
+import (
+	"sync"
+
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
+)
 
 type SpyMetricClient struct {
-	counterMetrics map[string]*pulseemitter.CounterMetric
-
-	GaugeMetric *pulseemitter.GaugeMetric
+	metrics map[string]*SpyMetric
 }
 
 func NewMetricClient() *SpyMetricClient {
 	return &SpyMetricClient{
-		counterMetrics: make(map[string]*pulseemitter.CounterMetric),
+		metrics: make(map[string]*SpyMetric),
 	}
 }
 
-func (s *SpyMetricClient) NewCounterMetric(name string, opts ...pulseemitter.MetricOption) *pulseemitter.CounterMetric {
-	m := &pulseemitter.CounterMetric{}
-	s.counterMetrics[name] = m
+func (s *SpyMetricClient) NewCounterMetric(name string, opts ...pulseemitter.MetricOption) pulseemitter.CounterMetric {
+	m := &SpyMetric{}
+	s.metrics[name] = m
 
 	return m
 }
 
-func (s *SpyMetricClient) NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) *pulseemitter.GaugeMetric {
-	s.GaugeMetric = pulseemitter.NewGaugeMetric(name, unit, opts...)
+func (s *SpyMetricClient) NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) pulseemitter.GaugeMetric {
+	m := &SpyMetric{}
+	s.metrics[name] = m
 
-	return s.GaugeMetric
+	return m
 }
 
-func (s *SpyMetricClient) GetDelta(name string) uint64 {
-	return s.counterMetrics[name].GetDelta()
+func (s *SpyMetricClient) GetMetric(name string) *SpyMetric {
+	return s.metrics[name]
+}
+
+type SpyMetric struct {
+	mu         sync.Mutex
+	delta      uint64
+	gaugeValue int64
+}
+
+func (s *SpyMetric) Increment(c uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.delta += c
+}
+
+func (s *SpyMetric) Emit(c pulseemitter.LoggClient) {}
+
+func (s *SpyMetric) Set(c int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.gaugeValue = c
+}
+
+func (s *SpyMetric) Delta() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.delta
+}
+
+func (s *SpyMetric) GaugeValue() int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.gaugeValue
 }

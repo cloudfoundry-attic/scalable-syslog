@@ -18,7 +18,7 @@ func NewTLSWriter(
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
-	egressMetric *pulseemitter.CounterMetric,
+	egressMetric pulseemitter.CounterMetric,
 ) WriteCloser {
 
 	dialer := &net.Dialer{

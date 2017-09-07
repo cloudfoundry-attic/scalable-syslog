@@ -24,7 +24,7 @@ func RetryWrapper(
 		dialTimeout time.Duration,
 		ioTimeout time.Duration,
 		skipCertVerify bool,
-		egressMetric *pulseemitter.CounterMetric,
+		egressMetric pulseemitter.CounterMetric,
 	) WriteCloser {
 		writer := wc(
 			binding,

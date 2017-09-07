@@ -8,9 +8,9 @@ import (
 	"net/url"
 	"time"
 
-	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
+	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
@@ -40,12 +40,12 @@ var _ = Describe("TCPWriter", func() {
 	Describe("Write()", func() {
 		var (
 			writer        egress.WriteCloser
-			egressCounter *pulseemitter.CounterMetric
+			egressCounter *testhelper.SpyMetric
 		)
 
 		BeforeEach(func() {
 			var err error
-			egressCounter = new(pulseemitter.CounterMetric)
+			egressCounter = &testhelper.SpyMetric{}
 
 			writer = egress.NewTCPWriter(
 				binding,
@@ -131,7 +131,7 @@ var _ = Describe("TCPWriter", func() {
 			env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
 			writer.Write(env)
 
-			Expect(egressCounter.GetDelta()).To(Equal(uint64(1)))
+			Expect(egressCounter.Delta()).To(Equal(uint64(1)))
 		})
 	})
 
@@ -145,7 +145,7 @@ var _ = Describe("TCPWriter", func() {
 				time.Second,
 				time.Second,
 				false,
-				&pulseemitter.CounterMetric{},
+				&testhelper.SpyMetric{},
 			)
 
 			errs := make(chan error, 1)
@@ -170,7 +170,7 @@ var _ = Describe("TCPWriter", func() {
 					time.Second,
 					time.Second,
 					false,
-					new(pulseemitter.CounterMetric),
+					&testhelper.SpyMetric{},
 				)
 				Expect(err).ToNot(HaveOccurred())
 

@@ -36,7 +36,7 @@ type Scheduler struct {
 
 // Emitter sends gauge metrics
 type Emitter interface {
-	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) *pulseemitter.GaugeMetric
+	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) pulseemitter.GaugeMetric
 }
 
 // LogClient is used to emit logs.

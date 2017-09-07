@@ -25,7 +25,7 @@ import (
 
 // MetricClient is used to emit metrics.
 type MetricClient interface {
-	NewCounterMetric(string, ...pulseemitter.MetricOption) *pulseemitter.CounterMetric
+	NewCounterMetric(string, ...pulseemitter.MetricOption) pulseemitter.CounterMetric
 }
 
 // LogClient is used to emit logs.
@@ -181,7 +181,7 @@ func NewAdapter(
 		),
 	}
 
-	droppedMetrics := map[string]*pulseemitter.CounterMetric{
+	droppedMetrics := map[string]pulseemitter.CounterMetric{
 		// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
 		// when sending to a syslog drain over https.
 		"https": buildMetric(metricClient, "https", "dropped"),
@@ -193,7 +193,7 @@ func NewAdapter(
 		"syslog-tls": buildMetric(metricClient, "syslog-tls", "dropped"),
 	}
 
-	egressMetrics := map[string]*pulseemitter.CounterMetric{
+	egressMetrics := map[string]pulseemitter.CounterMetric{
 		// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
 		// to a syslog drain over https.
 		"https": buildMetric(metricClient, "https", "egress"),
@@ -224,7 +224,7 @@ func NewAdapter(
 	return a
 }
 
-func buildMetric(m MetricClient, protocol, name string) *pulseemitter.CounterMetric {
+func buildMetric(m MetricClient, protocol, name string) pulseemitter.CounterMetric {
 	return m.NewCounterMetric(
 		name,
 		pulseemitter.WithVersion(2, 0),

@@ -29,7 +29,7 @@ type TCPWriter struct {
 	scheme    string
 	conn      net.Conn
 
-	egressMetric *pulseemitter.CounterMetric
+	egressMetric pulseemitter.CounterMetric
 }
 
 // NewTCPWriter creates a new TCP syslog writer.
@@ -38,7 +38,7 @@ func NewTCPWriter(
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
-	egressMetric *pulseemitter.CounterMetric,
+	egressMetric pulseemitter.CounterMetric,
 ) WriteCloser {
 	dialer := &net.Dialer{
 		Timeout: dialTimeout,

@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"time"
 
-	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/rfc5424"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
+	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -26,7 +26,7 @@ var _ = Describe("HTTPWriter", func() {
 			time.Second,
 			time.Second,
 			false,
-			new(pulseemitter.CounterMetric),
+			&testhelper.SpyMetric{},
 		)
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -46,7 +46,7 @@ var _ = Describe("HTTPWriter", func() {
 			time.Second,
 			time.Second,
 			true,
-			new(pulseemitter.CounterMetric),
+			&testhelper.SpyMetric{},
 		)
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -67,7 +67,7 @@ var _ = Describe("HTTPWriter", func() {
 			time.Second,
 			time.Second,
 			true,
-			new(pulseemitter.CounterMetric),
+			&testhelper.SpyMetric{},
 		)
 
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -88,7 +88,7 @@ var _ = Describe("HTTPWriter", func() {
 			time.Second,
 			time.Second,
 			true,
-			new(pulseemitter.CounterMetric),
+			&testhelper.SpyMetric{},
 		)
 
 		env1 := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
@@ -130,7 +130,7 @@ var _ = Describe("HTTPWriter", func() {
 
 	It("emits an egress metric for each message", func() {
 		drain := newMockOKDrain()
-		metric := new(pulseemitter.CounterMetric)
+		metric := &testhelper.SpyMetric{}
 
 		b := buildURLBinding(
 			drain.URL,
@@ -149,7 +149,7 @@ var _ = Describe("HTTPWriter", func() {
 		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
 		writer.Write(env)
 
-		Expect(metric.GetDelta()).To(Equal(uint64(1)))
+		Expect(metric.Delta()).To(Equal(uint64(1)))
 	})
 
 	It("ignores non-log envelopes", func() {
@@ -166,7 +166,7 @@ var _ = Describe("HTTPWriter", func() {
 			time.Second,
 			time.Second,
 			true,
-			new(pulseemitter.CounterMetric),
+			&testhelper.SpyMetric{},
 		)
 
 		counterEnv := buildCounterEnvelope()

@@ -10,8 +10,8 @@ import (
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/test_util"
+	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 
-	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 
 	. "github.com/onsi/ginkgo"
@@ -47,7 +47,7 @@ var _ = Describe("TLSWriter", func() {
 			Hostname: "test-hostname",
 			URL:      url,
 		}
-		egressCounter := new(pulseemitter.CounterMetric)
+		egressCounter := &testhelper.SpyMetric{}
 		writer := egress.NewTLSWriter(
 			binding,
 			time.Second,
@@ -81,6 +81,6 @@ var _ = Describe("TLSWriter", func() {
 		Expect(actual).To(Equal(expected))
 
 		By("emit an egress metric for each message")
-		Expect(egressCounter.GetDelta()).To(Equal(uint64(1)))
+		Expect(egressCounter.Delta()).To(Equal(uint64(1)))
 	})
 })

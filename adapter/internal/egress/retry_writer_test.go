@@ -290,7 +290,7 @@ func buildRetryWriter(
 			dialTimeout time.Duration,
 			ioTimeout time.Duration,
 			skipCertVerify bool,
-			egressMetric *pulseemitter.CounterMetric,
+			egressMetric pulseemitter.CounterMetric,
 		) egress.WriteCloser {
 			return w
 		},

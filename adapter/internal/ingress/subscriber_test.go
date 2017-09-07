@@ -256,9 +256,7 @@ var _ = Describe("Subscriber", func() {
 
 		subscriber.Start(binding)
 
-		Eventually(func() uint64 {
-			return spyEmitter.GetDelta("ingress")
-		}).Should(Equal(uint64(1)))
+		Eventually(spyEmitter.GetMetric("ingress").Delta).Should(Equal(uint64(1)))
 	})
 
 })

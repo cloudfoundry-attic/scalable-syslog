@@ -20,7 +20,7 @@ type HTTPSWriter struct {
 	appID        string
 	url          *url.URL
 	client       *http.Client
-	egressMetric *pulseemitter.CounterMetric
+	egressMetric pulseemitter.CounterMetric
 }
 
 func NewHTTPSWriter(
@@ -28,7 +28,7 @@ func NewHTTPSWriter(
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
-	egressMetric *pulseemitter.CounterMetric,
+	egressMetric pulseemitter.CounterMetric,
 ) WriteCloser {
 
 	client := httpClient(dialTimeout, ioTimeout, skipCertVerify)
