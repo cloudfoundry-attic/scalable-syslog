@@ -116,12 +116,10 @@ func (s *Subscriber) Start(binding *v1.Binding) func() {
 	}
 
 	switch url.Query().Get("drain-type") {
-	case "":
+	case "", "logs":
 		// Use default filter
 	case "metrics":
 		filter = nil
-	case "logs":
-		// Use default filter
 	case "all":
 		// TODO: filter should get logs and metrics
 		filter = &v2.Filter{
