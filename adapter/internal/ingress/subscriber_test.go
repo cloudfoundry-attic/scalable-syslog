@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
@@ -29,6 +30,7 @@ var _ = Describe("Subscriber", func() {
 		syslogConnector.connect = writer
 		client := newSpyLogsProviderClient()
 		spyClientPool.next = client
+		logClient := newSpyLogClient()
 		batchedReceiverClient := newSpyBatchedReceiverClient()
 		batchedReceiverClient.recv = buildBatchedLogs(3)
 		client.batchedReceiverClient = batchedReceiverClient
@@ -38,6 +40,7 @@ var _ = Describe("Subscriber", func() {
 			syslogConnector,
 			spyEmitter,
 			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+			ingress.WithLogClient(logClient, "123"),
 		)
 
 		binding := &v1.Binding{
@@ -53,6 +56,8 @@ var _ = Describe("Subscriber", func() {
 		Expect(client.batchedReceiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
 		Expect(client.batchedReceiverRequest().UsePreferredTags).To(BeTrue())
 		Eventually(writer.writes).Should(Equal(3))
+
+		Expect(logClient.message()).To(BeEmpty())
 	})
 
 	It("opens a stream with an egress client when batching is unavailable", func() {
@@ -259,6 +264,78 @@ var _ = Describe("Subscriber", func() {
 		Eventually(spyEmitter.GetMetric("ingress").Delta).Should(Equal(uint64(1)))
 	})
 
+	Describe("drain-type option", func() {
+		It("does not read/write logs if drain-type is metrics", func() {
+			spyClientPool := newSpyClientPool()
+			spyEmitter := testhelper.NewMetricClient()
+			syslogConnector := newSpySyslogConnector()
+			writer := newSpyWriter()
+			syslogConnector.connect = writer
+			client := newSpyLogsProviderClient()
+			spyClientPool.next = client
+			batchedReceiverClient := newSpyBatchedReceiverClient()
+			batchedReceiverClient.recv = buildBatchedLogs(3)
+			client.batchedReceiverClient = batchedReceiverClient
+			subscriber := ingress.NewSubscriber(
+				context.TODO(),
+				spyClientPool,
+				syslogConnector,
+				spyEmitter,
+				ingress.WithStreamOpenTimeout(500*time.Millisecond),
+			)
+
+			binding := &v1.Binding{
+				AppId:    "some-app-id",
+				Hostname: "some-host-name",
+				Drain:    "https://some-drain?drain-type=metrics",
+			}
+			subscriber.Start(binding)
+
+			Consistently(client.batchedReceiverRequest).Should(BeNil())
+			Consistently(writer.writes).Should(Equal(0))
+		})
+
+		It("emits a log to the logstream on invalid drain-type", func() {
+			spyClientPool := newSpyClientPool()
+			spyEmitter := testhelper.NewMetricClient()
+			syslogConnector := newSpySyslogConnector()
+			writer := newSpyWriter()
+			syslogConnector.connect = writer
+			client := newSpyLogsProviderClient()
+			logClient := newSpyLogClient()
+			spyClientPool.next = client
+			batchedReceiverClient := newSpyBatchedReceiverClient()
+			batchedReceiverClient.recv = buildBatchedLogs(3)
+			client.batchedReceiverClient = batchedReceiverClient
+			subscriber := ingress.NewSubscriber(
+				context.TODO(),
+				spyClientPool,
+				syslogConnector,
+				spyEmitter,
+				ingress.WithStreamOpenTimeout(500*time.Millisecond),
+				ingress.WithLogClient(logClient, "some-source-index"),
+			)
+
+			binding := &v1.Binding{
+				AppId:    "some-app-id",
+				Hostname: "some-host-name",
+				Drain:    "https://some-drain?drain-type=false-drain",
+			}
+			subscriber.Start(binding)
+
+			Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
+			Expect(client.batchedReceiverRequest().Filter.GetSourceId()).To(Equal(binding.AppId))
+			Expect(client.batchedReceiverRequest().Filter.GetLog()).ToNot(BeNil())
+			Expect(client.batchedReceiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
+			Expect(client.batchedReceiverRequest().UsePreferredTags).To(BeTrue())
+			Eventually(writer.writes).Should(Equal(3))
+
+			Expect(logClient.message()).To(ContainElement("Invalid drain-type"))
+			Expect(logClient.appID()).To(ContainElement("some-app-id"))
+			Expect(logClient.sourceType()).To(HaveKey("SYS"))
+			Expect(logClient.sourceInstance()).To(HaveKey("some-source-index"))
+		})
+	})
 })
 
 type spyCloseWriter struct {
@@ -572,4 +649,79 @@ func (s *spyWriter) writes() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.writes_
+}
+
+type spyLogClient struct {
+	mu       sync.Mutex
+	_message []string
+	_appID   []string
+
+	// We use maps to ensure that we can query the keys
+	_sourceType     map[string]struct{}
+	_sourceInstance map[string]struct{}
+}
+
+func newSpyLogClient() *spyLogClient {
+	return &spyLogClient{
+		_sourceType:     make(map[string]struct{}),
+		_sourceInstance: make(map[string]struct{}),
+	}
+}
+
+func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	env := &v2.Envelope{
+		Tags: make(map[string]string),
+	}
+
+	for _, o := range opts {
+		o(env)
+	}
+
+	s._message = append(s._message, message)
+	s._appID = append(s._appID, env.SourceId)
+	s._sourceType[env.GetTags()["source_type"]] = struct{}{}
+	s._sourceInstance[env.GetInstanceId()] = struct{}{}
+}
+
+func (s *spyLogClient) message() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s._message
+}
+
+func (s *spyLogClient) appID() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s._appID
+}
+
+func (s *spyLogClient) sourceType() map[string]struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Copy map so the orig does not escape the mutex and induce a race.
+	m := make(map[string]struct{})
+	for k := range s._sourceType {
+		m[k] = struct{}{}
+	}
+
+	return m
+}
+
+func (s *spyLogClient) sourceInstance() map[string]struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Copy map so the orig does not escape the mutex and induce a race.
+	m := make(map[string]struct{})
+	for k := range s._sourceInstance {
+		m[k] = struct{}{}
+	}
+
+	return m
 }

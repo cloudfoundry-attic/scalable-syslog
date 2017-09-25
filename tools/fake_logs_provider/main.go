@@ -77,6 +77,15 @@ func buildEnvelope(isLog bool, sourceId string, id int) *loggregator_v2.Envelope
 	}
 }
 
+func buildEnvelopes(isLog bool, sourceId string, id int) []*loggregator_v2.Envelope {
+	var envelopes []*loggregator_v2.Envelope
+	for i := 0; i < 100; i++ {
+		envelopes = append(envelopes, buildEnvelope(isLog, sourceId, id))
+	}
+
+	return envelopes
+}
+
 type testEgressServer struct {
 	addr_      string
 	cn         string
@@ -154,8 +163,19 @@ func (t *testEgressServer) Receiver(r *loggregator_v2.EgressRequest, server logg
 	return nil
 }
 
-func (t *testEgressServer) BatchedReceiver(*loggregator_v2.EgressBatchRequest, loggregator_v2.Egress_BatchedReceiverServer) error {
-	return nil
+func (t *testEgressServer) BatchedReceiver(r *loggregator_v2.EgressBatchRequest, server loggregator_v2.Egress_BatchedReceiverServer) error {
+	var i int
+	for {
+		e := buildEnvelopes(i%2 == 0, r.GetFilter().GetSourceId(), i)
+
+		log.Printf("sending envelope: %d", i)
+		if err := server.Send(&loggregator_v2.EnvelopeBatch{Batch: e}); err != nil {
+			return err
+		}
+		log.Printf("sent envelope: %d", i)
+		i++
+		time.Sleep(t.delay)
+	}
 }
 
 func (t *testEgressServer) start() error {

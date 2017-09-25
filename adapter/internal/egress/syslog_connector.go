@@ -58,7 +58,6 @@ func NewSyslogConnector(
 	ioTimeout time.Duration,
 	skipCertVerify bool,
 	wg WaitGroup,
-	sourceIndex string,
 	opts ...ConnectorOption,
 ) *SyslogConnector {
 	sc := &SyslogConnector{
@@ -66,7 +65,6 @@ func NewSyslogConnector(
 		dialTimeout:    dialTimeout,
 		skipCertVerify: skipCertVerify,
 		wg:             wg,
-		sourceIndex:    sourceIndex,
 		logClient:      nullLogClient{},
 		constructors:   make(map[string]WriterConstructor),
 		droppedMetrics: make(map[string]pulseemitter.CounterMetric),
@@ -118,9 +116,10 @@ func WithEgressMetrics(metrics map[string]pulseemitter.CounterMetric) ConnectorO
 
 // WithLogClient returns a ConnectorOption that will set up logging for any
 // information about a binding.
-func WithLogClient(logClient LogClient) ConnectorOption {
+func WithLogClient(logClient LogClient, sourceIndex string) ConnectorOption {
 	return func(sc *SyslogConnector) {
 		sc.logClient = logClient
+		sc.sourceIndex = sourceIndex
 	}
 }
 

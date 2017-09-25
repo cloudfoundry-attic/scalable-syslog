@@ -2,8 +2,10 @@ package ingress
 
 import (
 	"log"
+	"net/url"
 	"time"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/egress"
@@ -21,11 +23,32 @@ type SyslogConnector interface {
 	Connect(ctx context.Context, binding *v1.Binding) (w egress.Writer, err error)
 }
 
+// LogClient is used to emit logs.
+type LogClient interface {
+	EmitLog(message string, opts ...loggregator.EmitLogOption)
+}
+
+// nullLogClient ensures that the LogClient is in fact optional.
+type nullLogClient struct{}
+
+// EmitLog drops all messages into /dev/null.
+func (nullLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
+}
+
 type SubscriberOption func(s *Subscriber)
 
 func WithStreamOpenTimeout(d time.Duration) SubscriberOption {
 	return func(s *Subscriber) {
 		s.streamOpenTimeout = d
+	}
+}
+
+// WithLogClient returns a SubscriberOption that will set up logging for any
+// information about a binding.
+func WithLogClient(logClient LogClient, sourceIndex string) SubscriberOption {
+	return func(s *Subscriber) {
+		s.logClient = logClient
+		s.sourceIndex = sourceIndex
 	}
 }
 
@@ -35,7 +58,9 @@ type Subscriber struct {
 	pool              ClientPool
 	connector         SyslogConnector
 	ingressMetric     pulseemitter.CounterMetric
+	logClient         LogClient
 	streamOpenTimeout time.Duration
+	sourceIndex       string
 }
 
 type MetricClient interface {
@@ -61,6 +86,7 @@ func NewSubscriber(
 		pool:              p,
 		connector:         c,
 		ingressMetric:     ingressMetric,
+		logClient:         nullLogClient{},
 		streamOpenTimeout: 2 * time.Second,
 	}
 
@@ -77,21 +103,57 @@ func NewSubscriber(
 func (s *Subscriber) Start(binding *v1.Binding) func() {
 	ctx, cancel := context.WithCancel(s.ctx)
 
-	go s.connectAndRead(ctx, binding)
+	url, err := url.Parse(binding.Drain)
+	if err != nil {
+		return cancel
+	}
+
+	filter := &v2.Filter{
+		SourceId: binding.AppId,
+		Message: &v2.Filter_Log{
+			Log: &v2.LogFilter{},
+		},
+	}
+
+	switch url.Query().Get("drain-type") {
+	case "":
+		// Use default filter
+	case "metrics":
+		filter = nil
+	case "logs":
+		// Use default filter
+	case "all":
+		// TODO: filter should get logs and metrics
+		filter = &v2.Filter{
+			SourceId: binding.AppId,
+			Message: &v2.Filter_Log{
+				Log: &v2.LogFilter{},
+			},
+		}
+	default:
+		// Use default filter
+		s.emitErrorLog(binding.AppId, "Invalid drain-type")
+	}
+
+	if filter == nil {
+		return cancel
+	}
+
+	go s.connectAndRead(ctx, binding, filter)
 
 	return cancel
 }
 
-func (s *Subscriber) connectAndRead(ctx context.Context, binding *v1.Binding) {
+func (s *Subscriber) connectAndRead(ctx context.Context, binding *v1.Binding, filter *v2.Filter) {
 	for !isDone(ctx) {
-		cont := s.attemptConnectAndRead(ctx, binding)
+		cont := s.attemptConnectAndRead(ctx, binding, filter)
 		if !cont {
 			return
 		}
 	}
 }
 
-func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Binding) bool {
+func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Binding, filter *v2.Filter) bool {
 	var cancel func()
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
@@ -117,12 +179,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 	batchReceiver, err := client.BatchedReceiver(ctx, &v2.EgressBatchRequest{
 		ShardId:          buildShardId(binding),
 		UsePreferredTags: true,
-		Filter: &v2.Filter{
-			SourceId: binding.AppId,
-			Message: &v2.Filter_Log{
-				Log: &v2.LogFilter{},
-			},
-		},
+		Filter:           filter,
 	})
 
 	status, ok := status.FromError(err)
@@ -131,12 +188,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		receiver, err := client.Receiver(ctx, &v2.EgressRequest{
 			ShardId:          buildShardId(binding),
 			UsePreferredTags: true,
-			Filter: &v2.Filter{
-				SourceId: binding.AppId,
-				Message: &v2.Filter_Log{
-					Log: &v2.LogFilter{},
-				},
-			},
+			Filter:           filter,
 		})
 		close(ready)
 		if err != nil {
@@ -194,6 +246,15 @@ func (s *Subscriber) batchReadWriteLoop(r v2.Egress_BatchedReceiverClient, w egr
 			_ = w.Write(env)
 		}
 	}
+}
+
+func (s *Subscriber) emitErrorLog(appID, message string) {
+	option := loggregator.WithAppInfo(
+		appID,
+		"SYS",
+		s.sourceIndex,
+	)
+	s.logClient.EmitLog(message, option)
 }
 
 func isDone(ctx context.Context) bool {

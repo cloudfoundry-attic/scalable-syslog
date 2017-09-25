@@ -210,13 +210,18 @@ func NewAdapter(
 		a.syslogIOTimeout,
 		a.skipCertVerify,
 		a.timeoutWaitGroup,
-		a.sourceIndex,
 		egress.WithConstructors(constructors),
 		egress.WithDroppedMetrics(droppedMetrics),
 		egress.WithEgressMetrics(egressMetrics),
-		egress.WithLogClient(logClient),
+		egress.WithLogClient(logClient, a.sourceIndex),
 	)
-	subscriber := ingress.NewSubscriber(a.ctx, clientManager, syslogConnector, metricClient)
+	subscriber := ingress.NewSubscriber(
+		a.ctx,
+		clientManager,
+		syslogConnector,
+		metricClient,
+		ingress.WithLogClient(logClient, a.sourceIndex),
+	)
 
 	a.bindingManager = binding.NewBindingManager(subscriber)
 	a.healthAddr = health.StartServer(a.health, a.healthAddr)
