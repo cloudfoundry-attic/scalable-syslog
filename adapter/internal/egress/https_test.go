@@ -128,6 +128,55 @@ var _ = Describe("HTTPWriter", func() {
 		Expect(drain.messages[2].ProcessID).To(Equal("[CELL]"))
 	})
 
+	It("writes container metrics to the http drain", func() {
+		drain := newMockOKDrain()
+
+		b := buildURLBinding(
+			drain.URL,
+			"test-app-id",
+			"test-hostname",
+		)
+
+		writer := egress.NewHTTPSWriter(
+			b,
+			time.Second,
+			time.Second,
+			true,
+			&testhelper.SpyMetric{},
+		)
+
+		env1 := buildGaugeEnvelope("1")
+		Expect(writer.Write(env1)).To(Succeed())
+
+		Expect(drain.messages).To(HaveLen(5))
+
+		Expect(drain.messages[0].StructuredData).To(HaveLen(1))
+		Expect(drain.messages[0].StructuredData[0].ID).To(Equal("gauge@47450"))
+
+		sdValues := func(msgs []*rfc5424.Message, name string) []string {
+			var sd rfc5424.StructuredData
+			for _, msg := range msgs {
+				if msg.StructuredData[0].Parameters[0].Value == name {
+					sd = msg.StructuredData[0]
+					break
+				}
+			}
+
+			data := make([]string, 0, 3)
+			for _, param := range sd.Parameters {
+				data = append(data, param.Value)
+			}
+
+			return data
+		}
+
+		Expect(sdValues(drain.messages, "cpu")).To(ConsistOf("cpu", "0.23", "percentage"))
+		Expect(sdValues(drain.messages, "disk")).To(ConsistOf("disk", "1234", "bytes"))
+		Expect(sdValues(drain.messages, "disk_quota")).To(ConsistOf("disk_quota", "1024", "bytes"))
+		Expect(sdValues(drain.messages, "memory")).To(ConsistOf("memory", "5423", "bytes"))
+		Expect(sdValues(drain.messages, "memory_quota")).To(ConsistOf("memory_quota", "8000", "bytes"))
+	})
+
 	It("emits an egress metric for each message", func() {
 		drain := newMockOKDrain()
 		metric := &testhelper.SpyMetric{}

@@ -68,10 +68,8 @@ func buildEnvelope(isLog bool, sourceId string, id int) *loggregator_v2.Envelope
 		SourceId:  sourceId,
 		Message: &loggregator_v2.Envelope_Counter{
 			Counter: &loggregator_v2.Counter{
-				Name: "some-counter-name",
-				Value: &loggregator_v2.Counter_Delta{
-					Delta: 42,
-				},
+				Name:  "some-counter-name",
+				Delta: 42,
 			},
 		},
 	}
@@ -149,7 +147,7 @@ func (t *testEgressServer) addr() string {
 func (t *testEgressServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator_v2.Egress_ReceiverServer) error {
 	var i int
 	for {
-		e := buildEnvelope(i%2 == 0, r.GetFilter().GetSourceId(), i)
+		e := buildEnvelope(i%2 == 0, r.GetLegacySelector().GetSourceId(), i)
 
 		log.Printf("sending envelope: %d", i)
 		if err := server.Send(e); err != nil {
@@ -166,7 +164,7 @@ func (t *testEgressServer) Receiver(r *loggregator_v2.EgressRequest, server logg
 func (t *testEgressServer) BatchedReceiver(r *loggregator_v2.EgressBatchRequest, server loggregator_v2.Egress_BatchedReceiverServer) error {
 	var i int
 	for {
-		e := buildEnvelopes(i%2 == 0, r.GetFilter().GetSourceId(), i)
+		e := buildEnvelopes(i%2 == 0, r.GetLegacySelector().GetSourceId(), i)
 
 		log.Printf("sending envelope: %d", i)
 		if err := server.Send(&loggregator_v2.EnvelopeBatch{Batch: e}); err != nil {

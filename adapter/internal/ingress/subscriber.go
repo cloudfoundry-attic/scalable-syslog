@@ -108,50 +108,26 @@ func (s *Subscriber) Start(binding *v1.Binding) func() {
 		return cancel
 	}
 
-	filter := &v2.Filter{
-		SourceId: binding.AppId,
-		Message: &v2.Filter_Log{
-			Log: &v2.LogFilter{},
-		},
-	}
-
-	switch url.Query().Get("drain-type") {
-	case "", "logs":
-		// Use default filter
-	case "metrics":
-		filter = nil
-	case "all":
-		// TODO: filter should get logs and metrics
-		filter = &v2.Filter{
-			SourceId: binding.AppId,
-			Message: &v2.Filter_Log{
-				Log: &v2.LogFilter{},
-			},
-		}
-	default:
-		// Use default filter
+	selectors, ok := buildRequestSelectors(binding.AppId, url.Query().Get("drain-type"))
+	if !ok {
 		s.emitErrorLog(binding.AppId, "Invalid drain-type")
 	}
 
-	if filter == nil {
-		return cancel
-	}
-
-	go s.connectAndRead(ctx, binding, filter)
+	go s.connectAndRead(ctx, binding, selectors)
 
 	return cancel
 }
 
-func (s *Subscriber) connectAndRead(ctx context.Context, binding *v1.Binding, filter *v2.Filter) {
+func (s *Subscriber) connectAndRead(ctx context.Context, binding *v1.Binding, selectors []*v2.Selector) {
 	for !isDone(ctx) {
-		cont := s.attemptConnectAndRead(ctx, binding, filter)
+		cont := s.attemptConnectAndRead(ctx, binding, selectors)
 		if !cont {
 			return
 		}
 	}
 }
 
-func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Binding, filter *v2.Filter) bool {
+func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Binding, selectors []*v2.Selector) bool {
 	var cancel func()
 	ctx, cancel = context.WithCancel(ctx)
 	defer cancel()
@@ -177,7 +153,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 	batchReceiver, err := client.BatchedReceiver(ctx, &v2.EgressBatchRequest{
 		ShardId:          buildShardId(binding),
 		UsePreferredTags: true,
-		Filter:           filter,
+		Selectors:        selectors,
 	})
 
 	status, ok := status.FromError(err)
@@ -186,7 +162,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		receiver, err := client.Receiver(ctx, &v2.EgressRequest{
 			ShardId:          buildShardId(binding),
 			UsePreferredTags: true,
-			Filter:           filter,
+			Selectors:        selectors,
 		})
 		close(ready)
 		if err != nil {
@@ -266,4 +242,51 @@ func isDone(ctx context.Context) bool {
 
 func buildShardId(binding *v1.Binding) (key string) {
 	return binding.AppId + binding.Hostname + binding.Drain
+}
+
+func buildRequestSelectors(appID, drainType string) ([]*v2.Selector, bool) {
+	switch drainType {
+	case "", "logs":
+		return []*v2.Selector{
+			{
+				SourceId: appID,
+				Message: &v2.Selector_Log{
+					Log: &v2.LogSelector{},
+				},
+			},
+		}, true
+	case "metrics":
+		return []*v2.Selector{
+			{
+				SourceId: appID,
+				Message: &v2.Selector_Gauge{
+					Gauge: &v2.GaugeSelector{},
+				},
+			},
+		}, true
+	case "all":
+		return []*v2.Selector{
+			{
+				SourceId: appID,
+				Message: &v2.Selector_Log{
+					Log: &v2.LogSelector{},
+				},
+			},
+			{
+				SourceId: appID,
+				Message: &v2.Selector_Gauge{
+					Gauge: &v2.GaugeSelector{},
+				},
+			},
+		}, true
+	default:
+		return []*v2.Selector{
+			{
+				SourceId: appID,
+				Message: &v2.Selector_Log{
+					Log: &v2.LogSelector{},
+				},
+			},
+		}, false
+	}
 }

@@ -94,6 +94,31 @@ var _ = Describe("TCPWriter", func() {
 			Entry("other source type", "other", "1", "OTHER/1", 91),
 		)
 
+		It("writes container metrics to the tcp drain", func() {
+			env := buildGaugeEnvelope("1")
+			Expect(writer.Write(env)).To(Succeed())
+
+			conn, err := listener.Accept()
+			Expect(err).ToNot(HaveOccurred())
+			buf := bufio.NewReader(conn)
+
+			var msgs []string
+			for i := 0; i < 5; i++ {
+				actual, err := buf.ReadString('\n')
+				Expect(err).ToNot(HaveOccurred())
+
+				msgs = append(msgs, actual)
+			}
+
+			Expect(msgs).To(ConsistOf(
+				"128 <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [1] - [gauge@47450 name=\"cpu\" value=\"0.23\" unit=\"percentage\"] \n",
+				"124 <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [1] - [gauge@47450 name=\"disk\" value=\"1234\" unit=\"bytes\"] \n",
+				"130 <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [1] - [gauge@47450 name=\"disk_quota\" value=\"1024\" unit=\"bytes\"] \n",
+				"126 <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [1] - [gauge@47450 name=\"memory\" value=\"5423\" unit=\"bytes\"] \n",
+				"132 <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [1] - [gauge@47450 name=\"memory_quota\" value=\"8000\" unit=\"bytes\"] \n",
+			))
+		})
+
 		It("strips null termination char from message", func() {
 			env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
 			Expect(writer.Write(env)).To(Succeed())
@@ -210,6 +235,40 @@ func buildLogEnvelope(srcType, srcInstance, payload string, logType loggregator_
 			Log: &loggregator_v2.Log{
 				Payload: []byte(payload),
 				Type:    logType,
+			},
+		},
+	}
+}
+
+func buildGaugeEnvelope(srcInstance string) *loggregator_v2.Envelope {
+	return &loggregator_v2.Envelope{
+		InstanceId: srcInstance,
+		Timestamp:  12345678,
+		SourceId:   "source-id",
+		Message: &loggregator_v2.Envelope_Gauge{
+			Gauge: &loggregator_v2.Gauge{
+				Metrics: map[string]*loggregator_v2.GaugeValue{
+					"cpu": &loggregator_v2.GaugeValue{
+						Unit:  "percentage",
+						Value: 0.23,
+					},
+					"disk": &loggregator_v2.GaugeValue{
+						Unit:  "bytes",
+						Value: 1234.0,
+					},
+					"disk_quota": &loggregator_v2.GaugeValue{
+						Unit:  "bytes",
+						Value: 1024.0,
+					},
+					"memory": &loggregator_v2.GaugeValue{
+						Unit:  "bytes",
+						Value: 5423.0,
+					},
+					"memory_quota": &loggregator_v2.GaugeValue{
+						Unit:  "bytes",
+						Value: 8000.0,
+					},
+				},
 			},
 		},
 	}

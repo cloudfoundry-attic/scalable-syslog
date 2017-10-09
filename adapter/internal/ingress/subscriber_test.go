@@ -51,8 +51,8 @@ var _ = Describe("Subscriber", func() {
 		subscriber.Start(binding)
 
 		Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
-		Expect(client.batchedReceiverRequest().Filter.GetSourceId()).To(Equal(binding.AppId))
-		Expect(client.batchedReceiverRequest().Filter.GetLog()).ToNot(BeNil())
+		Expect(client.batchedReceiverRequest().Selectors[0].GetSourceId()).To(Equal(binding.AppId))
+		Expect(client.batchedReceiverRequest().Selectors[0].GetLog()).ToNot(BeNil())
 		Expect(client.batchedReceiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
 		Expect(client.batchedReceiverRequest().UsePreferredTags).To(BeTrue())
 		Eventually(writer.writes).Should(Equal(3))
@@ -88,8 +88,8 @@ var _ = Describe("Subscriber", func() {
 		subscriber.Start(binding)
 
 		Eventually(client.receiverRequest).ShouldNot(BeNil())
-		Expect(client.receiverRequest().Filter.GetSourceId()).To(Equal(binding.AppId))
-		Expect(client.receiverRequest().Filter.GetLog()).ToNot(BeNil())
+		Expect(client.receiverRequest().Selectors[0].GetSourceId()).To(Equal(binding.AppId))
+		Expect(client.receiverRequest().Selectors[0].GetLog()).ToNot(BeNil())
 		Expect(client.receiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
 		Expect(client.receiverRequest().UsePreferredTags).To(BeTrue())
 		Eventually(writer.writes).Should(Equal(1))
@@ -265,48 +265,139 @@ var _ = Describe("Subscriber", func() {
 	})
 
 	Describe("drain-type option", func() {
-		It("does not read/write logs if drain-type is metrics", func() {
-			spyClientPool := newSpyClientPool()
-			spyEmitter := testhelper.NewMetricClient()
-			syslogConnector := newSpySyslogConnector()
-			writer := newSpyWriter()
+		var (
+			spyClientPool         *spyClientPool
+			spyEmitter            *testhelper.SpyMetricClient
+			syslogConnector       *spySyslogConnector
+			writer                *spyWriter
+			client                *spyLogsProviderClient
+			logClient             *spyLogClient
+			batchedReceiverClient *spyBatchedReceiverClient
+		)
+
+		BeforeEach(func() {
+			spyClientPool = newSpyClientPool()
+			spyEmitter = testhelper.NewMetricClient()
+			syslogConnector = newSpySyslogConnector()
+			writer = newSpyWriter()
 			syslogConnector.connect = writer
-			client := newSpyLogsProviderClient()
+			client = newSpyLogsProviderClient()
 			spyClientPool.next = client
-			batchedReceiverClient := newSpyBatchedReceiverClient()
+			batchedReceiverClient = newSpyBatchedReceiverClient()
 			batchedReceiverClient.recv = buildBatchedLogs(3)
 			client.batchedReceiverClient = batchedReceiverClient
-			subscriber := ingress.NewSubscriber(
-				context.TODO(),
-				spyClientPool,
-				syslogConnector,
-				spyEmitter,
-				ingress.WithStreamOpenTimeout(500*time.Millisecond),
-			)
+			logClient = newSpyLogClient()
+		})
 
-			binding := &v1.Binding{
-				AppId:    "some-app-id",
-				Hostname: "some-host-name",
-				Drain:    "https://some-drain?drain-type=metrics",
-			}
-			subscriber.Start(binding)
+		Context("when drain-type is empty", func() {
+			It("requests only logs", func() {
+				subscriber := ingress.NewSubscriber(
+					context.TODO(),
+					spyClientPool,
+					syslogConnector,
+					spyEmitter,
+					ingress.WithStreamOpenTimeout(500*time.Millisecond),
+				)
 
-			Consistently(client.batchedReceiverRequest).Should(BeNil())
-			Consistently(writer.writes).Should(Equal(0))
+				binding := &v1.Binding{
+					AppId:    "some-app-id",
+					Hostname: "some-host-name",
+					Drain:    "https://some-drain",
+				}
+				subscriber.Start(binding)
+
+				Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
+
+				req := client.batchedReceiverRequest()
+				Expect(req.GetSelectors()).To(HaveLen(1))
+
+				selector := req.GetSelectors()[0]
+				Expect(selector.GetLog()).ToNot(BeNil())
+			})
+		})
+
+		Context("when drain-type is logs", func() {
+			It("requests only logs", func() {
+				subscriber := ingress.NewSubscriber(
+					context.TODO(),
+					spyClientPool,
+					syslogConnector,
+					spyEmitter,
+					ingress.WithStreamOpenTimeout(500*time.Millisecond),
+				)
+
+				binding := &v1.Binding{
+					AppId:    "some-app-id",
+					Hostname: "some-host-name",
+					Drain:    "https://some-drain?drain-type=logs",
+				}
+				subscriber.Start(binding)
+
+				Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
+
+				req := client.batchedReceiverRequest()
+				Expect(req.GetSelectors()).To(HaveLen(1))
+
+				selector := req.GetSelectors()[0]
+				Expect(selector.GetLog()).ToNot(BeNil())
+			})
+		})
+
+		Context("when drain-type is metrics", func() {
+			It("requests only gauge metrics", func() {
+				subscriber := ingress.NewSubscriber(
+					context.TODO(),
+					spyClientPool,
+					syslogConnector,
+					spyEmitter,
+					ingress.WithStreamOpenTimeout(500*time.Millisecond),
+				)
+
+				binding := &v1.Binding{
+					AppId:    "some-app-id",
+					Hostname: "some-host-name",
+					Drain:    "https://some-drain?drain-type=metrics",
+				}
+				subscriber.Start(binding)
+
+				Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
+
+				req := client.batchedReceiverRequest()
+				Expect(req.GetSelectors()).To(HaveLen(1))
+
+				selector := req.GetSelectors()[0]
+				Expect(selector.GetGauge()).ToNot(BeNil())
+			})
+		})
+
+		Context("when drain-type is all", func() {
+			It("requests logs and gauge metrics", func() {
+				subscriber := ingress.NewSubscriber(
+					context.TODO(),
+					spyClientPool,
+					syslogConnector,
+					spyEmitter,
+					ingress.WithStreamOpenTimeout(500*time.Millisecond),
+				)
+
+				binding := &v1.Binding{
+					AppId:    "some-app-id",
+					Hostname: "some-host-name",
+					Drain:    "https://some-drain?drain-type=all",
+				}
+				subscriber.Start(binding)
+
+				Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
+
+				req := client.batchedReceiverRequest()
+				Expect(req.GetSelectors()).To(HaveLen(2))
+
+				Expect(req.GetSelectors()[0].GetLog()).ToNot(BeNil())
+				Expect(req.GetSelectors()[1].GetGauge()).ToNot(BeNil())
+			})
 		})
 
 		It("emits a log to the logstream on invalid drain-type", func() {
-			spyClientPool := newSpyClientPool()
-			spyEmitter := testhelper.NewMetricClient()
-			syslogConnector := newSpySyslogConnector()
-			writer := newSpyWriter()
-			syslogConnector.connect = writer
-			client := newSpyLogsProviderClient()
-			logClient := newSpyLogClient()
-			spyClientPool.next = client
-			batchedReceiverClient := newSpyBatchedReceiverClient()
-			batchedReceiverClient.recv = buildBatchedLogs(3)
-			client.batchedReceiverClient = batchedReceiverClient
 			subscriber := ingress.NewSubscriber(
 				context.TODO(),
 				spyClientPool,
@@ -324,8 +415,8 @@ var _ = Describe("Subscriber", func() {
 			subscriber.Start(binding)
 
 			Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
-			Expect(client.batchedReceiverRequest().Filter.GetSourceId()).To(Equal(binding.AppId))
-			Expect(client.batchedReceiverRequest().Filter.GetLog()).ToNot(BeNil())
+			Expect(client.batchedReceiverRequest().Selectors[0].GetSourceId()).To(Equal(binding.AppId))
+			Expect(client.batchedReceiverRequest().Selectors[0].GetLog()).ToNot(BeNil())
 			Expect(client.batchedReceiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
 			Expect(client.batchedReceiverRequest().UsePreferredTags).To(BeTrue())
 			Eventually(writer.writes).Should(Equal(3))

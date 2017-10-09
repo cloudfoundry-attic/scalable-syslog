@@ -43,29 +43,27 @@ func NewHTTPSWriter(
 }
 
 func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
-	if env.GetLog() == nil {
-		return nil
+	msgs := generateRFC5424Messages(env, w.hostname, w.appID)
+	for _, msg := range msgs {
+		b, err := msg.MarshalBinary()
+		if err != nil {
+			return err
+		}
+
+		resp, err := w.client.Post(w.url.String(), "text/plain", bytes.NewBuffer(b))
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < 200 || resp.StatusCode > 299 {
+			return fmt.Errorf("Syslog Writer: Post responded with %d status code", resp.StatusCode)
+		}
+
+		io.Copy(ioutil.Discard, resp.Body)
+
+		w.egressMetric.Increment(1)
 	}
-
-	msg := generateRFC5424Message(env, w.hostname, w.appID)
-	b, err := msg.MarshalBinary()
-	if err != nil {
-		return err
-	}
-
-	resp, err := w.client.Post(w.url.String(), "text/plain", bytes.NewBuffer(b))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("Syslog Writer: Post responded with %d status code", resp.StatusCode)
-	}
-
-	io.Copy(ioutil.Discard, resp.Body)
-
-	w.egressMetric.Increment(1)
 
 	return nil
 }

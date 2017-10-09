@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +14,11 @@ import (
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/rfc5424"
 )
+
+// gaugeStructuredDataID contains the registered enterprise ID for the Cloud
+// Foundry Foundation.
+// See: https://www.iana.org/assignments/enterprise-numbers/enterprise-numbers
+const gaugeStructuredDataID = "gauge@47450"
 
 // DialFunc represents a method for creating a connection, either TCP or TLS.
 type DialFunc func(addr string) (net.Conn, error)
@@ -91,45 +97,83 @@ func (w *TCPWriter) Close() error {
 	return nil
 }
 
-func generateRFC5424Message(
+func generateRFC5424Messages(
 	env *loggregator_v2.Envelope,
 	hostname string,
 	appID string,
-) rfc5424.Message {
-	return rfc5424.Message{
-		Priority:  generatePriority(env.GetLog().Type),
-		Timestamp: time.Unix(0, env.GetTimestamp()).UTC(),
-		Hostname:  hostname,
-		AppName:   appID,
-		ProcessID: generateProcessID(
-			env.Tags["source_type"],
-			env.InstanceId,
-		),
-		Message: appendNewline(removeNulls(env.GetLog().Payload)),
+) []rfc5424.Message {
+	switch env.GetMessage().(type) {
+	case *loggregator_v2.Envelope_Log:
+		return []rfc5424.Message{
+			{
+				Priority:  generatePriority(env.GetLog().Type),
+				Timestamp: time.Unix(0, env.GetTimestamp()).UTC(),
+				Hostname:  hostname,
+				AppName:   appID,
+				ProcessID: generateProcessID(
+					env.Tags["source_type"],
+					env.InstanceId,
+				),
+				Message: appendNewline(removeNulls(env.GetLog().Payload)),
+			},
+		}
+	case *loggregator_v2.Envelope_Gauge:
+		gauges := make([]rfc5424.Message, 0, 5)
+
+		for name, g := range env.GetGauge().GetMetrics() {
+			gauges = append(gauges, rfc5424.Message{
+				Priority:  rfc5424.Info + rfc5424.User,
+				Timestamp: time.Unix(0, env.GetTimestamp()).UTC(),
+				Hostname:  hostname,
+				AppName:   appID,
+				ProcessID: fmt.Sprintf("[%s]", env.InstanceId),
+				Message:   []byte("\n"),
+				StructuredData: []rfc5424.StructuredData{
+					{
+						ID: gaugeStructuredDataID,
+						Parameters: []rfc5424.SDParam{
+							{
+								Name:  "name",
+								Value: name,
+							},
+							{
+								Name:  "value",
+								Value: strconv.FormatFloat(g.GetValue(), 'g', -1, 64),
+							},
+							{
+								Name:  "unit",
+								Value: g.GetUnit(),
+							},
+						},
+					},
+				},
+			})
+		}
+		return gauges
+	default:
+		return []rfc5424.Message{}
 	}
 }
 
 // Write writes an envelope to the syslog drain connection.
 func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
-	if env.GetLog() == nil {
-		return nil
-	}
-
-	msg := generateRFC5424Message(env, w.hostname, w.appID)
+	msgs := generateRFC5424Messages(env, w.hostname, w.appID)
 	conn, err := w.connection()
 	if err != nil {
 		return err
 	}
 
-	conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
-	_, err = msg.WriteTo(conn)
-	if err != nil {
-		_ = w.Close()
+	for _, msg := range msgs {
+		conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
+		_, err = msg.WriteTo(conn)
+		if err != nil {
+			_ = w.Close()
 
-		return err
+			return err
+		}
+
+		w.egressMetric.Increment(1)
 	}
-
-	w.egressMetric.Increment(1)
 
 	return nil
 }
