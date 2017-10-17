@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/egress"
@@ -15,43 +14,51 @@ import (
 var _ = Describe("AdapterService", func() {
 	Describe("List", func() {
 		It("gets a list of de-duped bindings from all adapters", func() {
-			client := &SpyClient{}
+			client1 := &spyClient{}
+			client2 := &spyClient{}
+			client3 := &spyClient{}
+			comm := newSpyCommunicator()
+
 			binding := &v1.Binding{
 				AppId:    "app-id",
 				Hostname: "hostname",
 				Drain:    "drain",
 			}
-			duplicate := &v1.Binding{
-				AppId:    "app-id",
-				Hostname: "hostname",
-				Drain:    "drain",
-			}
-			client.listBindingsResponse = &v1.ListBindingsResponse{
-				Bindings: []*v1.Binding{binding, duplicate},
+
+			comm.listResults = map[interface{}][]interface{}{
+				client1: []interface{}{
+					binding,
+					binding,
+				},
+				client2: []interface{}{
+					binding,
+				},
 			}
 
-			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client})
+			comm.listErrs = map[interface{}]error{
+				client3: errors.New("some-error"),
+			}
+
+			s := egress.NewAdapterService(egress.AdapterPool{
+				"test-addr-1": client1,
+				"test-addr-2": client2,
+				"test-addr-3": client3,
+			}, comm)
 
 			state := s.List()
 
-			Expect(client.listCalled).To(Equal(true))
-			Expect(len(state)).To(Equal(1))
-			Expect(state["test-addr"][0]).To(Equal(*binding))
-		})
+			Expect(state["test-addr-1"]).To(HaveLen(1))
+			Expect(state["test-addr-2"]).To(HaveLen(1))
+			Expect(state["test-addr-3"]).To(HaveLen(0))
 
-		It("returns no bindings when list fails", func() {
-			client := &SpyClient{}
-			client.listBindingsErr = errors.New("list failed")
-
-			s := egress.NewAdapterService(egress.AdapterPool{"": client})
-
-			bindings := s.List()
-			Expect(len(bindings)).To(Equal(0))
+			Expect(state["test-addr-1"][0]).To(Equal(*binding))
+			Expect(state["test-addr-2"][0]).To(Equal(*binding))
 		})
 	})
 
 	Describe("Transition", func() {
 		It("does nothing if both states are the same", func() {
+			comm := newSpyCommunicator()
 			actual := egress.State{
 				"test-addr": []v1.Binding{
 					{
@@ -63,11 +70,11 @@ var _ = Describe("AdapterService", func() {
 			}
 			desired := actual
 
-			client := &SpyClient{}
-			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client})
+			client := &spyClient{}
+			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client}, comm)
 			s.Transition(actual, desired)
-			Expect(client.createRequests).To(BeEmpty())
-			Expect(client.deleteRequests).To(BeEmpty())
+			Expect(comm.adds).To(BeEmpty())
+			Expect(comm.removes).To(BeEmpty())
 		})
 
 		It("adds bindings for new adapters", func() {
@@ -82,20 +89,19 @@ var _ = Describe("AdapterService", func() {
 				},
 			}
 
-			client := &SpyClient{}
-			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client})
+			comm := newSpyCommunicator()
+			client := &spyClient{}
+			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client}, comm)
 			s.Transition(actual, desired)
 
-			Expect(client.createRequests).To(ConsistOf(
-				&v1.CreateBindingRequest{
-					Binding: &v1.Binding{
-						AppId:    "app-id",
-						Hostname: "hostname",
-						Drain:    "drain-url",
-					},
+			Expect(comm.adds[client]).To(ConsistOf(
+				&v1.Binding{
+					AppId:    "app-id",
+					Hostname: "hostname",
+					Drain:    "drain-url",
 				},
 			))
-			Expect(client.deleteRequests).To(BeEmpty())
+			Expect(comm.removes).To(BeEmpty())
 		})
 
 		It("deletes bindings for adapters that no longer exist", func() {
@@ -110,18 +116,17 @@ var _ = Describe("AdapterService", func() {
 			}
 			desired := egress.State{}
 
-			client := &SpyClient{}
-			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client})
+			comm := newSpyCommunicator()
+			client := &spyClient{}
+			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client}, comm)
 			s.Transition(actual, desired)
 
-			Expect(client.createRequests).To(BeEmpty())
-			Expect(client.deleteRequests).To(ConsistOf(
-				&v1.DeleteBindingRequest{
-					Binding: &v1.Binding{
-						AppId:    "app-id",
-						Hostname: "hostname",
-						Drain:    "drain-url",
-					},
+			Expect(comm.adds).To(BeEmpty())
+			Expect(comm.removes[client]).To(ConsistOf(
+				&v1.Binding{
+					AppId:    "app-id",
+					Hostname: "hostname",
+					Drain:    "drain-url",
 				},
 			))
 		})
@@ -151,20 +156,19 @@ var _ = Describe("AdapterService", func() {
 				},
 			}
 
-			client := &SpyClient{}
-			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client})
+			comm := newSpyCommunicator()
+			client := &spyClient{}
+			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client}, comm)
 			s.Transition(actual, desired)
 
-			Expect(client.createRequests).To(ConsistOf(
-				&v1.CreateBindingRequest{
-					Binding: &v1.Binding{
-						AppId:    "app-id-2",
-						Hostname: "hostname",
-						Drain:    "drain-url",
-					},
+			Expect(comm.adds[client]).To(ConsistOf(
+				&v1.Binding{
+					AppId:    "app-id-2",
+					Hostname: "hostname",
+					Drain:    "drain-url",
 				},
 			))
-			Expect(client.deleteRequests).To(BeEmpty())
+			Expect(comm.removes).To(BeEmpty())
 		})
 
 		It("deletes old bindings for existing adapters", func() {
@@ -192,18 +196,17 @@ var _ = Describe("AdapterService", func() {
 				},
 			}
 
-			client := &SpyClient{}
-			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client})
+			comm := newSpyCommunicator()
+			client := &spyClient{}
+			s := egress.NewAdapterService(egress.AdapterPool{"test-addr": client}, comm)
 			s.Transition(actual, desired)
 
-			Expect(client.createRequests).To(BeEmpty())
-			Expect(client.deleteRequests).To(ConsistOf(
-				&v1.DeleteBindingRequest{
-					Binding: &v1.Binding{
-						AppId:    "app-id-2",
-						Hostname: "hostname",
-						Drain:    "drain-url",
-					},
+			Expect(comm.adds).To(BeEmpty())
+			Expect(comm.removes[client]).To(ConsistOf(
+				&v1.Binding{
+					AppId:    "app-id-2",
+					Hostname: "hostname",
+					Drain:    "drain-url",
 				},
 			))
 		})
@@ -252,68 +255,63 @@ var _ = Describe("AdapterService", func() {
 				},
 			}
 
-			client1 := &SpyClient{}
-			client2 := &SpyClient{}
+			comm := newSpyCommunicator()
+			client1 := &spyClient{}
+			client2 := &spyClient{}
 			s := egress.NewAdapterService(egress.AdapterPool{
 				"test-addr-1": client1,
 				"test-addr-2": client2,
-			})
+			}, comm)
 			s.Transition(actual, desired)
 
-			Expect(client2.createRequests).To(ConsistOf(
-				&v1.CreateBindingRequest{
-					Binding: &v1.Binding{
-						AppId:    "app-id-2",
-						Hostname: "hostname",
-						Drain:    "drain-url",
-					},
+			Expect(comm.adds[client2]).To(ConsistOf(
+				&v1.Binding{
+					AppId:    "app-id-2",
+					Hostname: "hostname",
+					Drain:    "drain-url",
 				},
 			))
-			Expect(client1.deleteRequests).To(ConsistOf(
-				&v1.DeleteBindingRequest{
-					Binding: &v1.Binding{
-						AppId:    "app-id-2",
-						Hostname: "hostname",
-						Drain:    "drain-url",
-					},
+			Expect(comm.removes[client1]).To(ConsistOf(
+				&v1.Binding{
+					AppId:    "app-id-2",
+					Hostname: "hostname",
+					Drain:    "drain-url",
 				},
 			))
 		})
 	})
 })
 
-type SpyClient struct {
-	createRequests []*v1.CreateBindingRequest
-	deleteRequests []*v1.DeleteBindingRequest
-
-	listCalled           bool
-	listBindingsResponse *v1.ListBindingsResponse
-	listBindingsErr      error
+type spyCommunicator struct {
+	listResults map[interface{}][]interface{}
+	listErrs    map[interface{}]error
+	addsErr     map[interface{}]error
+	removesErr  map[interface{}]error
+	adds        map[interface{}][]interface{}
+	removes     map[interface{}][]interface{}
 }
 
-func (s *SpyClient) CreateBinding(
-	ctx context.Context,
-	in *v1.CreateBindingRequest,
-	opts ...grpc.CallOption,
-) (*v1.CreateBindingResponse, error) {
-	s.createRequests = append(s.createRequests, in)
-	return nil, nil
+type spyClient struct {
+	v1.AdapterClient
 }
 
-func (s *SpyClient) DeleteBinding(
-	ctx context.Context,
-	in *v1.DeleteBindingRequest,
-	opts ...grpc.CallOption,
-) (*v1.DeleteBindingResponse, error) {
-	s.deleteRequests = append(s.deleteRequests, in)
-	return nil, nil
+func newSpyCommunicator() *spyCommunicator {
+	return &spyCommunicator{
+		adds:    make(map[interface{}][]interface{}),
+		removes: make(map[interface{}][]interface{}),
+	}
 }
 
-func (s *SpyClient) ListBindings(
-	ctx context.Context,
-	in *v1.ListBindingsRequest,
-	opts ...grpc.CallOption,
-) (*v1.ListBindingsResponse, error) {
-	s.listCalled = true
-	return s.listBindingsResponse, s.listBindingsErr
+func (s *spyCommunicator) List(ctx context.Context, adapter interface{}) ([]interface{}, error) {
+	return s.listResults[adapter], s.listErrs[adapter]
+}
+
+func (s *spyCommunicator) Add(ctx context.Context, worker, task interface{}) error {
+	s.adds[worker] = append(s.adds[worker], task)
+	return s.addsErr[worker]
+}
+
+func (s *spyCommunicator) Remove(ctx context.Context, worker, task interface{}) error {
+	s.removes[worker] = append(s.removes[worker], task)
+	return s.removesErr[worker]
 }

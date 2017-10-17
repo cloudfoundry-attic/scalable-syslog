@@ -40,13 +40,12 @@ func (t *spyAdapterServer) CreateBinding(c context.Context, r *v1.CreateBindingR
 
 func (t *spyAdapterServer) DeleteBinding(c context.Context, r *v1.DeleteBindingRequest) (*v1.DeleteBindingResponse, error) {
 	t.mu.Lock()
-	oldBindings := t.Bindings
-	t.Bindings = nil
-	for _, b := range oldBindings {
+	for i, b := range t.Bindings {
 		if b.AppId == r.Binding.AppId && b.Hostname == r.Binding.Hostname && b.Drain == r.Binding.Drain {
 			continue
 		}
-		t.Bindings = append(t.Bindings, b)
+		t.Bindings = append(t.Bindings[:i], t.Bindings[i+1:]...)
+		break
 	}
 	t.mu.Unlock()
 
