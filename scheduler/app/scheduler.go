@@ -136,7 +136,7 @@ func (s *Scheduler) startEgress() {
 		grpc.WithTransportCredentials(creds),
 		grpc.WithKeepaliveParams(kp),
 	)
-	s.adapterService = egress.NewAdapterService(pool)
+	s.adapterService = egress.NewAdapterService(pool, pool)
 	orchestrator := egress.NewOrchestrator(s.adapterAddrs, s.fetcher, s.adapterService, s.health, s.emitter)
 	go orchestrator.Run(s.interval)
 }

@@ -58,6 +58,41 @@ var _ = Describe("AdapterPool", func() {
 		Expect(counters).To(HaveLen(1))
 		Expect(counters["adapterCount"]).To(Equal(1))
 	})
+
+	It("Lists, adds and removes from the given adapter", func() {
+		addr1, cleanup1 := startGRPCServer()
+		defer cleanup1()
+		addr2, cleanup2 := startGRPCServer()
+		defer cleanup2()
+
+		pool := egress.NewAdapterPool([]string{addr1, addr2}, nil, grpc.WithInsecure())
+
+		// Add 2 binding to adapter1 and 2 bindings to adapter2
+		err := pool.Add(context.Background(), pool[addr1], &v1.Binding{})
+		Expect(err).ToNot(HaveOccurred())
+		err = pool.Add(context.Background(), pool[addr1], &v1.Binding{
+			Hostname: "will-be-removed",
+		})
+		Expect(err).ToNot(HaveOccurred())
+		err = pool.Add(context.Background(), pool[addr2], &v1.Binding{})
+		Expect(err).ToNot(HaveOccurred())
+		err = pool.Add(context.Background(), pool[addr2], &v1.Binding{})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Remove 1 binding from adapter1
+		err = pool.Remove(context.Background(), pool[addr1], &v1.Binding{
+			Hostname: "will-be-removed",
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		results, err := pool.List(context.Background(), pool[addr1])
+		Expect(err).ToNot(HaveOccurred())
+		Expect(results).To(HaveLen(1))
+
+		results, err = pool.List(context.Background(), pool[addr2])
+		Expect(err).ToNot(HaveOccurred())
+		Expect(results).To(HaveLen(2))
+	})
 })
 
 func startGRPCServer() (string, func()) {
