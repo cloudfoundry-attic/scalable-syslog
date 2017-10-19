@@ -13,7 +13,7 @@ import (
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"github.com/cloudfoundry/diodes"
+	"code.cloudfoundry.org/go-diodes"
 )
 
 // Write is the interface for all diode writers.

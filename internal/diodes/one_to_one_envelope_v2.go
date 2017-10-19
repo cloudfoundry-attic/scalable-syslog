@@ -2,7 +2,7 @@ package diodes
 
 import (
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
-	gendiodes "github.com/cloudfoundry/diodes"
+	gendiodes "code.cloudfoundry.org/go-diodes"
 )
 
 // OneToOne diode is optimized for a single writer and a single reader

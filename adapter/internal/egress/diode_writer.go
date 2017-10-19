@@ -5,7 +5,7 @@ import (
 
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/internal/diodes"
-	gendiodes "github.com/cloudfoundry/diodes"
+	gendiodes "code.cloudfoundry.org/go-diodes"
 )
 
 type WaitGroup interface {
