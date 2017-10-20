@@ -68,19 +68,19 @@ var _ = Describe("AdapterPool", func() {
 		pool := egress.NewAdapterPool([]string{addr1, addr2}, nil, grpc.WithInsecure())
 
 		// Add 2 binding to adapter1 and 2 bindings to adapter2
-		err := pool.Add(context.Background(), pool[addr1], &v1.Binding{})
+		err := pool.Add(context.Background(), pool[addr1], v1.Binding{})
 		Expect(err).ToNot(HaveOccurred())
-		err = pool.Add(context.Background(), pool[addr1], &v1.Binding{
+		err = pool.Add(context.Background(), pool[addr1], v1.Binding{
 			Hostname: "will-be-removed",
 		})
 		Expect(err).ToNot(HaveOccurred())
-		err = pool.Add(context.Background(), pool[addr2], &v1.Binding{})
+		err = pool.Add(context.Background(), pool[addr2], v1.Binding{})
 		Expect(err).ToNot(HaveOccurred())
-		err = pool.Add(context.Background(), pool[addr2], &v1.Binding{})
+		err = pool.Add(context.Background(), pool[addr2], v1.Binding{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// Remove 1 binding from adapter1
-		err = pool.Remove(context.Background(), pool[addr1], &v1.Binding{
+		err = pool.Remove(context.Background(), pool[addr1], v1.Binding{
 			Hostname: "will-be-removed",
 		})
 		Expect(err).ToNot(HaveOccurred())

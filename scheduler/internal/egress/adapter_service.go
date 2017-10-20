@@ -47,8 +47,6 @@ type Communicator interface {
 // ignored.
 func (d *AdapterService) List() State {
 	state := State{}
-	// request := &v1.ListBindingsRequest{}
-
 	for adapterAddr, client := range d.pool {
 		ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
 		resp, err := d.comm.List(ctx, client)
@@ -59,7 +57,7 @@ func (d *AdapterService) List() State {
 
 		bindingSet := make(map[v1.Binding]struct{})
 		for _, b := range resp {
-			bb := *b.(*v1.Binding)
+			bb := b.(v1.Binding)
 			_, ok := bindingSet[bb]
 			if ok {
 				continue
@@ -98,7 +96,7 @@ func (o Operations) Create(p AdapterPool, c Communicator) {
 		client := p[adapterAddr]
 		for _, op := range ops {
 			ctx, _ := context.WithTimeout(context.Background(), time.Second)
-			err := c.Add(ctx, client, &op)
+			err := c.Add(ctx, client, op)
 			if err != nil {
 				log.Printf("Failed to create binding on %s: %s", adapterAddr, err)
 			}
@@ -111,7 +109,7 @@ func (o Operations) Delete(p AdapterPool, c Communicator) {
 		client := p[adapterAddr]
 		for _, op := range ops {
 			ctx, _ := context.WithTimeout(context.Background(), time.Second)
-			err := c.Remove(ctx, client, &op)
+			err := c.Remove(ctx, client, op)
 			if err != nil {
 				log.Printf("Failed to delete binding on %s: %s", adapterAddr, err)
 			}
