@@ -70,28 +70,32 @@ func NewOrchestrator(
 	}
 }
 
+func (o *Orchestrator) NextTerm() {
+	freshBindings, blacklisted, err := o.reader.FetchBindings()
+	if err != nil {
+		log.Printf("fetch bindings failed with error: %s", err)
+		return
+	}
+
+	o.health.SetCounter(map[string]int{
+		"drainCount":                   len(freshBindings),
+		"blacklistedOrInvalidUrlCount": blacklisted,
+	})
+	o.drainGauge.Set(int64(len(freshBindings)))
+
+	actual := o.service.List()
+
+	// The length of actual will be the number of adapters that responded.
+	o.adapterGauge.Set(int64(len(actual)))
+
+	desired := desiredState(freshBindings, pullActiveAddrs(actual, o.addrs))
+	o.service.Transition(actual, desired)
+}
+
 // Run starts the orchestrator.
 func (o *Orchestrator) Run(interval time.Duration) {
 	for range time.Tick(interval) {
-		freshBindings, blacklisted, err := o.reader.FetchBindings()
-		if err != nil {
-			log.Printf("fetch bindings failed with error: %s", err)
-			continue
-		}
-
-		o.health.SetCounter(map[string]int{
-			"drainCount":                   len(freshBindings),
-			"blacklistedOrInvalidUrlCount": blacklisted,
-		})
-		o.drainGauge.Set(int64(len(freshBindings)))
-
-		actual := o.service.List()
-
-		// The length of actual will be the number of adapters that responded.
-		o.adapterGauge.Set(int64(len(actual)))
-
-		desired := desiredState(freshBindings, pullActiveAddrs(actual, o.addrs))
-		o.service.Transition(actual, desired)
+		o.NextTerm()
 	}
 }
 

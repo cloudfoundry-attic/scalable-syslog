@@ -44,23 +44,25 @@ func (p AdapterPool) List(ctx context.Context, adapter interface{}) ([]interface
 
 	var bindings []interface{}
 	for _, b := range results.Bindings {
-		bindings = append(bindings, b)
+		bindings = append(bindings, *b)
 	}
 
 	return bindings, nil
 }
 
 func (p AdapterPool) Add(ctx context.Context, adapter, task interface{}) error {
+	b := task.(v1.Binding)
 	_, err := adapter.(v1.AdapterClient).CreateBinding(ctx, &v1.CreateBindingRequest{
-		Binding: task.(*v1.Binding),
+		Binding: &b,
 	})
 
 	return err
 }
 
 func (p AdapterPool) Remove(ctx context.Context, adapter, task interface{}) error {
+	b := task.(v1.Binding)
 	_, err := adapter.(v1.AdapterClient).DeleteBinding(ctx, &v1.DeleteBindingRequest{
-		Binding: task.(*v1.Binding),
+		Binding: &b,
 	})
 
 	return err
