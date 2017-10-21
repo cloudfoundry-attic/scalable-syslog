@@ -3,7 +3,7 @@ package egress
 import (
 	"log"
 
-	"golang.org/x/net/context"
+	"context"
 
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 

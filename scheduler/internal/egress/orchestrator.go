@@ -2,14 +2,12 @@
 package egress
 
 import (
-	"errors"
-	"fmt"
+	"context"
 	"log"
-	"math/rand"
-	"sort"
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
+	orchestrator "code.cloudfoundry.org/go-orchestrator"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
@@ -23,19 +21,29 @@ type HealthEmitter interface {
 	SetCounter(c map[string]int)
 }
 
-type AdapterServicer interface {
-	Transition(actual, desired State)
-	List() State
-}
-
 // Orchestrator manages writes to a number of adapters.
 type Orchestrator struct {
-	addrs        []string
-	reader       BindingReader
-	service      AdapterServicer
-	health       HealthEmitter
-	drainGauge   pulseemitter.GaugeMetric
-	adapterGauge pulseemitter.GaugeMetric
+	reader     BindingReader
+	comm       Communicator
+	orch       *orchestrator.Orchestrator
+	health     HealthEmitter
+	drainGauge pulseemitter.GaugeMetric
+}
+
+type Communicator interface {
+	// List returns the workload from the given adapter.
+	List(ctx context.Context, adapter interface{}) ([]interface{}, error)
+
+	// Add adds the given task to the worker. The error only logged (for now).
+	// It is assumed that if the worker returns an error trying to update, the
+	// next term will fix the problem and move the task elsewhere.
+	Add(ctx context.Context, adapter, binding interface{}) error
+
+	// Removes the given task from the worker. The error is only logged (for
+	// now). It is assumed that if the worker is returning an error, then it
+	// is either not doing the task because the worker is down, or there is a
+	// network partition and a future term will fix the problem.
+	Remove(ctx context.Context, adapter, binding interface{}) error
 }
 
 type MetricEmitter interface {
@@ -44,9 +52,9 @@ type MetricEmitter interface {
 
 // NewOrchestrator creates a new orchestrator.
 func NewOrchestrator(
-	addrs []string,
+	clients AdapterPool,
 	r BindingReader,
-	s AdapterServicer,
+	c Communicator,
 	h HealthEmitter,
 	m MetricEmitter,
 ) *Orchestrator {
@@ -60,13 +68,21 @@ func NewOrchestrator(
 		pulseemitter.WithVersion(2, 0),
 	)
 
+	orch := orchestrator.New(c,
+		orchestrator.WithStats(func(s orchestrator.TermStats) {
+			adapterGauge.Set(int64(s.WorkerCount))
+		}),
+	)
+	for _, client := range clients {
+		orch.AddWorker(client)
+	}
+
 	return &Orchestrator{
-		addrs:        addrs,
-		reader:       r,
-		service:      s,
-		health:       h,
-		drainGauge:   drainGauge,
-		adapterGauge: adapterGauge,
+		reader:     r,
+		comm:       c,
+		health:     h,
+		drainGauge: drainGauge,
+		orch:       orch,
 	}
 }
 
@@ -83,13 +99,16 @@ func (o *Orchestrator) NextTerm() {
 	})
 	o.drainGauge.Set(int64(len(freshBindings)))
 
-	actual := o.service.List()
+	var tasks []orchestrator.Task
+	for _, b := range freshBindings {
+		tasks = append(tasks, orchestrator.Task{
+			Name:      b,
+			Instances: maxAdapters,
+		})
+	}
 
-	// The length of actual will be the number of adapters that responded.
-	o.adapterGauge.Set(int64(len(actual)))
-
-	desired := desiredState(freshBindings, pullActiveAddrs(actual, o.addrs))
-	o.service.Transition(actual, desired)
+	o.orch.UpdateTasks(tasks)
+	o.orch.NextTerm(context.Background())
 }
 
 // Run starts the orchestrator.
@@ -97,88 +116,4 @@ func (o *Orchestrator) Run(interval time.Duration) {
 	for range time.Tick(interval) {
 		o.NextTerm()
 	}
-}
-
-// desiredState maps the current bindings onto adapters. Each binding gets
-// mapped onto at most two adapters.
-func desiredState(bs []v1.Binding, addrs []string) State {
-	r := rand.New(rand.NewSource(0))
-	sort.Sort(bindings(bs))
-
-	desired := State{}
-
-	for _, b := range bs {
-		addr, remaining, err := sample(r, desired, addrs)
-		if err != nil {
-			continue
-		}
-		desired[addr] = append(desired[addr], b)
-
-		addr, _, err = sample(r, desired, remaining)
-		if err != nil {
-			continue
-		}
-		desired[addr] = append(desired[addr], b)
-	}
-
-	return desired
-}
-
-func pullActiveAddrs(actual State, addrs []string) []string {
-	var result []string
-	for _, addr := range addrs {
-		if _, ok := actual[addr]; ok {
-			result = append(result, addr)
-		}
-	}
-	return result
-}
-
-func sample(r *rand.Rand, state State, addrs []string) (string, []string, error) {
-	if len(addrs) == 0 {
-		return "", nil, errors.New("empty addrs")
-	}
-
-	minAddrs := minKeys(state, addrs)
-	sampled := minAddrs[r.Intn(len(minAddrs))]
-	var remaining []string
-	for _, addr := range addrs {
-		if addr != sampled {
-			remaining = append(remaining, addr)
-		}
-	}
-
-	return sampled, remaining, nil
-}
-
-func minKeys(state State, addrs []string) []string {
-	var minAddrs []string
-	minLen := -1
-	for _, addr := range addrs {
-		l := len(state[addr])
-		if minLen == -1 || l < minLen {
-			minLen = l
-			minAddrs = []string{addr}
-		}
-		if minLen == l {
-			minAddrs = append(minAddrs, addr)
-		}
-	}
-	return minAddrs
-}
-
-type bindings []v1.Binding
-
-func (b bindings) Len() int {
-	return len(b)
-}
-
-func (b bindings) Less(i, j int) bool {
-	return fmt.Sprintf("%#v", b[i]) < fmt.Sprintf("%#v", b[j])
-}
-
-func (b bindings) Swap(i, j int) {
-	tmp := b[i]
-	b[i] = b[j]
-	b[j] = tmp
 }

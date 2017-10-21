@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/rand"
 
-	"golang.org/x/net/context"
+	"context"
 
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
@@ -25,7 +25,8 @@ var _ = Describe("Orchestration", func() {
 		// to make a scenario take.
 		nextTerm func()
 
-		comm *spyCommunicator
+		comm         *spyCommunicator
+		adapterCount *testhelper.SpyMetric
 	)
 
 	BeforeEach(func() {
@@ -34,25 +35,22 @@ var _ = Describe("Orchestration", func() {
 		client3 := &spyClient{}
 		comm = newSpyCommunicator()
 
-		adapterService := egress.NewAdapterService(egress.AdapterPool{
-			"test-addr-1": client1,
-			"test-addr-2": client2,
-			"test-addr-3": client3,
-		}, comm)
+		mc := testhelper.NewMetricClient()
 
 		bindingReader := &spyReader{}
 		orch := egress.NewOrchestrator(
-			[]string{
-				"test-addr-1",
-				"test-addr-2",
-				"test-addr-3",
+			egress.AdapterPool{
+				"test-addr-1": client1,
+				"test-addr-2": client2,
+				"test-addr-3": client3,
 			},
 			bindingReader,
-			adapterService,
+			comm,
 			&spyHealthEmitter{},
-			testhelper.NewMetricClient(),
+			mc,
 		)
 		nextTerm = orch.NextTerm
+		adapterCount = mc.GetMetric("adapters")
 
 		updateBindings = func(bs []v1.Binding, err error) {
 			bindingReader.drains = bs
@@ -172,6 +170,7 @@ var _ = Describe("Orchestration", func() {
 		nextTerm()
 
 		Expect(comm.adds).To(HaveLen(2))
+		Expect(adapterCount.GaugeValue()).To(Equal(int64(2)))
 	})
 
 	It("does not re-add a binding to an adapter", func() {
@@ -185,6 +184,20 @@ var _ = Describe("Orchestration", func() {
 		nextTerm()
 
 		Expect(comm.adds).To(HaveLen(1))
+	})
+
+	It("does not move drains when a new drain is added", func() {
+		updateBindingList([]v1.Binding{
+			{AppId: "a"},
+			{AppId: "b"},
+			{AppId: "c"},
+		})
+
+		updateBindings([]v1.Binding{
+			{AppId: "d"},
+		}, nil)
+
+		Expect(comm.removes).To(HaveLen(0))
 	})
 })
 
