@@ -28,7 +28,6 @@ type Scheduler struct {
 	emitter          Emitter
 	client           *http.Client
 	interval         time.Duration
-	adapterService   *egress.AdapterService
 	fetcher          *ingress.FilteredBindingFetcher
 	logClient        LogClient
 	blacklist        *ingress.BlacklistRanges
@@ -136,8 +135,7 @@ func (s *Scheduler) startEgress() {
 		grpc.WithTransportCredentials(creds),
 		grpc.WithKeepaliveParams(kp),
 	)
-	s.adapterService = egress.NewAdapterService(pool, pool)
-	orchestrator := egress.NewOrchestrator(s.adapterAddrs, s.fetcher, s.adapterService, s.health, s.emitter)
+	orchestrator := egress.NewOrchestrator(pool, s.fetcher, pool, s.health, s.emitter)
 	go orchestrator.Run(s.interval)
 }
 
