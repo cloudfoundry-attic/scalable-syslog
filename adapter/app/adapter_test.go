@@ -38,14 +38,13 @@ var _ = Describe("Adapter", func() {
 		adapterHealthAddr string
 		client            v1.AdapterClient
 		binding           *v1.Binding
-		egressServer      *testEgressServer
 		syslogTCPServer   *SyslogTCPServer
 
 		lastIdx *int64
 	)
 
 	BeforeEach(func() {
-		egressServer, logsAPIAddr, lastIdx = startLogsAPIServer()
+		_, logsAPIAddr, lastIdx = startLogsAPIServer()
 
 		var err error
 		rlpTLSConfig, err = api.NewMutualTLSConfig(

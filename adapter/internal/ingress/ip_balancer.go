@@ -6,25 +6,25 @@ import (
 	"net"
 )
 
-// Balancer provides IPs resolved from a DNS address in random order
-type Balancer struct {
+// IPBalancer provides IPs resolved from a DNS address in random order
+type IPBalancer struct {
 	addr   string
 	lookup func(string) ([]net.IP, error)
 }
 
-// BalancerOption is a type that will manipulate a config
-type BalancerOption func(*Balancer)
+// IPBalancerOption is a type that will manipulate a config
+type IPBalancerOption func(*IPBalancer)
 
 // WithLookup sets the behavior of looking up IPs
-func WithLookup(lookup func(string) ([]net.IP, error)) func(*Balancer) {
-	return func(b *Balancer) {
+func WithLookup(lookup func(string) ([]net.IP, error)) func(*IPBalancer) {
+	return func(b *IPBalancer) {
 		b.lookup = lookup
 	}
 }
 
-// NewBalancer returns a Balancer
-func NewBalancer(addr string, opts ...BalancerOption) *Balancer {
-	balancer := &Balancer{
+// NewIPBalancer returns an IPBalancer
+func NewIPBalancer(addr string, opts ...IPBalancerOption) *IPBalancer {
+	balancer := &IPBalancer{
 		addr:   addr,
 		lookup: net.LookupIP,
 	}
@@ -39,7 +39,7 @@ func NewBalancer(addr string, opts ...BalancerOption) *Balancer {
 // NextHostPort returns hostport resolved from the balancer's addr.
 // It returns error for an invalid addr or if lookup failed or
 // doesn't resolve to anything.
-func (b *Balancer) NextHostPort() (string, error) {
+func (b *IPBalancer) NextHostPort() (string, error) {
 	host, port, err := net.SplitHostPort(b.addr)
 	if err != nil {
 		return "", err

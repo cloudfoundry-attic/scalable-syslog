@@ -25,7 +25,7 @@ var _ = Describe("Balancer", func() {
 		}
 
 		addr := "some-addr:8082"
-		balancer := ingress.NewBalancer(addr, ingress.WithLookup(f))
+		balancer := ingress.NewIPBalancer(addr, ingress.WithLookup(f))
 
 		NextIP := func() string {
 			ip, _ := balancer.NextHostPort()
@@ -42,7 +42,7 @@ var _ = Describe("Balancer", func() {
 			return nil, errors.New("some-error")
 		}
 		addr := "some-addr:8082"
-		balancer := ingress.NewBalancer(addr, ingress.WithLookup(f))
+		balancer := ingress.NewIPBalancer(addr, ingress.WithLookup(f))
 
 		_, err := balancer.NextHostPort()
 		Expect(err).To(HaveOccurred())
@@ -53,7 +53,7 @@ var _ = Describe("Balancer", func() {
 			return []net.IP{}, nil
 		}
 		addr := "some-addr:8082"
-		balancer := ingress.NewBalancer(addr, ingress.WithLookup(f))
+		balancer := ingress.NewIPBalancer(addr, ingress.WithLookup(f))
 
 		_, err := balancer.NextHostPort()
 		Expect(err).To(HaveOccurred())
@@ -64,7 +64,7 @@ var _ = Describe("Balancer", func() {
 			panic("Never should be here")
 		}
 		addr := "some-addr/qwe34523475itaysdgp:oauei4h:8082"
-		balancer := ingress.NewBalancer(addr, ingress.WithLookup(f))
+		balancer := ingress.NewIPBalancer(addr, ingress.WithLookup(f))
 
 		_, err := balancer.NextHostPort()
 		Expect(err).To(HaveOccurred())

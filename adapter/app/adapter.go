@@ -152,7 +152,7 @@ func NewAdapter(
 		o(a)
 	}
 
-	balancer := ingress.NewBalancer(a.logsEgressAPIAddr)
+	balancer := ingress.NewIPBalancer(a.logsEgressAPIAddr)
 	connector := ingress.NewConnector(balancer, a.logsEgressAPITLSConfig)
 	clientManager := ingress.NewClientManager(
 		connector,

@@ -17,7 +17,7 @@ import (
 // Connector connects to loggregator egress API
 type Connector struct {
 	tlsConf  *tls.Config
-	balancer *Balancer
+	balancer *IPBalancer
 }
 
 type LogsProviderClient interface {
@@ -35,7 +35,7 @@ type LogsProviderClient interface {
 }
 
 // NewConnector returns a new Connector
-func NewConnector(balancer *Balancer, t *tls.Config) *Connector {
+func NewConnector(balancer *IPBalancer, t *tls.Config) *Connector {
 	return &Connector{
 		balancer: balancer,
 		tlsConf:  t,
