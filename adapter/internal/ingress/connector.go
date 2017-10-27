@@ -6,20 +6,22 @@ import (
 	"log"
 	"time"
 
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
-
-	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 )
 
 // Connector connects to loggregator egress API
 type Connector struct {
-	tlsConf  *tls.Config
-	balancer *IPBalancer
+	balancer    Balancer
+	dialTimeout time.Duration
+	tlsConf     *tls.Config
 }
 
+// LogsProviderClient describes the gRPC interface for communicating with
+// Loggregator.
 type LogsProviderClient interface {
 	Receiver(
 		ctx context.Context,
@@ -34,11 +36,18 @@ type LogsProviderClient interface {
 	) (loggregator_v2.Egress_BatchedReceiverClient, error)
 }
 
+// Balancer cycles through a collection of host ports. It will return an error
+// when there is no host port available.
+type Balancer interface {
+	NextHostPort() (string, error)
+}
+
 // NewConnector returns a new Connector
-func NewConnector(balancer *IPBalancer, t *tls.Config) *Connector {
+func NewConnector(b Balancer, dt time.Duration, t *tls.Config) *Connector {
 	return &Connector{
-		balancer: balancer,
-		tlsConf:  t,
+		balancer:    b,
+		dialTimeout: dt,
+		tlsConf:     t,
 	}
 }
 
@@ -59,6 +68,8 @@ func (c *Connector) Connect() (io.Closer, LogsProviderClient, error) {
 		hp,
 		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf)),
 		grpc.WithKeepaliveParams(kp),
+		grpc.WithBlock(),
+		grpc.WithTimeout(c.dialTimeout),
 	)
 
 	if err != nil {
