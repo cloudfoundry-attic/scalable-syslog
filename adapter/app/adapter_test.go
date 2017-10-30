@@ -68,6 +68,7 @@ var _ = Describe("Adapter", func() {
 		BeforeEach(func() {
 			adapter := app.NewAdapter(
 				logsAPIAddr,
+				logsAPIAddr,
 				rlpTLSConfig,
 				tlsConfig,
 				testhelper.NewMetricClient(),
@@ -146,6 +147,7 @@ var _ = Describe("Adapter", func() {
 			BeforeEach(func() {
 				adapter := app.NewAdapter(
 					logsAPIAddr,
+					logsAPIAddr,
 					rlpTLSConfig,
 					tlsConfig,
 					testhelper.NewMetricClient(),
@@ -194,6 +196,7 @@ var _ = Describe("Adapter", func() {
 			BeforeEach(func() {
 				adapter := app.NewAdapter(
 					logsAPIAddr,
+					logsAPIAddr,
 					rlpTLSConfig,
 					tlsConfig,
 					testhelper.NewMetricClient(),
@@ -233,6 +236,7 @@ var _ = Describe("Adapter", func() {
 				}
 
 				adapter = app.NewAdapter(
+					logsAPIAddr,
 					logsAPIAddr,
 					rlpTLSConfig,
 					tlsConfig,

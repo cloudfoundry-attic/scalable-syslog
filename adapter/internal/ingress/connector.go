@@ -13,9 +13,17 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
+var (
+	keepAliveParams = keepalive.ClientParameters{
+		Time:                15 * time.Second,
+		Timeout:             15 * time.Second,
+		PermitWithoutStream: true,
+	}
+)
+
 // Connector connects to loggregator egress API
 type Connector struct {
-	balancer    Balancer
+	balancers   []Balancer
 	dialTimeout time.Duration
 	tlsConf     *tls.Config
 }
@@ -43,9 +51,9 @@ type Balancer interface {
 }
 
 // NewConnector returns a new Connector
-func NewConnector(b Balancer, dt time.Duration, t *tls.Config) *Connector {
+func NewConnector(b []Balancer, dt time.Duration, t *tls.Config) *Connector {
 	return &Connector{
-		balancer:    b,
+		balancers:   b,
 		dialTimeout: dt,
 		tlsConf:     t,
 	}
@@ -53,31 +61,31 @@ func NewConnector(b Balancer, dt time.Duration, t *tls.Config) *Connector {
 
 // Connect connects to a loggregator egress API
 func (c *Connector) Connect() (io.Closer, LogsProviderClient, error) {
-	hp, err := c.balancer.NextHostPort()
-	if err != nil {
-		return nil, nil, err
+	var err error
+	for _, balancer := range c.balancers {
+		var hostPort string
+		hostPort, err = balancer.NextHostPort()
+		if err != nil {
+			continue
+		}
+
+		var conn *grpc.ClientConn
+		conn, err = grpc.Dial(
+			hostPort,
+			grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf)),
+			grpc.WithKeepaliveParams(keepAliveParams),
+			grpc.WithBlock(),
+			grpc.WithTimeout(c.dialTimeout),
+		)
+		if err != nil {
+			continue
+		}
+
+		client := loggregator_v2.NewEgressClient(conn)
+		log.Println("Created new connection to loggregator egress API")
+
+		return conn, client, nil
 	}
 
-	kp := keepalive.ClientParameters{
-		Time:                15 * time.Second,
-		Timeout:             15 * time.Second,
-		PermitWithoutStream: true,
-	}
-
-	conn, err := grpc.Dial(
-		hp,
-		grpc.WithTransportCredentials(credentials.NewTLS(c.tlsConf)),
-		grpc.WithKeepaliveParams(kp),
-		grpc.WithBlock(),
-		grpc.WithTimeout(c.dialTimeout),
-	)
-
-	if err != nil {
-		return nil, nil, err
-	}
-
-	client := loggregator_v2.NewEgressClient(conn)
-	log.Println("Created new connection to loggregator egress API")
-
-	return conn, client, nil
+	return nil, nil, err
 }

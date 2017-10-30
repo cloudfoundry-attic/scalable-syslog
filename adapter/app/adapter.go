@@ -47,7 +47,6 @@ type Adapter struct {
 	bindingManager         *binding.BindingManager
 	logsAPIConnCount       int
 	logsAPIConnTTL         time.Duration
-	logsEgressAPIAddr      string
 	logsEgressAPITLSConfig *tls.Config
 	adapterServerTLSConfig *tls.Config
 	syslogDialTimeout      time.Duration
@@ -121,6 +120,7 @@ const maxRetries int = 22
 // NewAdapter returns an Adapter
 func NewAdapter(
 	logsEgressAPIAddr string,
+	logsEgressAPIAddrWithAZ string,
 	logsEgressAPITLSConfig *tls.Config,
 	adapterServerTLSConfig *tls.Config,
 	metricClient MetricClient,
@@ -137,7 +137,6 @@ func NewAdapter(
 		cancel:                 cancel,
 		logsAPIConnCount:       10,
 		logsAPIConnTTL:         600 * time.Second,
-		logsEgressAPIAddr:      logsEgressAPIAddr,
 		logsEgressAPITLSConfig: logsEgressAPITLSConfig,
 		adapterServerTLSConfig: adapterServerTLSConfig,
 		syslogDialTimeout:      5 * time.Second,
@@ -152,8 +151,11 @@ func NewAdapter(
 		o(a)
 	}
 
-	balancer := ingress.NewIPBalancer(a.logsEgressAPIAddr)
-	connector := ingress.NewConnector(balancer, 5*time.Second, a.logsEgressAPITLSConfig)
+	balancers := []ingress.Balancer{
+		ingress.NewIPBalancer(logsEgressAPIAddrWithAZ),
+		ingress.NewIPBalancer(logsEgressAPIAddr),
+	}
+	connector := ingress.NewConnector(balancers, 5*time.Second, a.logsEgressAPITLSConfig)
 	clientManager := ingress.NewClientManager(
 		connector,
 		a.logsAPIConnCount,

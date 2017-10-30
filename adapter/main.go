@@ -67,6 +67,7 @@ func main() {
 
 	adapter := app.NewAdapter(
 		cfg.LogsAPIAddr,
+		cfg.LogsAPIAddrWithAZ,
 		rlpTlsConfig,
 		tlsConfig,
 		metricClient,

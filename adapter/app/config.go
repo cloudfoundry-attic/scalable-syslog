@@ -4,7 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strings"
 	"time"
+
+	"golang.org/x/net/idna"
 )
 
 type Config struct {
@@ -20,6 +23,7 @@ type Config struct {
 	RLPKeyFile           string
 	RLPCommonName        string
 	LogsAPIAddr          string
+	LogsAPIAddrWithAZ    string
 	SyslogDialTimeout    time.Duration
 	SyslogIOTimeout      time.Duration
 	SyslogSkipCertVerify bool
@@ -54,6 +58,7 @@ func LoadConfig() *Config {
 	flag.StringVar(&cfg.SourceIndex, "source-index", "", "The given index for the adapter")
 
 	flag.StringVar(&cfg.LogsAPIAddr, "logs-api-addr", "", "The address for the logs API")
+	flag.StringVar(&cfg.LogsAPIAddrWithAZ, "logs-api-addr-with-az", "", "The address of the logs API in an AZ")
 	flag.StringVar(&cfg.MetricIngressAddr, "metric-ingress-addr", "", "The ingress adress for the metrics API")
 	flag.StringVar(&cfg.MetricIngressCN, "metric-ingress-cn", "", "The TLS common name for metrics ingress API")
 	flag.DurationVar(&cfg.MetricEmitterInterval, "metric-emitter-interval", time.Minute, "The interval to send batched metrics to metron")
@@ -74,6 +79,13 @@ func LoadConfig() *Config {
 		}
 		log.Fatalf("Config validation failed:\n%s", errorMsg)
 	}
+
+	var err error
+	cfg.LogsAPIAddrWithAZ, err = idna.ToASCII(cfg.LogsAPIAddrWithAZ)
+	if err != nil {
+		log.Fatalf("Failed to IDN encode LogAPIAddrWithAZ %s", err)
+	}
+	cfg.LogsAPIAddrWithAZ = strings.Replace(cfg.LogsAPIAddrWithAZ, "@", "-", -1)
 
 	return &cfg
 }

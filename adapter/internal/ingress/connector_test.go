@@ -27,11 +27,12 @@ var _ = Describe("Connector", func() {
 			"fake-log-provider",
 		)
 		Expect(err).ToNot(HaveOccurred())
-		c := ingress.NewConnector(b, 1*time.Second, tlsConf)
+		c := ingress.NewConnector([]ingress.Balancer{b}, 1*time.Second, tlsConf)
 
 		_, client, err := c.Connect()
 
 		Expect(err).ToNot(HaveOccurred())
+		Expect(b.nextHostPortCalled).To(Equal(int64(1)))
 		Expect(client).ToNot(BeNil())
 	})
 
@@ -44,11 +45,12 @@ var _ = Describe("Connector", func() {
 			"fake-log-provider",
 		)
 		Expect(err).ToNot(HaveOccurred())
-		c := ingress.NewConnector(b, 1*time.Millisecond, tlsConf)
+		c := ingress.NewConnector([]ingress.Balancer{b}, 1*time.Millisecond, tlsConf)
 
 		_, _, err = c.Connect()
 
 		Expect(err).To(HaveOccurred())
+		Expect(b.nextHostPortCalled).To(Equal(int64(1)))
 	})
 
 	It("returns an error when the dialing fails", func() {
@@ -60,20 +62,48 @@ var _ = Describe("Connector", func() {
 			"fake-log-provider",
 		)
 		Expect(err).ToNot(HaveOccurred())
-		c := ingress.NewConnector(b, 1*time.Nanosecond, tlsConf)
+		c := ingress.NewConnector([]ingress.Balancer{b}, 1*time.Nanosecond, tlsConf)
 
 		_, _, err = c.Connect()
 
 		Expect(err).To(HaveOccurred())
+		Expect(b.nextHostPortCalled).To(Equal(int64(1)))
+	})
+
+	It("uses next balancer if the first one fails", func() {
+		cleanup, addr := startGRPCServer()
+		defer cleanup()
+		b0 := &stubBalancer{nextHostPortErr: errors.New("no host port")}
+		b1 := &stubBalancer{nextHostPort: addr}
+
+		tlsConf, err := api.NewMutualTLSConfig(
+			test_util.Cert("adapter-rlp.crt"),
+			test_util.Cert("adapter-rlp.key"),
+			test_util.Cert("loggregator-ca.crt"),
+			"fake-log-provider",
+		)
+		Expect(err).ToNot(HaveOccurred())
+		c := ingress.NewConnector([]ingress.Balancer{b0, b1}, 1*time.Second, tlsConf)
+
+		_, client, err := c.Connect()
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(b0.nextHostPortCalled).To(Equal(int64(1)))
+		Expect(b1.nextHostPortCalled).To(Equal(int64(1)))
+		Expect(client).ToNot(BeNil())
 	})
 })
 
 type stubBalancer struct {
 	nextHostPort    string
 	nextHostPortErr error
+
+	nextHostPortCalled int64
 }
 
 func (s *stubBalancer) NextHostPort() (string, error) {
+	s.nextHostPortCalled++
+
 	return s.nextHostPort, s.nextHostPortErr
 }
 
