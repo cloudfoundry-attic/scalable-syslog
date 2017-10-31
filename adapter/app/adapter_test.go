@@ -184,7 +184,7 @@ var _ = Describe("Adapter", func() {
 					Eventually(func() bool {
 						defer func() { previousVal = syslogTCPServer.msgCount() }()
 						return previousVal == syslogTCPServer.msgCount()
-					}).Should(BeTrue())
+					}, 1, "50ms").Should(BeTrue())
 
 					currentCount := syslogTCPServer.msgCount()
 					Consistently(syslogTCPServer.msgCount, "100ms").Should(BeNumerically("~", currentCount, 2))
