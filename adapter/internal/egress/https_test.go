@@ -128,7 +128,7 @@ var _ = Describe("HTTPWriter", func() {
 		Expect(drain.messages[2].ProcessID).To(Equal("[CELL]"))
 	})
 
-	It("writes container metrics to the http drain", func() {
+	It("writes gauge metrics to the http drain", func() {
 		drain := newMockOKDrain()
 
 		b := buildURLBinding(
@@ -177,6 +177,41 @@ var _ = Describe("HTTPWriter", func() {
 		Expect(sdValues(drain.messages, "memory_quota")).To(ConsistOf("memory_quota", "8000", "bytes"))
 	})
 
+	It("writes counter metrics to the http drain", func() {
+		drain := newMockOKDrain()
+
+		b := buildURLBinding(
+			drain.URL,
+			"test-app-id",
+			"test-hostname",
+		)
+
+		writer := egress.NewHTTPSWriter(
+			b,
+			time.Second,
+			time.Second,
+			true,
+			&testhelper.SpyMetric{},
+		)
+
+		env1 := buildCounterEnvelope("1")
+		Expect(writer.Write(env1)).To(Succeed())
+
+		Expect(drain.messages).To(HaveLen(1))
+
+		Expect(drain.messages[0].StructuredData).To(HaveLen(1))
+		Expect(drain.messages[0].StructuredData[0].ID).To(Equal("counter@47450"))
+
+		Expect(drain.messages[0].StructuredData[0].Parameters[0].Name).To(Equal("name"))
+		Expect(drain.messages[0].StructuredData[0].Parameters[0].Value).To(Equal("some-counter"))
+
+		Expect(drain.messages[0].StructuredData[0].Parameters[1].Name).To(Equal("total"))
+		Expect(drain.messages[0].StructuredData[0].Parameters[1].Value).To(Equal("99"))
+
+		Expect(drain.messages[0].StructuredData[0].Parameters[2].Name).To(Equal("delta"))
+		Expect(drain.messages[0].StructuredData[0].Parameters[2].Value).To(Equal("1"))
+	})
+
 	It("emits an egress metric for each message", func() {
 		drain := newMockOKDrain()
 		metric := &testhelper.SpyMetric{}
@@ -218,7 +253,7 @@ var _ = Describe("HTTPWriter", func() {
 			&testhelper.SpyMetric{},
 		)
 
-		counterEnv := buildCounterEnvelope()
+		counterEnv := buildTimerEnvelope()
 		logEnv := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
 
 		Expect(writer.Write(counterEnv)).To(Succeed())

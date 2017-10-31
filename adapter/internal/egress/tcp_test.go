@@ -94,7 +94,7 @@ var _ = Describe("TCPWriter", func() {
 			Entry("other source type", "other", "1", "OTHER/1", 91),
 		)
 
-		It("writes container metrics to the tcp drain", func() {
+		It("writes gauge metrics to the tcp drain", func() {
 			env := buildGaugeEnvelope("1")
 			Expect(writer.Write(env)).To(Succeed())
 
@@ -119,6 +119,22 @@ var _ = Describe("TCPWriter", func() {
 			))
 		})
 
+		It("writes counter metrics to tcp drain", func() {
+			env := buildCounterEnvelope("1")
+			Expect(writer.Write(env)).To(Succeed())
+
+			conn, err := listener.Accept()
+			Expect(err).ToNot(HaveOccurred())
+			buf := bufio.NewReader(conn)
+
+			actual, err := buf.ReadString('\n')
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(actual).To(Equal(
+				"129 <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [1] - [counter@47450 name=\"some-counter\" total=\"99\" delta=\"1\"] \n",
+			))
+		})
+
 		It("strips null termination char from message", func() {
 			env := buildLogEnvelope("OTHER", "1", "no null `\x00` please", loggregator_v2.Log_OUT)
 			Expect(writer.Write(env)).To(Succeed())
@@ -134,8 +150,8 @@ var _ = Describe("TCPWriter", func() {
 			Expect(actual).To(Equal(expected))
 		})
 
-		It("ignores non-log envelopes", func() {
-			counterEnv := buildCounterEnvelope()
+		It("ignores non-log/gauge envelopes", func() {
+			counterEnv := buildTimerEnvelope()
 			logEnv := buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
 
 			Expect(writer.Write(counterEnv)).To(Succeed())
@@ -274,13 +290,26 @@ func buildGaugeEnvelope(srcInstance string) *loggregator_v2.Envelope {
 	}
 }
 
-func buildCounterEnvelope() *loggregator_v2.Envelope {
+func buildTimerEnvelope() *loggregator_v2.Envelope {
 	return &loggregator_v2.Envelope{
 		Timestamp: 12345678,
 		SourceId:  "source-id",
+		Message: &loggregator_v2.Envelope_Timer{
+			Timer: &loggregator_v2.Timer{},
+		},
+	}
+}
+
+func buildCounterEnvelope(srcInstance string) *loggregator_v2.Envelope {
+	return &loggregator_v2.Envelope{
+		Timestamp:  12345678,
+		SourceId:   "source-id",
+		InstanceId: srcInstance,
 		Message: &loggregator_v2.Envelope_Counter{
 			Counter: &loggregator_v2.Counter{
-				Name: "some-counter",
+				Name:  "some-counter",
+				Total: 99,
+				Delta: 1,
 			},
 		},
 	}

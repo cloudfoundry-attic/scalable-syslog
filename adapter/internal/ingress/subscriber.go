@@ -263,6 +263,12 @@ func buildRequestSelectors(appID, drainType string) ([]*v2.Selector, bool) {
 					Gauge: &v2.GaugeSelector{},
 				},
 			},
+			{
+				SourceId: appID,
+				Message: &v2.Selector_Counter{
+					Counter: &v2.CounterSelector{},
+				},
+			},
 		}, true
 	case "all":
 		return []*v2.Selector{
@@ -276,6 +282,12 @@ func buildRequestSelectors(appID, drainType string) ([]*v2.Selector, bool) {
 				SourceId: appID,
 				Message: &v2.Selector_Gauge{
 					Gauge: &v2.GaugeSelector{},
+				},
+			},
+			{
+				SourceId: appID,
+				Message: &v2.Selector_Counter{
+					Counter: &v2.CounterSelector{},
 				},
 			},
 		}, true

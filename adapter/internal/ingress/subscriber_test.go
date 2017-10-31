@@ -363,10 +363,13 @@ var _ = Describe("Subscriber", func() {
 				Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
 
 				req := client.batchedReceiverRequest()
-				Expect(req.GetSelectors()).To(HaveLen(1))
+				Expect(req.GetSelectors()).To(HaveLen(2))
 
 				selector := req.GetSelectors()[0]
 				Expect(selector.GetGauge()).ToNot(BeNil())
+
+				selector = req.GetSelectors()[1]
+				Expect(selector.GetCounter()).ToNot(BeNil())
 			})
 		})
 
@@ -390,10 +393,11 @@ var _ = Describe("Subscriber", func() {
 				Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
 
 				req := client.batchedReceiverRequest()
-				Expect(req.GetSelectors()).To(HaveLen(2))
+				Expect(req.GetSelectors()).To(HaveLen(3))
 
 				Expect(req.GetSelectors()[0].GetLog()).ToNot(BeNil())
 				Expect(req.GetSelectors()[1].GetGauge()).ToNot(BeNil())
+				Expect(req.GetSelectors()[2].GetCounter()).ToNot(BeNil())
 			})
 		})
 

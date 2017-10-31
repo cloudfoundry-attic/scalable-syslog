@@ -18,7 +18,10 @@ import (
 // gaugeStructuredDataID contains the registered enterprise ID for the Cloud
 // Foundry Foundation.
 // See: https://www.iana.org/assignments/enterprise-numbers/enterprise-numbers
-const gaugeStructuredDataID = "gauge@47450"
+const (
+	gaugeStructuredDataID   = "gauge@47450"
+	counterStructuredDataID = "counter@47450"
+)
 
 // DialFunc represents a method for creating a connection, either TCP or TLS.
 type DialFunc func(addr string) (net.Conn, error)
@@ -150,6 +153,37 @@ func generateRFC5424Messages(
 			})
 		}
 		return gauges
+
+	case *loggregator_v2.Envelope_Counter:
+		return []rfc5424.Message{
+			{
+				Priority:  rfc5424.Info + rfc5424.User,
+				Timestamp: time.Unix(0, env.GetTimestamp()).UTC(),
+				Hostname:  hostname,
+				AppName:   appID,
+				ProcessID: fmt.Sprintf("[%s]", env.InstanceId),
+				Message:   []byte("\n"),
+				StructuredData: []rfc5424.StructuredData{
+					{
+						ID: counterStructuredDataID,
+						Parameters: []rfc5424.SDParam{
+							{
+								Name:  "name",
+								Value: env.GetCounter().GetName(),
+							},
+							{
+								Name:  "total",
+								Value: fmt.Sprint(env.GetCounter().GetTotal()),
+							},
+							{
+								Name:  "delta",
+								Value: fmt.Sprint(env.GetCounter().GetDelta()),
+							},
+						},
+					},
+				},
+			},
+		}
 	default:
 		return []rfc5424.Message{}
 	}
