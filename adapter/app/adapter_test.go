@@ -265,7 +265,7 @@ var _ = Describe("Adapter", func() {
 
 				adapter.Stop()
 				idx := waitForLastSentIdx(lastIdx)
-				Eventually(syslogTCPServer.LastReceivedIdx).Should(BeNumerically("~", idx, 3))
+				Eventually(syslogTCPServer.LastReceivedIdx).Should(BeNumerically("~", idx, 10))
 			}, 5)
 		})
 	})
@@ -479,7 +479,7 @@ func (t *testEgressServer) Receiver(r *v2.EgressRequest, server v2.Egress_Receiv
 			atomic.StoreInt64(&t.lastIdx, int64(i-1))
 			return err
 		}
-		time.Sleep(time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 	return nil
 }
@@ -498,7 +498,7 @@ func (t *testEgressServer) BatchedReceiver(r *v2.EgressBatchRequest, server v2.E
 			atomic.StoreInt64(&t.lastIdx, int64(i-1))
 			return err
 		}
-		time.Sleep(time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 	return nil
 }
