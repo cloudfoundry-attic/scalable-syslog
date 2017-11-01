@@ -40,6 +40,7 @@ func LoadConfig(args []string) (*Config, error) {
 		APISkipCertVerify:     false,
 		APIPollingInterval:    15 * time.Second,
 		MetricEmitterInterval: time.Minute,
+		Blacklist:             &ingress.BlacklistRanges{},
 	}
 
 	if err := envstruct.Load(&cfg); err != nil {
