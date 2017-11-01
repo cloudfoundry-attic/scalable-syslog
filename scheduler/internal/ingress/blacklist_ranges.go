@@ -29,6 +29,29 @@ func NewBlacklistRanges(ranges ...BlacklistRange) (*BlacklistRanges, error) {
 	return r, nil
 }
 
+// UnmarshalEnv implements envstruct.Unmarshaller.
+// Example input:
+// 10.0.0.5-10.0.0.9,123.4.5.6-123.4.5.7
+func (i *BlacklistRanges) UnmarshalEnv(v string) error {
+	if v == "" {
+		return nil
+	}
+
+	for _, ipRange := range strings.Split(v, ",") {
+		ips := strings.Split(ipRange, "-")
+		if len(ips) != 2 {
+			return fmt.Errorf("invalid BlacklistRange: %s", ipRange)
+		}
+
+		i.Ranges = append(i.Ranges, BlacklistRange{
+			Start: ips[0],
+			End:   ips[1],
+		})
+	}
+
+	return i.validate()
+}
+
 func (i *BlacklistRanges) validate() error {
 	for _, ipRange := range i.Ranges {
 		startIP := net.ParseIP(ipRange.Start)

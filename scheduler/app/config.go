@@ -1,138 +1,65 @@
 package app
 
 import (
-	"errors"
-	"flag"
 	"fmt"
+	"log"
 	"net"
-	"strings"
 	"time"
 
+	envstruct "code.cloudfoundry.org/go-envstruct"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 )
 
 type Config struct {
-	HealthHostport     string
-	PprofHostport      string
-	APIURL             string
-	APICAFile          string
-	APICertFile        string
-	APIKeyFile         string
-	APICommonName      string
-	APISkipCertVerify  bool
-	APIPollingInterval time.Duration
-	CAFile             string
-	CertFile           string
-	KeyFile            string
-	AdapterCommonName  string
-	AdapterPort        string
-	AdapterAddrs       []string
-	Blacklist          *ingress.BlacklistRanges
+	HealthHostport     string                   `env:"HEALTH_HOSTPORT,      required"`
+	PprofHostport      string                   `env:"PPROF_HOSTPORT,       required"`
+	APIURL             string                   `env:"API_URL,              required"`
+	APICAFile          string                   `env:"API_CA_FILE_PATH,     required"`
+	APICertFile        string                   `env:"API_CERT_FILE_PATH,   required"`
+	APIKeyFile         string                   `env:"API_KEY_FILE_PATH,    required"`
+	APICommonName      string                   `env:"API_COMMON_NAME,      required"`
+	APISkipCertVerify  bool                     `env:"API_SKIP_CERT_VERIFY, required"`
+	APIPollingInterval time.Duration            `env:"API_POLLING_INTERVAL, required"`
+	CAFile             string                   `env:"CA_FILE_PATH,         required"`
+	CertFile           string                   `env:"CERT_FILE_PATH,       required"`
+	KeyFile            string                   `env:"KEY_FILE_PATH,        required"`
+	AdapterCommonName  string                   `env:"ADAPTER_COMMON_NAME,  required"`
+	AdapterPort        string                   `env:"ADAPTER_PORT,         required"`
+	AdapterAddrs       []string                 `env:"ADAPTER_ADDRS,        required"`
+	Blacklist          *ingress.BlacklistRanges `env:"BLACKLIST"`
 
-	MetricIngressAddr     string
-	MetricIngressCN       string
-	MetricEmitterInterval time.Duration
+	MetricIngressAddr     string        `env:"METRIC_INGRESS_ADDR,          required"`
+	MetricIngressCN       string        `env:"METRIC_INGRESS_CN,            required"`
+	MetricEmitterInterval time.Duration `env:"METRIC_EMITTER_INTERVAL,      required"`
 }
 
 func LoadConfig(args []string) (*Config, error) {
-	var cfg Config
-
-	flags := flag.NewFlagSet("config", flag.ContinueOnError)
-
-	flags.StringVar(&cfg.HealthHostport, "health", ":8080", "The hostport to listen for health requests")
-	flags.StringVar(&cfg.PprofHostport, "pprof", ":6060", "The hostport to listen for pprof")
-
-	flags.StringVar(&cfg.APIURL, "api-url", "", "The URL of the binding provider")
-	flags.StringVar(&cfg.APICAFile, "api-ca", "", "The file path for the CA cert")
-	flags.StringVar(&cfg.APICertFile, "api-cert", "", "The file path for the client cert")
-	flags.StringVar(&cfg.APIKeyFile, "api-key", "", "The file path for the client key")
-	flags.StringVar(&cfg.APICommonName, "api-cn", "", "The common name used for the TLS config")
-	flags.BoolVar(&cfg.APISkipCertVerify, "api-skip-cert-verify", false, "The option to allow insecure SSL connections")
-	flags.DurationVar(&cfg.APIPollingInterval, "api-polling-interval", 15*time.Second, "The option to configure the API polling interval")
-
-	flags.StringVar(&cfg.CAFile, "ca", "", "The file path for the CA cert")
-	flags.StringVar(&cfg.CertFile, "cert", "", "The file path for the adapter server cert")
-	flags.StringVar(&cfg.KeyFile, "key", "", "The file path for the adapter server key")
-
-	flags.StringVar(&cfg.AdapterCommonName, "adapter-cn", "", "The common name used for the TLS config")
-	flags.StringVar(&cfg.AdapterPort, "adapter-port", "", "The port of the adapter API")
-
-	var addrList string
-	flags.StringVar(&addrList, "adapter-addrs", "", "Comma separated list of adapter addresses")
-
-	flags.StringVar(&cfg.MetricIngressAddr, "metric-ingress-addr", "", "The ingress address for the metrics ingress API")
-	flags.StringVar(&cfg.MetricIngressCN, "metric-ingress-cn", "", "The TLS common name for metrics ingress API")
-	flags.DurationVar(&cfg.MetricEmitterInterval, "metric-emitter-interval", time.Minute, "The interval to send batched metrics to metron")
-
-	var blacklist string
-	flags.StringVar(&blacklist, "blacklist-ranges", "", "Comma separated list of blacklist IP ranges")
-
-	flags.Parse(args)
-
-	var errs []error
-	flags.VisitAll(func(f *flag.Flag) {
-		if f.Name != "blacklist-ranges" && f.Value.String() == "" {
-			errs = append(errs, fmt.Errorf("Missing required flag %s", f.Name))
-		}
-	})
-
-	if len(errs) != 0 {
-		var errorMsg string
-		for _, e := range errs {
-			errorMsg += fmt.Sprintf("  %s\n", e.Error())
-		}
-
-		return nil, fmt.Errorf("Config validation failed:\n%s", errorMsg)
+	cfg := Config{
+		HealthHostport:        ":8080",
+		PprofHostport:         "localhost:6060",
+		APISkipCertVerify:     false,
+		APIPollingInterval:    15 * time.Second,
+		MetricEmitterInterval: time.Minute,
 	}
 
-	var err error
-	cfg.AdapterAddrs, err = parseAddrs(addrList, cfg.AdapterPort)
+	if err := envstruct.Load(&cfg); err != nil {
+		log.Fatalf("failed to load config from environment: %s", err)
+	}
+
+	hostports, err := resolveAddrs(cfg.AdapterAddrs, cfg.AdapterPort)
 	if err != nil {
-		return nil, fmt.Errorf("No adapter addresses: %s", err)
+		log.Fatalf("failed to resolve adapter addrs: %s", err)
 	}
-
-	cfg.Blacklist, err = parseBlacklist(blacklist)
-	if err != nil {
-		return nil, err
-	}
+	cfg.AdapterAddrs = hostports
 
 	return &cfg, nil
 }
 
-func parseBlacklist(blacklist string) (*ingress.BlacklistRanges, error) {
-	ipRanges := strings.Split(blacklist, ",")
-	blacklistRanges := make([]ingress.BlacklistRange, 0)
-
-	if len(ipRanges) == 1 && len(ipRanges[0]) == 0 {
-		ipRanges = []string{}
-	}
-
-	for _, ipRange := range ipRanges {
-		ips := strings.Split(ipRange, "-")
-		r := ingress.BlacklistRange{
-			Start: ips[0],
-			End:   ips[1],
-		}
-		blacklistRanges = append(blacklistRanges, r)
-	}
-
-	result, err := ingress.NewBlacklistRanges(blacklistRanges...)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse blacklist ip ranges: %s", err)
-	}
-	return result, nil
-
-}
-
-func parseAddrs(addrList, port string) ([]string, error) {
+// resolveAddrs does two things:
+// 1. Does a DNS lookup of the addresses to ensure they are valid.
+// 2. Adds the given port to create hostport.
+func resolveAddrs(hosts []string, port string) ([]string, error) {
 	var hostports []string
-
-	if len(addrList) == 0 {
-		return nil, errors.New("no address is provided")
-	}
-
-	hosts := strings.Split(addrList, ",")
-
 	for _, h := range hosts {
 		resolved, err := net.LookupIP(h)
 		if err != nil {

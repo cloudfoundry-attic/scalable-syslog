@@ -111,6 +111,30 @@ var _ = Describe("BlacklistRanges", func() {
 			Expect(err).To(HaveOccurred())
 		})
 	})
+
+	Describe("UnmarshalEnv", func() {
+		It("returns an error for non-valid input", func() {
+			bl := &ingress.BlacklistRanges{}
+			Expect(bl.UnmarshalEnv("invalid")).ToNot(Succeed())
+
+			Expect(bl.UnmarshalEnv("10.244.0.32-10")).ToNot(Succeed())
+		})
+
+		It("parses the given IP ranges", func() {
+			bl := &ingress.BlacklistRanges{}
+			Expect(bl.UnmarshalEnv("10.0.0.4-10.0.0.8,123.4.5.6-123.4.5.7")).To(Succeed())
+
+			Expect(bl.Ranges).To(Equal([]ingress.BlacklistRange{
+				{Start: "10.0.0.4", End: "10.0.0.8"},
+				{Start: "123.4.5.6", End: "123.4.5.7"},
+			}))
+		})
+
+		It("does not return an error for an empty list", func() {
+			bl := &ingress.BlacklistRanges{}
+			Expect(bl.UnmarshalEnv("")).To(Succeed())
+		})
+	})
 })
 
 var validIPs = []string{
