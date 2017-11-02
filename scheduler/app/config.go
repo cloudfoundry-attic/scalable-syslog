@@ -10,16 +10,13 @@ import (
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
 )
 
+// Config stores configuration settings for the scheduler.
 type Config struct {
-	HealthHostport     string                   `env:"HEALTH_HOSTPORT,      required"`
-	PprofHostport      string                   `env:"PPROF_HOSTPORT,       required"`
 	APIURL             string                   `env:"API_URL,              required"`
 	APICAFile          string                   `env:"API_CA_FILE_PATH,     required"`
 	APICertFile        string                   `env:"API_CERT_FILE_PATH,   required"`
 	APIKeyFile         string                   `env:"API_KEY_FILE_PATH,    required"`
 	APICommonName      string                   `env:"API_COMMON_NAME,      required"`
-	APISkipCertVerify  bool                     `env:"API_SKIP_CERT_VERIFY, required"`
-	APIPollingInterval time.Duration            `env:"API_POLLING_INTERVAL, required"`
 	CAFile             string                   `env:"CA_FILE_PATH,         required"`
 	CertFile           string                   `env:"CERT_FILE_PATH,       required"`
 	KeyFile            string                   `env:"KEY_FILE_PATH,        required"`
@@ -27,12 +24,19 @@ type Config struct {
 	AdapterPort        string                   `env:"ADAPTER_PORT,         required"`
 	AdapterAddrs       []string                 `env:"ADAPTER_ADDRS,        required"`
 	Blacklist          *ingress.BlacklistRanges `env:"BLACKLIST"`
+	HealthHostport     string                   `env:"HEALTH_HOSTPORT"`
+	PprofHostport      string                   `env:"PPROF_HOSTPORT"`
+	APISkipCertVerify  bool                     `env:"API_SKIP_CERT_VERIFY"`
+	APIPollingInterval time.Duration            `env:"API_POLLING_INTERVAL"`
 
 	MetricIngressAddr     string        `env:"METRIC_INGRESS_ADDR,          required"`
 	MetricIngressCN       string        `env:"METRIC_INGRESS_CN,            required"`
-	MetricEmitterInterval time.Duration `env:"METRIC_EMITTER_INTERVAL,      required"`
+	MetricEmitterInterval time.Duration `env:"METRIC_EMITTER_INTERVAL"`
 }
 
+// LoadConfig will load and validate the config from the current environment.
+// If validation fails LoadConfig will log the error and exit the process with
+// status code 1.
 func LoadConfig(args []string) (*Config, error) {
 	cfg := Config{
 		HealthHostport:        ":8080",
