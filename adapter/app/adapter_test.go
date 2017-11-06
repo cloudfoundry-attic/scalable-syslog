@@ -137,7 +137,7 @@ var _ = Describe("Adapter", func() {
 			syslogTCPServer = newSyslogTLSServer()
 
 			binding = &v1.Binding{
-				AppId:    "appguid",
+				AppId:    "app-guid",
 				Hostname: "ahostname",
 				Drain:    "syslog-tls://" + syslogTCPServer.addr().String(),
 			}
@@ -230,7 +230,7 @@ var _ = Describe("Adapter", func() {
 				syslogTCPServer = newSyslogTLSServer()
 
 				binding = &v1.Binding{
-					AppId:    "appguid",
+					AppId:    "app-guid",
 					Hostname: "ahostname",
 					Drain:    "syslog-tls://" + syslogTCPServer.addr().String(),
 				}
