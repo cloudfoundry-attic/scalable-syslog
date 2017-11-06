@@ -343,6 +343,9 @@ var _ = Describe("Subscriber", func() {
 
 				selector := req.GetSelectors()[0]
 				Expect(selector.GetLog()).ToNot(BeNil())
+
+				Expect(req.LegacySelector).ToNot(BeNil())
+				Expect(req.LegacySelector.GetLog()).ToNot(BeNil())
 			})
 		})
 
@@ -370,6 +373,9 @@ var _ = Describe("Subscriber", func() {
 
 				selector := req.GetSelectors()[0]
 				Expect(selector.GetLog()).ToNot(BeNil())
+
+				Expect(req.LegacySelector).ShouldNot(BeNil())
+				Expect(req.LegacySelector.GetLog()).ToNot(BeNil())
 			})
 		})
 
@@ -400,6 +406,8 @@ var _ = Describe("Subscriber", func() {
 
 				selector = req.GetSelectors()[1]
 				Expect(selector.GetCounter()).ToNot(BeNil())
+
+				Expect(req.LegacySelector).ToNot(BeNil())
 			})
 		})
 
@@ -428,6 +436,9 @@ var _ = Describe("Subscriber", func() {
 				Expect(req.GetSelectors()[0].GetLog()).ToNot(BeNil())
 				Expect(req.GetSelectors()[1].GetGauge()).ToNot(BeNil())
 				Expect(req.GetSelectors()[2].GetCounter()).ToNot(BeNil())
+
+				Expect(req.LegacySelector).ShouldNot(BeNil())
+				Expect(req.LegacySelector.GetLog()).ToNot(BeNil())
 			})
 		})
 

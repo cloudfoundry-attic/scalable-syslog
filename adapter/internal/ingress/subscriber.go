@@ -150,10 +150,18 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		}
 	}()
 
+	// NOTE: It is assumed that unless logs have not been requested,
+	// then the logs selector will be at index 0. In other words,
+	// if both logs and metrics have been requested, but the logs-provider
+	// does not support the non-legacy selector, then only logs will be
+	// sent.
+	legacySelector := selectors[0]
+
 	batchReceiver, err := client.BatchedReceiver(ctx, &v2.EgressBatchRequest{
 		ShardId:          buildShardId(binding),
 		UsePreferredTags: true,
 		Selectors:        selectors,
+		LegacySelector:   legacySelector,
 	})
 
 	status, ok := status.FromError(err)
@@ -163,6 +171,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 			ShardId:          buildShardId(binding),
 			UsePreferredTags: true,
 			Selectors:        selectors,
+			LegacySelector:   legacySelector,
 		})
 		close(ready)
 		if err != nil {
@@ -256,6 +265,9 @@ func buildShardId(binding *v1.Binding) (key string) {
 func buildRequestSelectors(appID, drainType string) ([]*v2.Selector, bool) {
 	switch drainType {
 	case "", "logs":
+		// NOTE: Logs should always be first for any legacy purposes. Once
+		// loggregator-api deprecates and removes the LegacySelector, this
+		// requirement can loosen up.
 		return []*v2.Selector{
 			{
 				SourceId: appID,
