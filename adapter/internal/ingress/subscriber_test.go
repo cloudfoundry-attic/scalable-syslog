@@ -264,7 +264,7 @@ var _ = Describe("Subscriber", func() {
 		Eventually(spyEmitter.GetMetric("ingress").Delta).Should(Equal(uint64(1)))
 	})
 
-	It("does not emit an envelope that has an unexpected app-id", func() {
+	It("ignores received envelopes with an unexpected app-id", func() {
 		spyClientPool := newSpyClientPool()
 		spyEmitter := testhelper.NewMetricClient()
 		syslogConnector := newSpySyslogConnector()
@@ -281,6 +281,37 @@ var _ = Describe("Subscriber", func() {
 		receiver := newSpyReceiverClient()
 		receiver.recv = buildLogEnvelope("invalid-source-id")
 		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
+
+		subscriber.Start(binding)
+
+		Consistently(writer.writes).Should(BeZero())
+	})
+
+	It("ignores batched received envelopes with an unexpected app-id", func() {
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
+		}
+		receiver := newSpyBatchedReceiverClient()
+		receiver.recv = &v2.EnvelopeBatch{
+			Batch: []*v2.Envelope{buildLogEnvelope("invalid-source-id")},
+		}
+		client.batchedReceiverClient = receiver
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
 			spyClientPool,
