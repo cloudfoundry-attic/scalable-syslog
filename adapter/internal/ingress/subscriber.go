@@ -171,7 +171,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		}
 		defer receiver.CloseSend()
 
-		err = s.readWriteLoop(receiver, writer)
+		err = s.readWriteLoop(binding.AppId, receiver, writer)
 		log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
 
 		return true
@@ -189,11 +189,20 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 	return true
 }
 
-func (s *Subscriber) readWriteLoop(r v2.Egress_ReceiverClient, w egress.Writer) error {
+func (s *Subscriber) readWriteLoop(sourceId string, r v2.Egress_ReceiverClient, w egress.Writer) error {
 	for {
 		env, err := r.Recv()
 		if err != nil {
 			return err
+		}
+
+		// Ensure this is an envelope we actually want and we don't accidently
+		// write envelopes that were not meant for this binding. This is
+		// defensive and hopefully the logs provider will do its job, but
+		// better safe than sorry.
+		if env.GetSourceId() != sourceId {
+			log.Print("Warning! Logs provider gave us an unexpected app-id!")
+			continue
 		}
 
 		s.ingressMetric.Increment(1)

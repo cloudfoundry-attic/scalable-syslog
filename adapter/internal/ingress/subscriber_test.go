@@ -75,7 +75,7 @@ var _ = Describe("Subscriber", func() {
 		}
 		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
 		receiver := newSpyReceiverClient()
-		receiver.recv = buildLogEnvelope()
+		receiver.recv = buildLogEnvelope("some-app-id")
 		client.receiverClient = receiver
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
@@ -110,7 +110,7 @@ var _ = Describe("Subscriber", func() {
 		}
 		client.batchedReceiverError = errors.New("cannot get batcher")
 		receiver := newSpyReceiverClient()
-		receiver.recv = buildLogEnvelope()
+		receiver.recv = buildLogEnvelope("some-app-id")
 		client.receiverClient = receiver
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
@@ -170,7 +170,7 @@ var _ = Describe("Subscriber", func() {
 		}
 		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
 		receiver := newSpyReceiverClient()
-		receiver.recv = buildLogEnvelope()
+		receiver.recv = buildLogEnvelope("some-app-id")
 		client.receiverClient = receiver
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
@@ -249,7 +249,7 @@ var _ = Describe("Subscriber", func() {
 		}
 		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
 		receiver := newSpyReceiverClient()
-		receiver.recv = buildLogEnvelope()
+		receiver.recv = buildLogEnvelope("some-app-id")
 		client.receiverClient = receiver
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
@@ -262,6 +262,36 @@ var _ = Describe("Subscriber", func() {
 		subscriber.Start(binding)
 
 		Eventually(spyEmitter.GetMetric("ingress").Delta).Should(Equal(uint64(1)))
+	})
+
+	It("does not emit an envelope that has an unexpected app-id", func() {
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
+		}
+		client.batchedReceiverError = status.Error(codes.Unimplemented, "unimplemented")
+		receiver := newSpyReceiverClient()
+		receiver.recv = buildLogEnvelope("invalid-source-id")
+		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
+
+		subscriber.Start(binding)
+
+		Consistently(writer.writes).Should(BeZero())
 	})
 
 	Describe("drain-type option", func() {
@@ -455,14 +485,14 @@ func (s *spyCloseWriter) Close() error {
 	return nil
 }
 
-func buildLogEnvelope() *v2.Envelope {
+func buildLogEnvelope(sourceID string) *v2.Envelope {
 	return &v2.Envelope{
 		Tags: map[string]string{
 			"source_type":     "APP",
 			"source_instance": "2",
 		},
 		Timestamp: 12345678,
-		SourceId:  "source-id",
+		SourceId:  sourceID,
 		Message: &v2.Envelope_Log{
 			Log: &v2.Log{
 				Payload: []byte("log"),
@@ -488,7 +518,7 @@ func buildBatchedLogs(size int) *v2.EnvelopeBatch {
 	}
 
 	for i := 0; i < size; i++ {
-		env := buildLogEnvelope()
+		env := buildLogEnvelope("some-app-id")
 		batch.Batch = append(batch.Batch, env)
 	}
 
