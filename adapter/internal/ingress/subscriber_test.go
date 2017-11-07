@@ -88,6 +88,9 @@ var _ = Describe("Subscriber", func() {
 		subscriber.Start(binding)
 
 		Eventually(client.receiverRequest).ShouldNot(BeNil())
+		Expect(client.receiverRequest().LegacySelector.GetSourceId()).To(Equal(binding.AppId))
+		Expect(client.receiverRequest().LegacySelector.GetLog()).ToNot(BeNil())
+
 		Expect(client.receiverRequest().Selectors[0].GetSourceId()).To(Equal(binding.AppId))
 		Expect(client.receiverRequest().Selectors[0].GetLog()).ToNot(BeNil())
 		Expect(client.receiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
@@ -350,6 +353,35 @@ var _ = Describe("Subscriber", func() {
 			logClient = newSpyLogClient()
 		})
 
+		Context("when metrics-to-syslog is disabled", func() {
+			It("ignores drain-type", func() {
+				subscriber := ingress.NewSubscriber(
+					context.TODO(),
+					spyClientPool,
+					syslogConnector,
+					spyEmitter,
+					ingress.WithStreamOpenTimeout(500*time.Millisecond),
+					ingress.WithMetricsToSyslogEnabled(false),
+				)
+
+				binding := &v1.Binding{
+					AppId:    "some-app-id",
+					Hostname: "some-host-name",
+					Drain:    "https://some-drain?drain-type=metrics",
+				}
+				subscriber.Start(binding)
+
+				Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
+
+				req := client.batchedReceiverRequest()
+				Expect(req.GetSelectors()).To(HaveLen(1))
+
+				selector := req.GetSelectors()[0]
+				Expect(selector.GetLog()).ToNot(BeNil())
+				Expect(req.GetLegacySelector().GetLog()).ToNot(BeNil())
+			})
+		})
+
 		Context("when drain-type is empty", func() {
 			It("requests only logs", func() {
 				subscriber := ingress.NewSubscriber(
@@ -358,6 +390,7 @@ var _ = Describe("Subscriber", func() {
 					syslogConnector,
 					spyEmitter,
 					ingress.WithStreamOpenTimeout(500*time.Millisecond),
+					ingress.WithMetricsToSyslogEnabled(true),
 				)
 
 				binding := &v1.Binding{
@@ -374,6 +407,7 @@ var _ = Describe("Subscriber", func() {
 
 				selector := req.GetSelectors()[0]
 				Expect(selector.GetLog()).ToNot(BeNil())
+				Expect(req.GetLegacySelector().GetLog()).ToNot(BeNil())
 			})
 		})
 
@@ -385,6 +419,7 @@ var _ = Describe("Subscriber", func() {
 					syslogConnector,
 					spyEmitter,
 					ingress.WithStreamOpenTimeout(500*time.Millisecond),
+					ingress.WithMetricsToSyslogEnabled(true),
 				)
 
 				binding := &v1.Binding{
@@ -401,6 +436,7 @@ var _ = Describe("Subscriber", func() {
 
 				selector := req.GetSelectors()[0]
 				Expect(selector.GetLog()).ToNot(BeNil())
+				Expect(req.GetLegacySelector().GetLog()).ToNot(BeNil())
 			})
 		})
 
@@ -412,6 +448,7 @@ var _ = Describe("Subscriber", func() {
 					syslogConnector,
 					spyEmitter,
 					ingress.WithStreamOpenTimeout(500*time.Millisecond),
+					ingress.WithMetricsToSyslogEnabled(true),
 				)
 
 				binding := &v1.Binding{
@@ -442,6 +479,7 @@ var _ = Describe("Subscriber", func() {
 					syslogConnector,
 					spyEmitter,
 					ingress.WithStreamOpenTimeout(500*time.Millisecond),
+					ingress.WithMetricsToSyslogEnabled(true),
 				)
 
 				binding := &v1.Binding{
@@ -459,6 +497,7 @@ var _ = Describe("Subscriber", func() {
 				Expect(req.GetSelectors()[0].GetLog()).ToNot(BeNil())
 				Expect(req.GetSelectors()[1].GetGauge()).ToNot(BeNil())
 				Expect(req.GetSelectors()[2].GetCounter()).ToNot(BeNil())
+				Expect(req.GetLegacySelector().GetLog()).ToNot(BeNil())
 			})
 		})
 
@@ -470,6 +509,7 @@ var _ = Describe("Subscriber", func() {
 				spyEmitter,
 				ingress.WithStreamOpenTimeout(500*time.Millisecond),
 				ingress.WithLogClient(logClient, "some-source-index"),
+				ingress.WithMetricsToSyslogEnabled(true),
 			)
 
 			binding := &v1.Binding{
@@ -480,6 +520,7 @@ var _ = Describe("Subscriber", func() {
 			subscriber.Start(binding)
 
 			Eventually(client.batchedReceiverRequest).ShouldNot(BeNil())
+			Expect(client.batchedReceiverRequest().GetLegacySelector().GetLog()).ToNot(BeNil())
 			Expect(client.batchedReceiverRequest().Selectors[0].GetSourceId()).To(Equal(binding.AppId))
 			Expect(client.batchedReceiverRequest().Selectors[0].GetLog()).ToNot(BeNil())
 			Expect(client.batchedReceiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
