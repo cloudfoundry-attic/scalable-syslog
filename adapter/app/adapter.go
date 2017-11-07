@@ -56,6 +56,7 @@ type Adapter struct {
 	health                 *health.Health
 	timeoutWaitGroup       *timeoutwaitgroup.TimeoutWaitGroup
 	sourceIndex            string
+	metricsToSyslogEnabled bool
 }
 
 // AdapterOption is a type that will manipulate a config
@@ -115,6 +116,15 @@ func WithSyslogSkipCertVerify(b bool) func(*Adapter) {
 	}
 }
 
+// WithEnableMetricsToSyslog returns a AdapterOption to override the
+// default setting for writing metrics to syslog. By default this feature is
+// disabled.
+func WithMetricsToSyslogEnabled(enabled bool) AdapterOption {
+	return func(a *Adapter) {
+		a.metricsToSyslogEnabled = enabled
+	}
+}
+
 // maxRetries for the backoff, results in around an hour of total delay
 const maxRetries int = 22
 
@@ -146,6 +156,7 @@ func NewAdapter(
 		health:                 health.NewHealth(),
 		timeoutWaitGroup:       timeoutwaitgroup.New(time.Minute),
 		sourceIndex:            sourceIndex,
+		metricsToSyslogEnabled: false,
 	}
 
 	for _, o := range opts {
@@ -221,6 +232,7 @@ func NewAdapter(
 		syslogConnector,
 		metricClient,
 		ingress.WithLogClient(logClient, a.sourceIndex),
+		ingress.WithMetricsToSyslogEnabled(a.metricsToSyslogEnabled),
 	)
 
 	a.bindingManager = binding.NewBindingManager(subscriber)

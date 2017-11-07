@@ -77,6 +77,7 @@ func main() {
 		app.WithSyslogDialTimeout(cfg.SyslogDialTimeout),
 		app.WithSyslogIOTimeout(cfg.SyslogIOTimeout),
 		app.WithSyslogSkipCertVerify(cfg.SyslogSkipCertVerify),
+		app.WithMetricsToSyslogEnabled(cfg.MetricsToSyslogEnabled),
 	)
 	go adapter.Start()
 	defer adapter.Stop()

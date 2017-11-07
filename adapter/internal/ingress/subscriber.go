@@ -52,15 +52,25 @@ func WithLogClient(logClient LogClient, sourceIndex string) SubscriberOption {
 	}
 }
 
+// WithEnableMetricsToSyslog returns a SubscriberOption to override the
+// default setting for writing metrics to syslog. By default this feature is
+// disabled.
+func WithMetricsToSyslogEnabled(enabled bool) SubscriberOption {
+	return func(s *Subscriber) {
+		s.metricsToSyslogEnabled = enabled
+	}
+}
+
 // Subscriber streams loggregator egress to the syslog drain.
 type Subscriber struct {
-	ctx               context.Context
-	pool              ClientPool
-	connector         SyslogConnector
-	ingressMetric     pulseemitter.CounterMetric
-	logClient         LogClient
-	streamOpenTimeout time.Duration
-	sourceIndex       string
+	ctx                    context.Context
+	pool                   ClientPool
+	connector              SyslogConnector
+	ingressMetric          pulseemitter.CounterMetric
+	logClient              LogClient
+	streamOpenTimeout      time.Duration
+	sourceIndex            string
+	metricsToSyslogEnabled bool
 }
 
 type MetricClient interface {
@@ -82,12 +92,13 @@ func NewSubscriber(
 	)
 
 	s := &Subscriber{
-		ctx:               ctx,
-		pool:              p,
-		connector:         c,
-		ingressMetric:     ingressMetric,
-		logClient:         nullLogClient{},
-		streamOpenTimeout: 2 * time.Second,
+		ctx:                    ctx,
+		pool:                   p,
+		connector:              c,
+		ingressMetric:          ingressMetric,
+		logClient:              nullLogClient{},
+		streamOpenTimeout:      2 * time.Second,
+		metricsToSyslogEnabled: false,
 	}
 
 	for _, o := range opts {
@@ -108,7 +119,7 @@ func (s *Subscriber) Start(binding *v1.Binding) func() {
 		return cancel
 	}
 
-	selectors, ok := buildRequestSelectors(binding.AppId, url.Query().Get("drain-type"))
+	selectors, ok := s.buildRequestSelectors(binding.AppId, url.Query().Get("drain-type"))
 	if !ok {
 		s.emitErrorLog(binding.AppId, "Invalid drain-type")
 	}
@@ -154,6 +165,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		ShardId:          buildShardId(binding),
 		UsePreferredTags: true,
 		Selectors:        selectors,
+		LegacySelector:   selectors[0],
 	})
 
 	status, ok := status.FromError(err)
@@ -163,6 +175,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 			ShardId:          buildShardId(binding),
 			UsePreferredTags: true,
 			Selectors:        selectors,
+			LegacySelector:   selectors[0],
 		})
 		close(ready)
 		if err != nil {
@@ -231,20 +244,18 @@ func (s *Subscriber) emitErrorLog(appID, message string) {
 	s.logClient.EmitLog(message, option)
 }
 
-func isDone(ctx context.Context) bool {
-	select {
-	case <-ctx.Done():
-		return true
-	default:
-		return false
+func (s *Subscriber) buildRequestSelectors(appID, drainType string) ([]*v2.Selector, bool) {
+	if !s.metricsToSyslogEnabled {
+		return []*v2.Selector{
+			{
+				SourceId: appID,
+				Message: &v2.Selector_Log{
+					Log: &v2.LogSelector{},
+				},
+			},
+		}, true
 	}
-}
 
-func buildShardId(binding *v1.Binding) (key string) {
-	return binding.AppId + binding.Hostname + binding.Drain
-}
-
-func buildRequestSelectors(appID, drainType string) ([]*v2.Selector, bool) {
 	switch drainType {
 	case "", "logs":
 		return []*v2.Selector{
@@ -289,4 +300,17 @@ func buildRequestSelectors(appID, drainType string) ([]*v2.Selector, bool) {
 			},
 		}, false
 	}
+}
+
+func isDone(ctx context.Context) bool {
+	select {
+	case <-ctx.Done():
+		return true
+	default:
+		return false
+	}
+}
+
+func buildShardId(binding *v1.Binding) (key string) {
+	return binding.AppId + binding.Hostname + binding.Drain
 }

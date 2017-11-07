@@ -25,6 +25,8 @@ type Config struct {
 	SyslogSkipCertVerify bool
 	SourceIndex          string
 
+	MetricsToSyslogEnabled bool
+
 	MetricIngressAddr     string
 	MetricIngressCN       string
 	MetricEmitterInterval time.Duration
@@ -52,6 +54,7 @@ func LoadConfig() *Config {
 	flag.BoolVar(&cfg.SyslogSkipCertVerify, "syslog-skip-cert-verify", false, "The option to not verify syslog TLS certs")
 
 	flag.StringVar(&cfg.SourceIndex, "source-index", "", "The given index for the adapter")
+	flag.BoolVar(&cfg.MetricsToSyslogEnabled, "metrics-to-syslog-enabled", false, "Enable support for metrics to syslog")
 
 	flag.StringVar(&cfg.LogsAPIAddr, "logs-api-addr", "", "The address for the logs API")
 	flag.StringVar(&cfg.MetricIngressAddr, "metric-ingress-addr", "", "The ingress adress for the metrics API")
