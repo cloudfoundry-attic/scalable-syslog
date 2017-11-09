@@ -168,6 +168,9 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		LegacySelector:   selectors[0],
 	})
 
+	// NOTE Loggregator v93 added BatchedReceiver. Once we can be certain
+	// Loggregator is v93 or above in all deployments, the following failover
+	// code should be deleted.
 	status, ok := status.FromError(err)
 
 	if ok && status.Code() == codes.Unimplemented {
