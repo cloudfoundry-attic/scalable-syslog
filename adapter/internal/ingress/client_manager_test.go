@@ -6,199 +6,197 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
-
 	v2 "code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/ingress"
+	"golang.org/x/net/context"
+	"google.golang.org/grpc"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Client Manager", func() {
-	Context("After a period time", func() {
-		It("rolls the connections", func() {
-			mockConnector := NewMockConnector()
-			ingress.NewClientManager(
-				mockConnector,
-				5,
-				10*time.Millisecond,
-				1*time.Millisecond,
-				ingress.WithRetryWait(10*time.Millisecond),
-			)
+	It("rolls the connections after a TTL", func() {
+		connector := newSpyConnector()
+		ingress.NewClientManager(
+			connector,
+			5,
+			10*time.Millisecond,
+			1*time.Millisecond,
+			ingress.WithRetryWait(10*time.Millisecond),
+		)
 
-			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
-			Eventually(mockConnector.GetCloseCalled).Should(BeNumerically(">", 5))
-			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
-		})
+		Eventually(connector.connectionCount).Should(Equal(5))
+		Eventually(connector.closeCalled).Should(BeNumerically(">", 5))
+		Eventually(connector.connectionCount).Should(Equal(5))
 	})
 
-	Context("when a connection is invalid", func() {
-		It("rolls the connections", func() {
-			mockConnector := NewMockConnector()
-			mockConnector.receiver.Invalidate()
+	It("rolls the connections when invalid", func() {
+		connector := newSpyConnector()
+		connector.receiver.Invalidate()
 
-			ingress.NewClientManager(
-				mockConnector,
-				5,
-				time.Hour,
-				time.Millisecond,
-				ingress.WithRetryWait(10*time.Millisecond),
-			)
+		ingress.NewClientManager(
+			connector,
+			5,
+			time.Hour,
+			time.Millisecond,
+			ingress.WithRetryWait(10*time.Millisecond),
+		)
 
-			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
-			Eventually(mockConnector.GetCloseCalled).Should(BeNumerically(">", 5))
-			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
-		})
+		Eventually(connector.connectionCount).Should(Equal(5))
+		Eventually(connector.closeCalled).Should(BeNumerically(">", 5))
+		Eventually(connector.connectionCount).Should(Equal(5))
 	})
 
-	Describe("Next()", func() {
-		It("returns a client", func() {
-			mockConnector := NewMockConnector()
+	It("returns a client", func() {
+		connector := newSpyConnector()
 
-			// This forces the mockConnector to create a new receiver each
-			// time.
-			mockConnector.receiver = nil
+		// This forces the connector to create a new receiver each
+		// time.
+		connector.receiver = nil
 
-			cm := ingress.NewClientManager(
-				mockConnector,
-				5,
-				10*time.Millisecond,
-				1*time.Millisecond,
-				ingress.WithRetryWait(10*time.Millisecond),
-			)
+		cm := ingress.NewClientManager(
+			connector,
+			5,
+			10*time.Millisecond,
+			1*time.Millisecond,
+			ingress.WithRetryWait(10*time.Millisecond),
+		)
 
-			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
+		Eventually(connector.connectionCount).Should(Equal(5))
 
-			r1 := cm.Next()
-			r2 := cm.Next()
+		r1 := cm.Next()
+		r2 := cm.Next()
 
-			Expect(r1).ToNot(BeIdenticalTo(r2))
-		})
+		Expect(r1).ToNot(BeIdenticalTo(r2))
+	})
 
-		Context("when connector fails", func() {
-			It("does not return a nil client", func() {
-				mockConnector := NewMockConnector()
+	It("does not return a nil client when connector fails", func() {
+		connector := newSpyConnector()
 
-				for i := 0; i < 15; i++ {
-					mockConnector.connectErrors <- errors.New("an-error")
-				}
-				cm := ingress.NewClientManager(
-					mockConnector,
-					5,
-					10*time.Millisecond,
-					1*time.Millisecond,
-					ingress.WithRetryWait(10*time.Millisecond),
-				)
+		for i := 0; i < 15; i++ {
+			connector.connectErrors <- errors.New("an-error")
+		}
+		cm := ingress.NewClientManager(
+			connector,
+			5,
+			10*time.Millisecond,
+			1*time.Millisecond,
+			ingress.WithRetryWait(10*time.Millisecond),
+		)
 
-				r1 := cm.Next()
-				Expect(r1).ToNot(BeNil())
-			})
+		r1 := cm.Next()
+		Expect(r1).ToNot(BeNil())
+	})
 
-			It("it attempts to reconnect", func() {
-				mockConnector := NewMockConnector()
+	It("it attempts to reconnect when connector fails", func() {
+		connector := newSpyConnector()
 
-				for i := 0; i < 15; i++ {
-					mockConnector.connectErrors <- errors.New("an-error")
-				}
-				ingress.NewClientManager(
-					mockConnector,
-					5,
-					time.Hour,
-					1*time.Millisecond,
-					ingress.WithRetryWait(10*time.Millisecond),
-				)
+		for i := 0; i < 15; i++ {
+			connector.connectErrors <- errors.New("an-error")
+		}
+		ingress.NewClientManager(
+			connector,
+			5,
+			time.Hour,
+			1*time.Millisecond,
+			ingress.WithRetryWait(10*time.Millisecond),
+		)
 
-				Eventually(mockConnector.GetConnectCalled).Should(BeNumerically(">", 5))
-			})
-		})
+		Eventually(connector.connectCalled).Should(BeNumerically(">", 5))
 	})
 })
 
-type MockConnector struct {
-	connectCalled         int
-	closeCalled           int
+type spyConnector struct {
+	connectCalled_        int
+	closeCalled_          int
 	successfulConnections int
 	mu                    sync.Mutex
 	connectErrors         chan error
-	receiver              *MockReceiver
+	receiver              *spyReceiver
 }
 
-func NewMockConnector() *MockConnector {
-	return &MockConnector{
+func newSpyConnector() *spyConnector {
+	return &spyConnector{
 		connectErrors: make(chan error, 100),
-		receiver:      &MockReceiver{},
+		receiver:      &spyReceiver{},
 	}
 }
 
-func (m *MockConnector) Connect() (io.Closer, ingress.LogsProviderClient, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *spyConnector) Connect() (io.Closer, ingress.LogsProviderClient, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	m.connectCalled++
-	m.successfulConnections++
+	s.connectCalled_++
+	s.successfulConnections++
 
 	var err error
-	if len(m.connectErrors) > 0 {
-		err = <-m.connectErrors
+	if len(s.connectErrors) > 0 {
+		err = <-s.connectErrors
 	}
 
-	if m.receiver == nil {
-		return m, &MockReceiver{}, err
+	if s.receiver == nil {
+		return s, &spyReceiver{}, err
 	}
 
-	return m, m.receiver, err
+	return s, s.receiver, err
 }
 
-func (m *MockConnector) Close() error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *spyConnector) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	m.closeCalled++
-	m.successfulConnections--
+	s.closeCalled_++
+	s.successfulConnections--
 
 	return nil
 }
 
-func (m *MockConnector) GetSuccessfulConnections() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *spyConnector) connectionCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return m.successfulConnections
+	return s.successfulConnections
 }
 
-func (m *MockConnector) GetCloseCalled() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *spyConnector) closeCalled() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return m.closeCalled
+	return s.closeCalled_
 }
 
-func (m *MockConnector) GetConnectCalled() int {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *spyConnector) connectCalled() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return m.connectCalled
+	return s.connectCalled_
 }
 
-type MockReceiver struct {
+type spyReceiver struct {
 	n       int
 	invalid bool
 }
 
-func (m *MockReceiver) Valid() bool {
-	return !m.invalid
+func (s *spyReceiver) Valid() bool {
+	return !s.invalid
 }
 
-func (m *MockReceiver) Invalidate() {
-	m.invalid = true
+func (s *spyReceiver) Invalidate() {
+	s.invalid = true
 }
 
-func (m *MockReceiver) Receiver(ctx context.Context, in *v2.EgressRequest, opts ...grpc.CallOption) (v2.Egress_ReceiverClient, error) {
+func (s *spyReceiver) Receiver(
+	context.Context,
+	*v2.EgressRequest, ...grpc.CallOption,
+) (v2.Egress_ReceiverClient, error) {
 	return nil, nil
 }
 
-func (m *MockReceiver) BatchedReceiver(ctx context.Context, in *v2.EgressBatchRequest, opts ...grpc.CallOption) (v2.Egress_BatchedReceiverClient, error) {
+func (s *spyReceiver) BatchedReceiver(
+	context.Context,
+	*v2.EgressBatchRequest,
+	...grpc.CallOption,
+) (v2.Egress_BatchedReceiverClient, error) {
 	return nil, nil
 }
