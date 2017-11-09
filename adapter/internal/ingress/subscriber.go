@@ -16,7 +16,7 @@ import (
 )
 
 type ClientPool interface {
-	Next() (client LogsProviderClient)
+	Next() LogsProviderClient
 }
 
 type SyslogConnector interface {
@@ -179,25 +179,31 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		})
 		close(ready)
 		if err != nil {
+			client.Invalidate()
 			log.Printf("failed to open stream for binding %s: %s", binding.AppId, err)
 			return true
 		}
 		defer receiver.CloseSend()
 
-		err = s.readWriteLoop(binding.AppId, receiver, writer)
-		log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
+		if err := s.readWriteLoop(binding.AppId, receiver, writer); err != nil {
+			log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
+			client.Invalidate()
+		}
 
 		return true
 	}
 	close(ready)
 	if err != nil {
+		client.Invalidate()
 		log.Printf("failed to open stream for binding %s: %s", binding.AppId, err)
 		return true
 	}
 	defer batchReceiver.CloseSend()
 
-	err = s.batchReadWriteLoop(binding.AppId, batchReceiver, writer)
-	log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
+	if err := s.batchReadWriteLoop(binding.AppId, batchReceiver, writer); err != nil {
+		client.Invalidate()
+		log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
+	}
 
 	return true
 }

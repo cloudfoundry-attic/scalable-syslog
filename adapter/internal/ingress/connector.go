@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"io"
 	"log"
+	"sync"
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
@@ -42,6 +43,9 @@ type LogsProviderClient interface {
 		in *loggregator_v2.EgressBatchRequest,
 		opts ...grpc.CallOption,
 	) (loggregator_v2.Egress_BatchedReceiverClient, error)
+
+	Valid() bool
+	Invalidate()
 }
 
 // Balancer cycles through a collection of host ports. It will return an error
@@ -84,8 +88,43 @@ func (c *Connector) Connect() (io.Closer, LogsProviderClient, error) {
 		client := loggregator_v2.NewEgressClient(conn)
 		log.Println("Created new connection to loggregator egress API")
 
-		return conn, client, nil
+		return conn, &ValidClient{client: client}, nil
 	}
 
 	return nil, nil, err
+}
+
+type ValidClient struct {
+	mu      sync.Mutex
+	invalid bool
+
+	client loggregator_v2.EgressClient
+}
+
+func (v *ValidClient) Valid() bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return !v.invalid
+}
+
+func (v *ValidClient) Invalidate() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.invalid = true
+}
+
+func (v *ValidClient) Receiver(
+	ctx context.Context,
+	in *loggregator_v2.EgressRequest,
+	opts ...grpc.CallOption,
+) (loggregator_v2.Egress_ReceiverClient, error) {
+	return v.client.Receiver(ctx, in, opts...)
+}
+
+func (v *ValidClient) BatchedReceiver(
+	ctx context.Context,
+	in *loggregator_v2.EgressBatchRequest,
+	opts ...grpc.CallOption,
+) (loggregator_v2.Egress_BatchedReceiverClient, error) {
+	return v.client.BatchedReceiver(ctx, in, opts...)
 }

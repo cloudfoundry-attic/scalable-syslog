@@ -34,6 +34,11 @@ var _ = Describe("Connector", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(b.nextHostPortCalled).To(Equal(int64(1)))
 		Expect(client).ToNot(BeNil())
+		Expect(client.Valid()).To(Equal(true))
+
+		client.Invalidate()
+
+		Expect(client.Valid()).To(Equal(false))
 	})
 
 	It("returns an error when the balancer fails", func() {

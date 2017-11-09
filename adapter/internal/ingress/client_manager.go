@@ -99,7 +99,7 @@ func (c *ClientManager) monitorConnectionsForRolling() {
 				continue
 			}
 
-			if time.Since(conn.createdAt) >= c.connectionTTL {
+			if !conn.client.Valid() || time.Since(conn.createdAt) >= c.connectionTTL {
 				conn.closer.Close()
 				c.openNewConnection(i)
 			}

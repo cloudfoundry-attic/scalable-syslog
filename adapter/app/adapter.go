@@ -166,7 +166,11 @@ func NewAdapter(
 		ingress.NewIPBalancer(logsEgressAPIAddrWithAZ),
 		ingress.NewIPBalancer(logsEgressAPIAddr),
 	}
-	connector := ingress.NewConnector(balancers, 5*time.Second, a.logsEgressAPITLSConfig)
+	connector := ingress.NewConnector(
+		balancers,
+		5*time.Second,
+		a.logsEgressAPITLSConfig,
+	)
 	clientManager := ingress.NewClientManager(
 		connector,
 		a.logsAPIConnCount,

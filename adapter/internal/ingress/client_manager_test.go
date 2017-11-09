@@ -34,9 +34,33 @@ var _ = Describe("Client Manager", func() {
 		})
 	})
 
+	Context("when a connection is invalid", func() {
+		It("rolls the connections", func() {
+			mockConnector := NewMockConnector()
+			mockConnector.receiver.Invalidate()
+
+			ingress.NewClientManager(
+				mockConnector,
+				5,
+				time.Hour,
+				time.Millisecond,
+				ingress.WithRetryWait(10*time.Millisecond),
+			)
+
+			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
+			Eventually(mockConnector.GetCloseCalled).Should(BeNumerically(">", 5))
+			Eventually(mockConnector.GetSuccessfulConnections).Should(Equal(5))
+		})
+	})
+
 	Describe("Next()", func() {
 		It("returns a client", func() {
 			mockConnector := NewMockConnector()
+
+			// This forces the mockConnector to create a new receiver each
+			// time.
+			mockConnector.receiver = nil
+
 			cm := ingress.NewClientManager(
 				mockConnector,
 				5,
@@ -98,11 +122,13 @@ type MockConnector struct {
 	successfulConnections int
 	mu                    sync.Mutex
 	connectErrors         chan error
+	receiver              *MockReceiver
 }
 
 func NewMockConnector() *MockConnector {
 	return &MockConnector{
 		connectErrors: make(chan error, 100),
+		receiver:      &MockReceiver{},
 	}
 }
 
@@ -118,7 +144,11 @@ func (m *MockConnector) Connect() (io.Closer, ingress.LogsProviderClient, error)
 		err = <-m.connectErrors
 	}
 
-	return m, &MockReceiver{}, err
+	if m.receiver == nil {
+		return m, &MockReceiver{}, err
+	}
+
+	return m, m.receiver, err
 }
 
 func (m *MockConnector) Close() error {
@@ -153,7 +183,16 @@ func (m *MockConnector) GetConnectCalled() int {
 }
 
 type MockReceiver struct {
-	n int
+	n       int
+	invalid bool
+}
+
+func (m *MockReceiver) Valid() bool {
+	return !m.invalid
+}
+
+func (m *MockReceiver) Invalidate() {
+	m.invalid = true
 }
 
 func (m *MockReceiver) Receiver(ctx context.Context, in *v2.EgressRequest, opts ...grpc.CallOption) (v2.Egress_ReceiverClient, error) {
