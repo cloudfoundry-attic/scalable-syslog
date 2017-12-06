@@ -3,14 +3,22 @@ package binding
 import (
 	"sync"
 
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
+
+// MetricClient is used to emit metrics.
+type MetricClient interface {
+	NewGaugeMetric(string, string, ...pulseemitter.MetricOption) pulseemitter.GaugeMetric
+}
 
 // BindingManager stores binding subscriptions.
 type BindingManager struct {
 	mu            sync.RWMutex
 	subscriptions map[v1.Binding]subscription
 	subscriber    Subscriber
+
+	drainBindingsMetric pulseemitter.GaugeMetric
 }
 
 // Subscriber reads and writes logs for a specific binding.
@@ -24,10 +32,13 @@ type subscription struct {
 }
 
 // New returns a new Binding Manager.
-func NewBindingManager(s Subscriber) *BindingManager {
+func NewBindingManager(s Subscriber, mc MetricClient) *BindingManager {
+	dbm := mc.NewGaugeMetric("drain_bindings", "bindings")
+
 	return &BindingManager{
-		subscriptions: make(map[v1.Binding]subscription),
-		subscriber:    s,
+		subscriptions:       make(map[v1.Binding]subscription),
+		subscriber:          s,
+		drainBindingsMetric: dbm,
 	}
 }
 
@@ -44,6 +55,8 @@ func (c *BindingManager) Add(binding *v1.Binding) {
 			unsubscribe: unsub,
 		}
 	}
+
+	c.drainBindingsMetric.Set(int64(len(c.subscriptions)))
 }
 
 // Delete removes a binding subscription from the Binding Manager.
@@ -60,6 +73,8 @@ func (c *BindingManager) Delete(binding *v1.Binding) {
 	}
 
 	delete(c.subscriptions, key)
+
+	c.drainBindingsMetric.Set(int64(len(c.subscriptions)))
 }
 
 // List returns a list of all the bindings in the Binding Manager.

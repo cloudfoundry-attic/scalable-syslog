@@ -26,6 +26,7 @@ import (
 // MetricClient is used to emit metrics.
 type MetricClient interface {
 	NewCounterMetric(string, ...pulseemitter.MetricOption) pulseemitter.CounterMetric
+	NewGaugeMetric(string, string, ...pulseemitter.MetricOption) pulseemitter.GaugeMetric
 }
 
 // LogClient is used to emit logs.
@@ -241,7 +242,7 @@ func NewAdapter(
 		ingress.WithMetricsToSyslogEnabled(a.metricsToSyslogEnabled),
 	)
 
-	a.bindingManager = binding.NewBindingManager(subscriber)
+	a.bindingManager = binding.NewBindingManager(subscriber, metricClient)
 	a.healthAddr = health.StartServer(a.health, a.healthAddr)
 
 	return a
