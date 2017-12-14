@@ -9,11 +9,11 @@ import (
 
 	"golang.org/x/net/context"
 
+	"code.cloudfoundry.org/go-diodes"
 	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
-	"code.cloudfoundry.org/go-diodes"
 )
 
 // Write is the interface for all diode writers.
@@ -42,6 +42,7 @@ func (nullLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) 
 // SyslogConnector creates the various egress syslog writers.
 type SyslogConnector struct {
 	skipCertVerify bool
+	keepalive      time.Duration
 	ioTimeout      time.Duration
 	dialTimeout    time.Duration
 	constructors   map[string]WriterConstructor
@@ -54,6 +55,7 @@ type SyslogConnector struct {
 
 // NewSyslogConnector configures and returns a new SyslogConnector.
 func NewSyslogConnector(
+	keepalive time.Duration,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
@@ -61,6 +63,7 @@ func NewSyslogConnector(
 	opts ...ConnectorOption,
 ) *SyslogConnector {
 	sc := &SyslogConnector{
+		keepalive:      keepalive,
 		ioTimeout:      ioTimeout,
 		dialTimeout:    dialTimeout,
 		skipCertVerify: skipCertVerify,
@@ -80,6 +83,7 @@ func NewSyslogConnector(
 // syslog-tls drains
 type WriterConstructor func(
 	binding *URLBinding,
+	keepalive time.Duration,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
@@ -142,7 +146,14 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 		w.emitErrorLog(b.AppId, "Invalid syslog drain URL: unsupported protocol")
 		return nil, errors.New("unsupported protocol")
 	}
-	writer := constructor(urlBinding, w.dialTimeout, w.ioTimeout, w.skipCertVerify, egressMetric)
+	writer := constructor(
+		urlBinding,
+		w.keepalive,
+		w.dialTimeout,
+		w.ioTimeout,
+		w.skipCertVerify,
+		egressMetric,
+	)
 
 	dw := NewDiodeWriter(ctx, writer, diodes.AlertFunc(func(missed int) {
 		if droppedMetric != nil {

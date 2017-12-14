@@ -25,6 +25,7 @@ var _ = Describe("HTTPWriter", func() {
 			b,
 			time.Second,
 			time.Second,
+			time.Second,
 			false,
 			&testhelper.SpyMetric{},
 		)
@@ -43,6 +44,7 @@ var _ = Describe("HTTPWriter", func() {
 		)
 		writer := egress.NewHTTPSWriter(
 			b,
+			time.Second,
 			time.Second,
 			time.Second,
 			true,
@@ -66,6 +68,7 @@ var _ = Describe("HTTPWriter", func() {
 			b,
 			time.Second,
 			time.Second,
+			time.Second,
 			true,
 			&testhelper.SpyMetric{},
 		)
@@ -85,6 +88,7 @@ var _ = Describe("HTTPWriter", func() {
 
 		writer := egress.NewHTTPSWriter(
 			b,
+			time.Second,
 			time.Second,
 			time.Second,
 			true,
@@ -141,6 +145,7 @@ var _ = Describe("HTTPWriter", func() {
 			b,
 			time.Second,
 			time.Second,
+			time.Second,
 			true,
 			&testhelper.SpyMetric{},
 		)
@@ -190,6 +195,7 @@ var _ = Describe("HTTPWriter", func() {
 			b,
 			time.Second,
 			time.Second,
+			time.Second,
 			true,
 			&testhelper.SpyMetric{},
 		)
@@ -226,6 +232,7 @@ var _ = Describe("HTTPWriter", func() {
 			b,
 			time.Second,
 			time.Second,
+			time.Second,
 			true,
 			metric,
 		)
@@ -247,6 +254,7 @@ var _ = Describe("HTTPWriter", func() {
 
 		writer := egress.NewHTTPSWriter(
 			b,
+			time.Second,
 			time.Second,
 			time.Second,
 			true,

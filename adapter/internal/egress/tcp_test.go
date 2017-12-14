@@ -51,6 +51,7 @@ var _ = Describe("TCPWriter", func() {
 				binding,
 				time.Second,
 				time.Second,
+				time.Second,
 				false,
 				egressCounter,
 			)
@@ -185,6 +186,7 @@ var _ = Describe("TCPWriter", func() {
 				binding,
 				time.Second,
 				time.Second,
+				time.Second,
 				false,
 				&testhelper.SpyMetric{},
 			)
@@ -208,6 +210,7 @@ var _ = Describe("TCPWriter", func() {
 				var err error
 				writer = egress.NewTCPWriter(
 					binding,
+					time.Second,
 					time.Second,
 					time.Second,
 					false,

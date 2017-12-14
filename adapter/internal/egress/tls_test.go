@@ -52,6 +52,7 @@ var _ = Describe("TLSWriter", func() {
 			binding,
 			time.Second,
 			time.Second,
+			time.Second,
 			true,
 			egressCounter,
 		)

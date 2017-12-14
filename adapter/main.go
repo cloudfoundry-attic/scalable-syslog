@@ -75,6 +75,7 @@ func main() {
 		cfg.SourceIndex,
 		app.WithHealthAddr(cfg.HealthHostport),
 		app.WithAdapterServerAddr(cfg.AdapterHostport),
+		app.WithSyslogKeepalive(cfg.SyslogKeepalive),
 		app.WithSyslogDialTimeout(cfg.SyslogDialTimeout),
 		app.WithSyslogIOTimeout(cfg.SyslogIOTimeout),
 		app.WithSyslogSkipCertVerify(cfg.SyslogSkipCertVerify),

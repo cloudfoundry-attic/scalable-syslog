@@ -15,6 +15,7 @@ type TLSWriter struct {
 
 func NewTLSWriter(
 	binding *URLBinding,
+	keepalive time.Duration,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
@@ -22,7 +23,8 @@ func NewTLSWriter(
 ) WriteCloser {
 
 	dialer := &net.Dialer{
-		Timeout: dialTimeout,
+		Timeout:   dialTimeout,
+		KeepAlive: keepalive,
 	}
 	df := func(addr string) (net.Conn, error) {
 		return tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{

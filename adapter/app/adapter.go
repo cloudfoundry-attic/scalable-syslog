@@ -50,6 +50,7 @@ type Adapter struct {
 	logsAPIConnTTL         time.Duration
 	logsEgressAPITLSConfig *tls.Config
 	adapterServerTLSConfig *tls.Config
+	syslogKeepalive        time.Duration
 	syslogDialTimeout      time.Duration
 	syslogIOTimeout        time.Duration
 	skipCertVerify         bool
@@ -89,6 +90,14 @@ func WithLogsEgressAPIConnCount(m int) func(*Adapter) {
 func WithLogsEgressAPIConnTTL(d int) func(*Adapter) {
 	return func(c *Adapter) {
 		c.logsAPIConnTTL = time.Duration(int64(d)) * time.Second
+	}
+}
+
+// WithSyslogKeepalive configures the keepalive interval for HTTPS, TCP, and
+// TLS syslog drains.
+func WithSyslogKeepalive(d time.Duration) func(*Adapter) {
+	return func(a *Adapter) {
+		a.syslogKeepalive = d
 	}
 }
 
@@ -224,6 +233,7 @@ func NewAdapter(
 	}
 
 	syslogConnector := egress.NewSyslogConnector(
+		a.syslogKeepalive,
 		a.syslogDialTimeout,
 		a.syslogIOTimeout,
 		a.skipCertVerify,

@@ -25,6 +25,7 @@ type Config struct {
 	HealthHostport         string        `env:"HEALTH_HOSTPORT"`
 	AdapterHostport        string        `env:"HOSTPORT"`
 	PprofHostport          string        `env:"PPROF_HOSTPORT"`
+	SyslogKeepalive        time.Duration `env:"SYSLOG_KEEPALIVE"`
 	SyslogDialTimeout      time.Duration `env:"SYSLOG_DIAL_TIMEOUT"`
 	SyslogIOTimeout        time.Duration `env:"SYSLOG_IO_TIMEOUT"`
 	SyslogSkipCertVerify   bool          `env:"SYSLOG_SKIP_CERT_VERIFY"`

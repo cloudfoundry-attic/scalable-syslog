@@ -33,6 +33,7 @@ var _ = Describe("SyslogConnector", func() {
 			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
+			time.Duration,
 			bool,
 			pulseemitter.CounterMetric,
 		) egress.WriteCloser {
@@ -41,6 +42,7 @@ var _ = Describe("SyslogConnector", func() {
 		}
 
 		connector := egress.NewSyslogConnector(
+			time.Second,
 			time.Second,
 			time.Second,
 			true,
@@ -63,6 +65,7 @@ var _ = Describe("SyslogConnector", func() {
 			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
+			time.Duration,
 			bool,
 			pulseemitter.CounterMetric,
 		) egress.WriteCloser {
@@ -73,6 +76,7 @@ var _ = Describe("SyslogConnector", func() {
 		}
 
 		connector := egress.NewSyslogConnector(
+			time.Second,
 			time.Second,
 			time.Second,
 			true,
@@ -97,6 +101,7 @@ var _ = Describe("SyslogConnector", func() {
 		connector := egress.NewSyslogConnector(
 			time.Second,
 			time.Second,
+			time.Second,
 			true,
 			spyWaitGroup,
 		)
@@ -111,6 +116,7 @@ var _ = Describe("SyslogConnector", func() {
 	It("writes an LGR error for an unsupported syslog protocol", func() {
 		logClient := newSpyLogClient()
 		connector := egress.NewSyslogConnector(
+			time.Second,
 			time.Second,
 			time.Second,
 			true,
@@ -134,6 +140,7 @@ var _ = Describe("SyslogConnector", func() {
 		connector := egress.NewSyslogConnector(
 			time.Second,
 			time.Second,
+			time.Second,
 			true,
 			spyWaitGroup,
 		)
@@ -149,6 +156,7 @@ var _ = Describe("SyslogConnector", func() {
 	It("writes a LGR error for inproperly formatted drains", func() {
 		logClient := newSpyLogClient()
 		connector := egress.NewSyslogConnector(
+			time.Second,
 			time.Second,
 			time.Second,
 			true,
@@ -173,6 +181,7 @@ var _ = Describe("SyslogConnector", func() {
 			_ *egress.URLBinding,
 			_ time.Duration,
 			_ time.Duration,
+			_ time.Duration,
 			_ bool,
 			m pulseemitter.CounterMetric,
 		) egress.WriteCloser {
@@ -180,6 +189,7 @@ var _ = Describe("SyslogConnector", func() {
 		}
 		egressMetric := &testhelper.SpyMetric{}
 		connector := egress.NewSyslogConnector(
+			time.Second,
 			time.Second,
 			time.Second,
 			true,
@@ -212,6 +222,7 @@ var _ = Describe("SyslogConnector", func() {
 			*egress.URLBinding,
 			time.Duration,
 			time.Duration,
+			time.Duration,
 			bool,
 			pulseemitter.CounterMetric,
 		) egress.WriteCloser {
@@ -225,6 +236,7 @@ var _ = Describe("SyslogConnector", func() {
 			droppedMetric := &testhelper.SpyMetric{}
 
 			connector := egress.NewSyslogConnector(
+				time.Second,
 				time.Second,
 				time.Second,
 				true,
@@ -259,6 +271,7 @@ var _ = Describe("SyslogConnector", func() {
 			logClient := newSpyLogClient()
 
 			connector := egress.NewSyslogConnector(
+				time.Second,
 				time.Second,
 				time.Second,
 				true,
@@ -299,6 +312,7 @@ var _ = Describe("SyslogConnector", func() {
 			binding := &v1.Binding{Drain: "dropping://"}
 
 			connector := egress.NewSyslogConnector(
+				time.Second,
 				time.Second,
 				time.Second,
 				true,

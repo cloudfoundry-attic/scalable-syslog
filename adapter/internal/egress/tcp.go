@@ -44,13 +44,15 @@ type TCPWriter struct {
 // NewTCPWriter creates a new TCP syslog writer.
 func NewTCPWriter(
 	binding *URLBinding,
+	keepalive time.Duration,
 	dialTimeout time.Duration,
 	ioTimeout time.Duration,
 	skipCertVerify bool,
 	egressMetric pulseemitter.CounterMetric,
 ) WriteCloser {
 	dialer := &net.Dialer{
-		Timeout: dialTimeout,
+		Timeout:   dialTimeout,
+		KeepAlive: keepalive,
 	}
 	df := func(addr string) (net.Conn, error) {
 		return dialer.Dial("tcp", addr)
