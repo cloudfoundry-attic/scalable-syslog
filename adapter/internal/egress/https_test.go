@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"time"
 
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/rfc5424"
@@ -16,6 +15,8 @@ import (
 )
 
 var _ = Describe("HTTPWriter", func() {
+	var netConf egress.NetworkTimeoutConfig
+
 	It("errors when ssl validation is enabled", func() {
 		drain := newMockOKDrain()
 
@@ -23,9 +24,7 @@ var _ = Describe("HTTPWriter", func() {
 
 		writer := egress.NewHTTPSWriter(
 			b,
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			false,
 			&testhelper.SpyMetric{},
 		)
@@ -44,9 +43,7 @@ var _ = Describe("HTTPWriter", func() {
 		)
 		writer := egress.NewHTTPSWriter(
 			b,
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			&testhelper.SpyMetric{},
 		)
@@ -66,9 +63,7 @@ var _ = Describe("HTTPWriter", func() {
 
 		writer := egress.NewHTTPSWriter(
 			b,
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			&testhelper.SpyMetric{},
 		)
@@ -88,9 +83,7 @@ var _ = Describe("HTTPWriter", func() {
 
 		writer := egress.NewHTTPSWriter(
 			b,
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			&testhelper.SpyMetric{},
 		)
@@ -143,9 +136,7 @@ var _ = Describe("HTTPWriter", func() {
 
 		writer := egress.NewHTTPSWriter(
 			b,
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			&testhelper.SpyMetric{},
 		)
@@ -193,9 +184,7 @@ var _ = Describe("HTTPWriter", func() {
 
 		writer := egress.NewHTTPSWriter(
 			b,
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			&testhelper.SpyMetric{},
 		)
@@ -230,9 +219,7 @@ var _ = Describe("HTTPWriter", func() {
 
 		writer := egress.NewHTTPSWriter(
 			b,
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			metric,
 		)
@@ -254,9 +241,7 @@ var _ = Describe("HTTPWriter", func() {
 
 		writer := egress.NewHTTPSWriter(
 			b,
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			&testhelper.SpyMetric{},
 		)

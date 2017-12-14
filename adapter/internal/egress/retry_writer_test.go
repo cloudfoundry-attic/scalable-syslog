@@ -287,9 +287,7 @@ func buildRetryWriter(
 	constructor := egress.RetryWrapper(
 		func(
 			binding *egress.URLBinding,
-			keepalive time.Duration,
-			dialTimeout time.Duration,
-			ioTimeout time.Duration,
+			netConf egress.NetworkTimeoutConfig,
 			skipCertVerify bool,
 			egressMetric pulseemitter.CounterMetric,
 		) egress.WriteCloser {
@@ -300,5 +298,5 @@ func buildRetryWriter(
 		logClient,
 	)
 
-	return constructor(w.binding, 0, 0, 0, false, nil)
+	return constructor(w.binding, egress.NetworkTimeoutConfig{}, false, nil)
 }

@@ -25,6 +25,9 @@ var _ = Describe("TLSWriter", func() {
 		certFile = test_util.Cert("adapter-rlp.crt")
 		keyFile  = test_util.Cert("adapter-rlp.key")
 		env      = buildLogEnvelope("APP", "2", "just a test", loggregator_v2.Log_OUT)
+		netConf  = egress.NetworkTimeoutConfig{
+			WriteTimeout: time.Second,
+		}
 	)
 
 	BeforeEach(func() {
@@ -50,9 +53,7 @@ var _ = Describe("TLSWriter", func() {
 		egressCounter := &testhelper.SpyMetric{}
 		writer := egress.NewTLSWriter(
 			binding,
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			egressCounter,
 		)

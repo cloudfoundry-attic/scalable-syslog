@@ -55,17 +55,15 @@ type SyslogConnector struct {
 
 // NewSyslogConnector configures and returns a new SyslogConnector.
 func NewSyslogConnector(
-	keepalive time.Duration,
-	dialTimeout time.Duration,
-	ioTimeout time.Duration,
+	netConf NetworkTimeoutConfig,
 	skipCertVerify bool,
 	wg WaitGroup,
 	opts ...ConnectorOption,
 ) *SyslogConnector {
 	sc := &SyslogConnector{
-		keepalive:      keepalive,
-		ioTimeout:      ioTimeout,
-		dialTimeout:    dialTimeout,
+		keepalive:      netConf.Keepalive,
+		ioTimeout:      netConf.WriteTimeout,
+		dialTimeout:    netConf.DialTimeout,
 		skipCertVerify: skipCertVerify,
 		wg:             wg,
 		logClient:      nullLogClient{},
@@ -83,9 +81,7 @@ func NewSyslogConnector(
 // syslog-tls drains
 type WriterConstructor func(
 	binding *URLBinding,
-	keepalive time.Duration,
-	dialTimeout time.Duration,
-	ioTimeout time.Duration,
+	netConf NetworkTimeoutConfig,
 	skipCertVerify bool,
 	egressMetric pulseemitter.CounterMetric,
 ) WriteCloser
@@ -146,11 +142,14 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 		w.emitErrorLog(b.AppId, "Invalid syslog drain URL: unsupported protocol")
 		return nil, errors.New("unsupported protocol")
 	}
+	netConf := NetworkTimeoutConfig{
+		Keepalive:    w.keepalive,
+		DialTimeout:  w.dialTimeout,
+		WriteTimeout: w.ioTimeout,
+	}
 	writer := constructor(
 		urlBinding,
-		w.keepalive,
-		w.dialTimeout,
-		w.ioTimeout,
+		netConf,
 		w.skipCertVerify,
 		egressMetric,
 	)

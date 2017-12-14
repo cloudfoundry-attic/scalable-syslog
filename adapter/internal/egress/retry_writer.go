@@ -21,17 +21,13 @@ func RetryWrapper(
 ) WriterConstructor {
 	return WriterConstructor(func(
 		binding *URLBinding,
-		keepalive time.Duration,
-		dialTimeout time.Duration,
-		ioTimeout time.Duration,
+		netConf NetworkTimeoutConfig,
 		skipCertVerify bool,
 		egressMetric pulseemitter.CounterMetric,
 	) WriteCloser {
 		writer := wc(
 			binding,
-			keepalive,
-			dialTimeout,
-			ioTimeout,
+			netConf,
 			skipCertVerify,
 			egressMetric,
 		)

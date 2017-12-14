@@ -64,14 +64,14 @@ type Adapter struct {
 type AdapterOption func(*Adapter)
 
 // WithHealthAddr sets the address for the health endpoint to bind to.
-func WithHealthAddr(addr string) func(*Adapter) {
+func WithHealthAddr(addr string) AdapterOption {
 	return func(c *Adapter) {
 		c.healthAddr = addr
 	}
 }
 
 // WithAdapterServerAddr sets the address for the gRPC server to bind to.
-func WithAdapterServerAddr(addr string) func(*Adapter) {
+func WithAdapterServerAddr(addr string) AdapterOption {
 	return func(c *Adapter) {
 		c.adapterServerAddr = addr
 	}
@@ -79,7 +79,7 @@ func WithAdapterServerAddr(addr string) func(*Adapter) {
 
 // WithLogsEgressAPIConnCount sets the maximum number of connections to the
 // Loggregator API
-func WithLogsEgressAPIConnCount(m int) func(*Adapter) {
+func WithLogsEgressAPIConnCount(m int) AdapterOption {
 	return func(c *Adapter) {
 		c.logsAPIConnCount = m
 	}
@@ -87,7 +87,7 @@ func WithLogsEgressAPIConnCount(m int) func(*Adapter) {
 
 // WithLogsEgressAPIConnTTL sets the number of seconds for a connection to the
 // Loggregator API to live
-func WithLogsEgressAPIConnTTL(d int) func(*Adapter) {
+func WithLogsEgressAPIConnTTL(d int) AdapterOption {
 	return func(c *Adapter) {
 		c.logsAPIConnTTL = time.Duration(int64(d)) * time.Second
 	}
@@ -95,7 +95,7 @@ func WithLogsEgressAPIConnTTL(d int) func(*Adapter) {
 
 // WithSyslogKeepalive configures the keepalive interval for HTTPS, TCP, and
 // TLS syslog drains.
-func WithSyslogKeepalive(d time.Duration) func(*Adapter) {
+func WithSyslogKeepalive(d time.Duration) AdapterOption {
 	return func(a *Adapter) {
 		a.syslogKeepalive = d
 	}
@@ -103,7 +103,7 @@ func WithSyslogKeepalive(d time.Duration) func(*Adapter) {
 
 // WithSyslogDialTimeout sets the TCP dial timeout for connecting to a syslog
 // drain
-func WithSyslogDialTimeout(d time.Duration) func(*Adapter) {
+func WithSyslogDialTimeout(d time.Duration) AdapterOption {
 	return func(a *Adapter) {
 		a.syslogDialTimeout = d
 	}
@@ -111,7 +111,7 @@ func WithSyslogDialTimeout(d time.Duration) func(*Adapter) {
 
 // WithSyslogIOTimeout sets the TCP IO timeout for writing to a syslog
 // drain
-func WithSyslogIOTimeout(d time.Duration) func(*Adapter) {
+func WithSyslogIOTimeout(d time.Duration) AdapterOption {
 	return func(a *Adapter) {
 		a.syslogIOTimeout = d
 	}
@@ -119,7 +119,7 @@ func WithSyslogIOTimeout(d time.Duration) func(*Adapter) {
 
 // WithSyslogSkipCertVerify sets the TCP InsecureSkipVerify property for
 // syslog
-func WithSyslogSkipCertVerify(b bool) func(*Adapter) {
+func WithSyslogSkipCertVerify(b bool) AdapterOption {
 	return func(a *Adapter) {
 		a.skipCertVerify = b
 	}
@@ -233,9 +233,11 @@ func NewAdapter(
 	}
 
 	syslogConnector := egress.NewSyslogConnector(
-		a.syslogKeepalive,
-		a.syslogDialTimeout,
-		a.syslogIOTimeout,
+		egress.NetworkTimeoutConfig{
+			Keepalive:    a.syslogKeepalive,
+			DialTimeout:  a.syslogDialTimeout,
+			WriteTimeout: a.syslogIOTimeout,
+		},
 		a.skipCertVerify,
 		a.timeoutWaitGroup,
 		egress.WithConstructors(constructors),

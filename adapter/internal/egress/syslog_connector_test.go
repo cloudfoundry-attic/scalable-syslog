@@ -20,6 +20,7 @@ var _ = Describe("SyslogConnector", func() {
 	var (
 		ctx          context.Context
 		spyWaitGroup *SpyWaitGroup
+		netConf      egress.NetworkTimeoutConfig
 	)
 
 	BeforeEach(func() {
@@ -31,9 +32,7 @@ var _ = Describe("SyslogConnector", func() {
 		var called bool
 		constructor := func(
 			*egress.URLBinding,
-			time.Duration,
-			time.Duration,
-			time.Duration,
+			egress.NetworkTimeoutConfig,
 			bool,
 			pulseemitter.CounterMetric,
 		) egress.WriteCloser {
@@ -42,9 +41,7 @@ var _ = Describe("SyslogConnector", func() {
 		}
 
 		connector := egress.NewSyslogConnector(
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.WriterConstructor{
@@ -63,9 +60,7 @@ var _ = Describe("SyslogConnector", func() {
 	It("returns a writer that doesn't block even if the constructor's writer blocks", func() {
 		slowConstructor := func(
 			*egress.URLBinding,
-			time.Duration,
-			time.Duration,
-			time.Duration,
+			egress.NetworkTimeoutConfig,
 			bool,
 			pulseemitter.CounterMetric,
 		) egress.WriteCloser {
@@ -76,9 +71,7 @@ var _ = Describe("SyslogConnector", func() {
 		}
 
 		connector := egress.NewSyslogConnector(
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.WriterConstructor{
@@ -99,9 +92,7 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("returns an error for an unsupported syslog protocol", func() {
 		connector := egress.NewSyslogConnector(
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			spyWaitGroup,
 		)
@@ -116,9 +107,7 @@ var _ = Describe("SyslogConnector", func() {
 	It("writes an LGR error for an unsupported syslog protocol", func() {
 		logClient := newSpyLogClient()
 		connector := egress.NewSyslogConnector(
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			spyWaitGroup,
 			egress.WithLogClient(logClient, "3"),
@@ -138,9 +127,7 @@ var _ = Describe("SyslogConnector", func() {
 
 	It("returns an error for an inproperly formatted drain", func() {
 		connector := egress.NewSyslogConnector(
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			spyWaitGroup,
 		)
@@ -156,9 +143,7 @@ var _ = Describe("SyslogConnector", func() {
 	It("writes a LGR error for inproperly formatted drains", func() {
 		logClient := newSpyLogClient()
 		connector := egress.NewSyslogConnector(
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			spyWaitGroup,
 			egress.WithLogClient(logClient, "3"),
@@ -179,9 +164,7 @@ var _ = Describe("SyslogConnector", func() {
 	It("emits a metric when sending outbound messages", func() {
 		writerConstructor := func(
 			_ *egress.URLBinding,
-			_ time.Duration,
-			_ time.Duration,
-			_ time.Duration,
+			_ egress.NetworkTimeoutConfig,
 			_ bool,
 			m pulseemitter.CounterMetric,
 		) egress.WriteCloser {
@@ -189,9 +172,7 @@ var _ = Describe("SyslogConnector", func() {
 		}
 		egressMetric := &testhelper.SpyMetric{}
 		connector := egress.NewSyslogConnector(
-			time.Second,
-			time.Second,
-			time.Second,
+			netConf,
 			true,
 			spyWaitGroup,
 			egress.WithConstructors(map[string]egress.WriterConstructor{
@@ -220,9 +201,7 @@ var _ = Describe("SyslogConnector", func() {
 	Describe("dropping messages", func() {
 		var droppingConstructor = func(
 			*egress.URLBinding,
-			time.Duration,
-			time.Duration,
-			time.Duration,
+			egress.NetworkTimeoutConfig,
 			bool,
 			pulseemitter.CounterMetric,
 		) egress.WriteCloser {
@@ -236,9 +215,7 @@ var _ = Describe("SyslogConnector", func() {
 			droppedMetric := &testhelper.SpyMetric{}
 
 			connector := egress.NewSyslogConnector(
-				time.Second,
-				time.Second,
-				time.Second,
+				netConf,
 				true,
 				spyWaitGroup,
 				egress.WithConstructors(map[string]egress.WriterConstructor{
@@ -271,9 +248,7 @@ var _ = Describe("SyslogConnector", func() {
 			logClient := newSpyLogClient()
 
 			connector := egress.NewSyslogConnector(
-				time.Second,
-				time.Second,
-				time.Second,
+				netConf,
 				true,
 				spyWaitGroup,
 				egress.WithConstructors(map[string]egress.WriterConstructor{
@@ -312,9 +287,7 @@ var _ = Describe("SyslogConnector", func() {
 			binding := &v1.Binding{Drain: "dropping://"}
 
 			connector := egress.NewSyslogConnector(
-				time.Second,
-				time.Second,
-				time.Second,
+				netConf,
 				true,
 				spyWaitGroup,
 				egress.WithConstructors(map[string]egress.WriterConstructor{

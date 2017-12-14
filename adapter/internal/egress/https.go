@@ -25,14 +25,12 @@ type HTTPSWriter struct {
 
 func NewHTTPSWriter(
 	binding *URLBinding,
-	keepalive time.Duration,
-	dialTimeout time.Duration,
-	ioTimeout time.Duration,
+	netConf NetworkTimeoutConfig,
 	skipCertVerify bool,
 	egressMetric pulseemitter.CounterMetric,
 ) WriteCloser {
 
-	client := httpClient(keepalive, dialTimeout, ioTimeout, skipCertVerify)
+	client := httpClient(netConf, skipCertVerify)
 
 	return &HTTPSWriter{
 		url:          binding.URL,
@@ -73,14 +71,14 @@ func (*HTTPSWriter) Close() error {
 	return nil
 }
 
-func httpClient(keepalive, dialTimeout, ioTimeout time.Duration, skipCertVerify bool) *http.Client {
+func httpClient(netConf NetworkTimeoutConfig, skipCertVerify bool) *http.Client {
 	tlsConfig := api.NewTLSConfig()
 	tlsConfig.InsecureSkipVerify = skipCertVerify
 
 	tr := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout:   dialTimeout,
-			KeepAlive: keepalive,
+			Timeout:   netConf.DialTimeout,
+			KeepAlive: netConf.Keepalive,
 		}).DialContext,
 		MaxIdleConns:          100,
 		IdleConnTimeout:       90 * time.Second,

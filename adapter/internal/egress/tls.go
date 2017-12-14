@@ -13,18 +13,23 @@ type TLSWriter struct {
 	TCPWriter
 }
 
+// NetworkTimeoutConfig stores various timeout values.
+type NetworkTimeoutConfig struct {
+	Keepalive    time.Duration
+	DialTimeout  time.Duration
+	WriteTimeout time.Duration
+}
+
 func NewTLSWriter(
 	binding *URLBinding,
-	keepalive time.Duration,
-	dialTimeout time.Duration,
-	ioTimeout time.Duration,
+	netConf NetworkTimeoutConfig,
 	skipCertVerify bool,
 	egressMetric pulseemitter.CounterMetric,
 ) WriteCloser {
 
 	dialer := &net.Dialer{
-		Timeout:   dialTimeout,
-		KeepAlive: keepalive,
+		Timeout:   netConf.DialTimeout,
+		KeepAlive: netConf.Keepalive,
 	}
 	df := func(addr string) (net.Conn, error) {
 		return tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{
@@ -37,7 +42,7 @@ func NewTLSWriter(
 			url:          binding.URL,
 			appID:        binding.AppID,
 			hostname:     binding.Hostname,
-			ioTimeout:    ioTimeout,
+			writeTimeout: netConf.WriteTimeout,
 			dialFunc:     df,
 			scheme:       "syslog-tls",
 			egressMetric: egressMetric,

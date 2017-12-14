@@ -30,13 +30,13 @@ type DialFunc func(addr string) (net.Conn, error)
 // This writer is not meant to be used from multiple goroutines. The same
 // goroutine that calls `.Write()` should be the one that calls `.Close()`.
 type TCPWriter struct {
-	url       *url.URL
-	appID     string
-	hostname  string
-	dialFunc  DialFunc
-	ioTimeout time.Duration
-	scheme    string
-	conn      net.Conn
+	url          *url.URL
+	appID        string
+	hostname     string
+	dialFunc     DialFunc
+	writeTimeout time.Duration
+	scheme       string
+	conn         net.Conn
 
 	egressMetric pulseemitter.CounterMetric
 }
@@ -44,15 +44,13 @@ type TCPWriter struct {
 // NewTCPWriter creates a new TCP syslog writer.
 func NewTCPWriter(
 	binding *URLBinding,
-	keepalive time.Duration,
-	dialTimeout time.Duration,
-	ioTimeout time.Duration,
+	netConf NetworkTimeoutConfig,
 	skipCertVerify bool,
 	egressMetric pulseemitter.CounterMetric,
 ) WriteCloser {
 	dialer := &net.Dialer{
-		Timeout:   dialTimeout,
-		KeepAlive: keepalive,
+		Timeout:   netConf.DialTimeout,
+		KeepAlive: netConf.Keepalive,
 	}
 	df := func(addr string) (net.Conn, error) {
 		return dialer.Dial("tcp", addr)
@@ -62,7 +60,7 @@ func NewTCPWriter(
 		url:          binding.URL,
 		appID:        binding.AppID,
 		hostname:     binding.Hostname,
-		ioTimeout:    ioTimeout,
+		writeTimeout: netConf.WriteTimeout,
 		dialFunc:     df,
 		scheme:       "syslog",
 		egressMetric: egressMetric,
@@ -200,7 +198,7 @@ func (w *TCPWriter) Write(env *loggregator_v2.Envelope) error {
 	}
 
 	for _, msg := range msgs {
-		conn.SetWriteDeadline(time.Now().Add(w.ioTimeout))
+		conn.SetWriteDeadline(time.Now().Add(w.writeTimeout))
 		_, err = msg.WriteTo(conn)
 		if err != nil {
 			_ = w.Close()

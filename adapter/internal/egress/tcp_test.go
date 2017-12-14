@@ -24,6 +24,9 @@ var _ = Describe("TCPWriter", func() {
 			AppID:    "test-app-id",
 			Hostname: "test-hostname",
 		}
+		netConf = egress.NetworkTimeoutConfig{
+			WriteTimeout: time.Second,
+		}
 	)
 
 	BeforeEach(func() {
@@ -49,9 +52,7 @@ var _ = Describe("TCPWriter", func() {
 
 			writer = egress.NewTCPWriter(
 				binding,
-				time.Second,
-				time.Second,
-				time.Second,
+				netConf,
 				false,
 				egressCounter,
 			)
@@ -184,9 +185,7 @@ var _ = Describe("TCPWriter", func() {
 
 			writer := egress.NewTCPWriter(
 				binding,
-				time.Second,
-				time.Second,
-				time.Second,
+				netConf,
 				false,
 				&testhelper.SpyMetric{},
 			)
@@ -210,9 +209,7 @@ var _ = Describe("TCPWriter", func() {
 				var err error
 				writer = egress.NewTCPWriter(
 					binding,
-					time.Second,
-					time.Second,
-					time.Second,
+					netConf,
 					false,
 					&testhelper.SpyMetric{},
 				)
