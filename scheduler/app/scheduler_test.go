@@ -222,6 +222,11 @@ func (f *fakeCC) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.URL.Query().Get("batch_size") != "1000" {
+		w.WriteHeader(500)
+		return
+	}
+
 	if f.withRenamedApps {
 		f.serveWithRenamedApps(w, r)
 		return

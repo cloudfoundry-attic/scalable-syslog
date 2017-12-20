@@ -21,6 +21,7 @@ import (
 // updating a pool of adapters to service those drains.
 type Scheduler struct {
 	apiURL           string
+	apiBatchSize     int
 	adapterAddrs     []string
 	adapterTLSConfig *tls.Config
 	healthAddr       string
@@ -54,6 +55,7 @@ func NewScheduler(
 ) *Scheduler {
 	s := &Scheduler{
 		apiURL:           apiURL,
+		apiBatchSize:     1000,
 		adapterAddrs:     adapterAddrs,
 		adapterTLSConfig: adapterTLSConfig,
 		healthAddr:       ":8080",
@@ -80,17 +82,27 @@ func WithHealthAddr(addr string) func(*Scheduler) {
 	}
 }
 
-// WithHTTPClient sets the http.Client to poll the syslog drain binding provider.
+// WithHTTPClient sets the http.Client to poll the syslog drain binding
+// provider.
 func WithHTTPClient(client *http.Client) func(*Scheduler) {
 	return func(s *Scheduler) {
 		s.client = client
 	}
 }
 
-// WithPollingInterval sets the interval to poll the syslog drain binding provider.
+// WithPollingInterval sets the interval to poll the syslog drain binding
+// provider.
 func WithPollingInterval(interval time.Duration) func(*Scheduler) {
 	return func(s *Scheduler) {
 		s.interval = interval
+	}
+}
+
+// WithAPIBatchSize sets the batch size to request from the syslog drain
+// binding provider. It defaults to 1000.
+func WithAPIBatchSize(size int) func(*Scheduler) {
+	return func(s *Scheduler) {
+		s.apiBatchSize = size
 	}
 }
 
@@ -114,8 +126,9 @@ func (s *Scheduler) setupIngress() {
 
 	fetcher = ingress.NewBindingFetcher(
 		ingress.APIClient{
-			Client: s.client,
-			Addr:   s.apiURL,
+			Client:    s.client,
+			Addr:      s.apiURL,
+			BatchSize: s.apiBatchSize,
 		},
 	)
 
