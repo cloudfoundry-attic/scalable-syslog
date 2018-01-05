@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand"
 	"time"
 
 	loggregator "code.cloudfoundry.org/go-loggregator"
@@ -93,22 +92,18 @@ func (r *RetryWriter) Close() error {
 }
 
 // ExponentialDuration returns a duration that grows exponentially with each
-// attempt. It is maxed out at about 35 minutes.
+// attempt. It is maxed out at 15 seconds.
 func ExponentialDuration(attempt int) time.Duration {
 	if attempt == 0 {
 		return time.Millisecond
 	}
-	if attempt > 22 {
-		// setting attempts to 22 will result in one hour total
-		// retrying writes
-		attempt = 22
-	}
 
 	tenthDuration := int(math.Pow(2, float64(attempt-1)) * 100)
-	duration := tenthDuration * 10
+	duration := time.Duration(tenthDuration*10) * time.Microsecond
 
-	randomOffset := rand.Intn(tenthDuration*2) - tenthDuration
-	offset := time.Duration(randomOffset) * time.Microsecond
+	if duration > 15*time.Second {
+		return 15 * time.Second
+	}
 
-	return (time.Duration(duration) * time.Microsecond) + offset
+	return duration
 }

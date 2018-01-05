@@ -2,7 +2,6 @@ package egress_test
 
 import (
 	"errors"
-	"math/rand"
 	"net/url"
 	"sync"
 	"sync/atomic"
@@ -135,29 +134,24 @@ var _ = Describe("Retry Writer", func() {
 			attempt  int
 			expected time.Duration
 		}{
-			{0, 1000},
-			{1, 1000},
-			{2, 2000},
-			{3, 4000},
-			{4, 8000},
-			{5, 16000},
-			{11, 1024000},    //1.024s
-			{12, 2048000},    //2.048s
-			{20, 524288000},  //8m and a bit
-			{21, 1048576000}, //17m28.576s
-			{22, 2097152000}, //34m57.152s
+			{0, time.Millisecond},
+			{1, time.Millisecond},
+			{2, 2 * time.Millisecond},
+			{3, 4 * time.Millisecond},
+			{4, 8 * time.Millisecond},
+			{5, 16 * time.Millisecond},
+			{11, 1024 * time.Millisecond},
+			{12, 2048 * time.Millisecond},
+			{13, 4096 * time.Millisecond},
+			{14, 8192 * time.Millisecond},
+			{15, 15000 * time.Millisecond},
 		}
 
 		It("backs off exponentially with different random seeds starting at 1ms", func() {
-			rand.Seed(1)
 			for _, bt := range backoffTests {
-				delta := int(bt.expected / 10)
+				backoff := egress.ExponentialDuration(bt.attempt)
 
-				for i := 0; i < 10; i++ {
-					backoff := egress.ExponentialDuration(bt.attempt)
-
-					Expect(bt.expected.Seconds()).To(BeNumerically("~", backoff.Seconds(), delta))
-				}
+				Expect(backoff).To(Equal(bt.expected))
 			}
 		})
 	})
