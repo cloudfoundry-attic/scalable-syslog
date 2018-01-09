@@ -65,6 +65,7 @@ func main() {
 	metricClient := pulseemitter.New(
 		logClient,
 		pulseemitter.WithPulseInterval(cfg.MetricEmitterInterval),
+		pulseemitter.WithSourceID("drain_scheduler"),
 	)
 
 	scheduler := app.NewScheduler(
