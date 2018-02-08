@@ -133,6 +133,22 @@ var _ = Describe("TCPWriter", func() {
 
 			Expect(egressCounter.Delta()).To(Equal(uint64(1)))
 		})
+
+		It("replaces spaces with dashes in the process ID", func() {
+			env := buildLogEnvelope("MY TASK", "2", "just a test", loggregator_v2.Log_OUT)
+			Expect(writer.Write(env)).To(Succeed())
+
+			conn, err := listener.Accept()
+			Expect(err).ToNot(HaveOccurred())
+			buf := bufio.NewReader(conn)
+
+			actual, err := buf.ReadString('\n')
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(actual).To(Equal(
+				"93 <14>1 1970-01-01T00:00:00.012345+00:00 test-hostname test-app-id [MY-TASK/2] - - just a test\n",
+			))
+		})
 	})
 
 	Describe("when write fails to connect", func() {
