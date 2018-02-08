@@ -237,7 +237,10 @@ func generatePriority(logType loggregator_v2.Log_Type) rfc5424.Priority {
 func generateProcessID(sourceType, sourceInstance string) string {
 	sourceType = strings.ToUpper(sourceType)
 	if sourceInstance != "" {
-		return fmt.Sprintf("[%s/%s]", sourceType, sourceInstance)
+		return fmt.Sprintf("[%s/%s]",
+			strings.Replace(sourceType, " ", "-", -1),
+			sourceInstance,
+		)
 	}
 
 	return fmt.Sprintf("[%s]", sourceType)
