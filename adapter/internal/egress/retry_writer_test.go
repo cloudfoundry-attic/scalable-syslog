@@ -27,7 +27,7 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}
 			logClient := newSpyLogClient()
-			r := buildRetryWriter(writeCloser, 1, 0, logClient)
+			r := buildRetryWriter(writeCloser, 1, 0, logClient, "1")
 			env := &v2.Envelope{}
 
 			_ = r.Write(env)
@@ -46,7 +46,7 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}
 			logClient := newSpyLogClient()
-			r := buildRetryWriter(writeCloser, 3, 0, logClient)
+			r := buildRetryWriter(writeCloser, 3, 0, logClient, "1")
 
 			_ = r.Write(&v2.Envelope{})
 
@@ -63,7 +63,7 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}
 			logClient := newSpyLogClient()
-			r := buildRetryWriter(writeCloser, 2, 0, logClient)
+			r := buildRetryWriter(writeCloser, 2, 0, logClient, "1")
 
 			err := r.Write(&v2.Envelope{})
 
@@ -81,7 +81,7 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}
 			logClient := newSpyLogClient()
-			r := buildRetryWriter(writeCloser, 2, 0, logClient)
+			r := buildRetryWriter(writeCloser, 2, 0, logClient, "1")
 			cancel()
 
 			err := r.Write(&v2.Envelope{})
@@ -101,16 +101,14 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}
 			logClient := newSpyLogClient()
-			r := buildRetryWriter(writeCloser, 2, 0, logClient)
+			r := buildRetryWriter(writeCloser, 2, 0, logClient, "1234")
 
-			_ = r.Write(&v2.Envelope{Tags: map[string]string{
-				"source_instance": "a source instance",
-			}})
+			_ = r.Write(&v2.Envelope{})
 
 			Expect(logClient.message()).To(ContainElement("Syslog Drain: Error when writing. Backing off for 0s."))
 			Expect(logClient.appID()).To(ContainElement("some-app-id"))
 			Expect(logClient.sourceType()).To(HaveKey("LGR"))
-			Expect(logClient.sourceInstance()).To(HaveKey("a source instance"))
+			Expect(logClient.sourceInstance()).To(HaveKey("1234"))
 		})
 	})
 
@@ -122,7 +120,7 @@ var _ = Describe("Retry Writer", func() {
 				},
 			}
 			logClient := newSpyLogClient()
-			r := buildRetryWriter(writeCloser, 2, 0, logClient)
+			r := buildRetryWriter(writeCloser, 2, 0, logClient, "1")
 
 			Expect(r.Close()).To(Succeed())
 			Expect(writeCloser.closeCalled).To(BeTrue())
@@ -277,6 +275,7 @@ func buildRetryWriter(
 	maxRetries int,
 	delayMultiplier time.Duration,
 	logClient egress.LogClient,
+	sourceIndex string,
 ) egress.WriteCloser {
 	constructor := egress.RetryWrapper(
 		func(
@@ -290,6 +289,7 @@ func buildRetryWriter(
 		egress.RetryDuration(buildDelay(delayMultiplier)),
 		maxRetries,
 		logClient,
+		sourceIndex,
 	)
 
 	return constructor(w.binding, egress.NetworkTimeoutConfig{}, false, nil)

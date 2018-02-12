@@ -17,6 +17,7 @@ func RetryWrapper(
 	r RetryDuration,
 	maxRetries int,
 	logClient LogClient,
+	sourceIndex string,
 ) WriterConstructor {
 	return WriterConstructor(func(
 		binding *URLBinding,
@@ -37,6 +38,7 @@ func RetryWrapper(
 			maxRetries:    maxRetries,
 			binding:       binding,
 			logClient:     logClient,
+			sourceIndex:   sourceIndex,
 		}
 	})
 }
@@ -51,6 +53,7 @@ type RetryWriter struct {
 	maxRetries    int
 	binding       *URLBinding
 	logClient     LogClient
+	sourceIndex   string
 }
 
 // Write will retry writes unitl maxRetries has been reached.
@@ -58,7 +61,7 @@ func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
 	logMsgOption := loggregator.WithAppInfo(
 		r.binding.AppID,
 		"LGR",
-		e.GetTags()["source_instance"],
+		r.sourceIndex,
 	)
 	logMsgTemplate := "Syslog Drain: Error when writing. Backing off for %s."
 	logTemplate := "failed to write to %s, retrying in %s, err: %s"

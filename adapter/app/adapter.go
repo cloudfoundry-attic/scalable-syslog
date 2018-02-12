@@ -193,18 +193,21 @@ func NewAdapter(
 			egress.ExponentialDuration,
 			maxRetries,
 			logClient,
+			sourceIndex,
 		),
 		"syslog": egress.RetryWrapper(
 			egress.NewTCPWriter,
 			egress.ExponentialDuration,
 			maxRetries,
 			logClient,
+			sourceIndex,
 		),
 		"syslog-tls": egress.RetryWrapper(
 			egress.NewTLSWriter,
 			egress.ExponentialDuration,
 			maxRetries,
 			logClient,
+			sourceIndex,
 		),
 	}
 
