@@ -37,7 +37,7 @@ func (s *SpyMetricClient) GetMetric(name string) *SpyMetric {
 type SpyMetric struct {
 	mu         sync.Mutex
 	delta      uint64
-	gaugeValue int64
+	gaugeValue float64
 }
 
 func (s *SpyMetric) Increment(c uint64) {
@@ -48,7 +48,7 @@ func (s *SpyMetric) Increment(c uint64) {
 
 func (s *SpyMetric) Emit(c pulseemitter.LoggClient) {}
 
-func (s *SpyMetric) Set(c int64) {
+func (s *SpyMetric) Set(c float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.gaugeValue = c
@@ -60,7 +60,7 @@ func (s *SpyMetric) Delta() uint64 {
 	return s.delta
 }
 
-func (s *SpyMetric) GaugeValue() int64 {
+func (s *SpyMetric) GaugeValue() float64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.gaugeValue

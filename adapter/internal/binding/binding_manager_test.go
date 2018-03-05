@@ -107,17 +107,17 @@ var _ = Describe("BindingManager", func() {
 			manager.Add(bindingA)
 			Expect(
 				metricClient.GetMetric("drain_bindings").GaugeValue(),
-			).To(Equal(int64(1)))
+			).To(Equal(float64(1)))
 
 			manager.Add(bindingB)
 			Expect(
 				metricClient.GetMetric("drain_bindings").GaugeValue(),
-			).To(Equal(int64(2)))
+			).To(Equal(float64(2)))
 
 			manager.Delete(bindingA)
 			Expect(
 				metricClient.GetMetric("drain_bindings").GaugeValue(),
-			).To(Equal(int64(1)))
+			).To(Equal(float64(1)))
 		})
 	})
 })

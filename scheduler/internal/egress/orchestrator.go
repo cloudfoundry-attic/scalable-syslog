@@ -70,7 +70,7 @@ func NewOrchestrator(
 
 	orch := orchestrator.New(c,
 		orchestrator.WithStats(func(s orchestrator.TermStats) {
-			adapterGauge.Set(int64(s.WorkerCount))
+			adapterGauge.Set(float64(s.WorkerCount))
 		}),
 	)
 	for _, client := range clients {
@@ -97,7 +97,7 @@ func (o *Orchestrator) NextTerm() {
 		"drainCount":                   len(freshBindings),
 		"blacklistedOrInvalidUrlCount": blacklisted,
 	})
-	o.drainGauge.Set(int64(len(freshBindings)))
+	o.drainGauge.Set(float64(len(freshBindings)))
 
 	var tasks []orchestrator.Task
 	for _, b := range freshBindings {

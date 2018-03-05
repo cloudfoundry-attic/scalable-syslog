@@ -170,7 +170,7 @@ var _ = Describe("Orchestration", func() {
 		nextTerm()
 
 		Expect(comm.adds).To(HaveLen(2))
-		Expect(adapterCount.GaugeValue()).To(Equal(int64(2)))
+		Expect(adapterCount.GaugeValue()).To(Equal(float64(2)))
 	})
 
 	It("does not re-add a binding to an adapter", func() {

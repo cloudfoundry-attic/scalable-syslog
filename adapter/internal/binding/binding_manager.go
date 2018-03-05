@@ -56,7 +56,7 @@ func (c *BindingManager) Add(binding *v1.Binding) {
 		}
 	}
 
-	c.drainBindingsMetric.Set(int64(len(c.subscriptions)))
+	c.drainBindingsMetric.Set(float64(len(c.subscriptions)))
 }
 
 // Delete removes a binding subscription from the Binding Manager.
@@ -74,7 +74,7 @@ func (c *BindingManager) Delete(binding *v1.Binding) {
 
 	delete(c.subscriptions, key)
 
-	c.drainBindingsMetric.Set(int64(len(c.subscriptions)))
+	c.drainBindingsMetric.Set(float64(len(c.subscriptions)))
 }
 
 // List returns a list of all the bindings in the Binding Manager.
