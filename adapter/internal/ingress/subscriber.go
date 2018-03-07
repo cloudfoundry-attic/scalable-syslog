@@ -168,32 +168,36 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		LegacySelector:   selectors[0],
 	})
 
-	// NOTE Loggregator v93 added BatchedReceiver. Once we can be certain
-	// Loggregator is v93 or above in all deployments, the following failover
-	// code should be deleted.
-	status, ok := status.FromError(err)
-
-	if ok && status.Code() == codes.Unimplemented {
-		receiver, err := client.Receiver(ctx, &v2.EgressRequest{
-			ShardId:          buildShardId(binding),
-			UsePreferredTags: true,
-			Selectors:        selectors,
-			LegacySelector:   selectors[0],
-		})
-		close(ready)
-		if err != nil {
-			client.Invalidate()
-			log.Printf("failed to open stream for binding %s: %s", binding.AppId, err)
+	if status, ok := status.FromError(err); ok {
+		if status.Code() == codes.ResourceExhausted {
 			return true
 		}
-		defer receiver.CloseSend()
 
-		if err := s.readWriteLoop(binding.AppId, receiver, writer); err != nil {
-			log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
-			client.Invalidate()
+		// NOTE Loggregator v93 added BatchedReceiver. Once we can be certain
+		// Loggregator is v93 or above in all deployments, the following failover
+		// code should be deleted.
+		if status.Code() == codes.Unimplemented {
+			receiver, err := client.Receiver(ctx, &v2.EgressRequest{
+				ShardId:          buildShardId(binding),
+				UsePreferredTags: true,
+				Selectors:        selectors,
+				LegacySelector:   selectors[0],
+			})
+			close(ready)
+			if err != nil {
+				client.Invalidate()
+				log.Printf("failed to open stream for binding %s: %s", binding.AppId, err)
+				return true
+			}
+			defer receiver.CloseSend()
+
+			if err := s.readWriteLoop(binding.AppId, receiver, writer); err != nil {
+				log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
+				client.Invalidate()
+			}
+
+			return true
 		}
-
-		return true
 	}
 	close(ready)
 	if err != nil {

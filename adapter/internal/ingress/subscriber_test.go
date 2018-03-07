@@ -217,6 +217,35 @@ var _ = Describe("Subscriber", func() {
 		Eventually(client.invalidated).Should(Equal(true))
 	})
 
+	It("does not invalidate  the client if BatchedReceiver fails with ResourceExhausted code", func() {
+		spyClientPool := newSpyClientPool()
+		spyEmitter := testhelper.NewMetricClient()
+		syslogConnector := newSpySyslogConnector()
+		writer := newSpyWriter()
+		syslogConnector.connect = writer
+		client := newSpyLogsProviderClient()
+		spyClientPool.next = client
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host-name",
+			Drain:    "some-drain",
+		}
+		client.batchedReceiverError = grpc.Errorf(codes.ResourceExhausted, "some-err")
+		receiver := newErrorReceiverClient()
+		client.receiverClient = receiver
+		subscriber := ingress.NewSubscriber(
+			context.TODO(),
+			spyClientPool,
+			syslogConnector,
+			spyEmitter,
+			ingress.WithStreamOpenTimeout(500*time.Millisecond),
+		)
+
+		subscriber.Start(binding)
+
+		Consistently(client.invalidated).Should(Equal(false))
+	})
+
 	It("invalidates the client when BatchedReceiver fails", func() {
 		spyClientPool := newSpyClientPool()
 		spyEmitter := testhelper.NewMetricClient()
