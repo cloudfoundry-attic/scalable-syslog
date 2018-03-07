@@ -26,6 +26,7 @@ var _ = Describe("TCPWriter", func() {
 		}
 		netConf = egress.NetworkTimeoutConfig{
 			WriteTimeout: time.Second,
+			DialTimeout:  100 * time.Millisecond,
 		}
 	)
 
