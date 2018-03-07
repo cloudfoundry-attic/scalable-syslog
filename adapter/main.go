@@ -81,6 +81,7 @@ func main() {
 		app.WithSyslogIOTimeout(cfg.SyslogIOTimeout),
 		app.WithSyslogSkipCertVerify(cfg.SyslogSkipCertVerify),
 		app.WithMetricsToSyslogEnabled(cfg.MetricsToSyslogEnabled),
+		app.WithMaxBindings(cfg.MaxBindings),
 	)
 	go adapter.Start()
 	defer adapter.Stop()

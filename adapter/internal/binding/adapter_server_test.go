@@ -2,9 +2,12 @@ package binding_test
 
 import (
 	"context"
+	"errors"
 
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/binding"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -49,6 +52,53 @@ var _ = Describe("AdapterServer", func() {
 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(store.add).To(Equal(binding))
+	})
+
+	It("returns ResourcesExhausted if it receives the max bindings exceeded error", func() {
+		store := &SpyStore{
+			list:     []*v1.Binding{},
+			addError: binding.ErrMaxBindingsExceeded,
+		}
+		adapterServer := binding.NewAdapterServer(store, healthEmitter)
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host",
+			Drain:    "some.url",
+		}
+		_, err := adapterServer.CreateBinding(
+			context.Background(),
+			&v1.CreateBindingRequest{
+				Binding: binding,
+			},
+		)
+
+		Expect(err).To(MatchError(
+			grpc.Errorf(
+				codes.ResourceExhausted,
+				"Max bindings for adapter exceeded",
+			),
+		))
+	})
+
+	It("returns error if it cannot create binding", func() {
+		store := &SpyStore{
+			list:     []*v1.Binding{},
+			addError: errors.New("some-err"),
+		}
+		adapterServer := binding.NewAdapterServer(store, healthEmitter)
+		binding := &v1.Binding{
+			AppId:    "some-app-id",
+			Hostname: "some-host",
+			Drain:    "some.url",
+		}
+		_, err := adapterServer.CreateBinding(
+			context.Background(),
+			&v1.CreateBindingRequest{
+				Binding: binding,
+			},
+		)
+
+		Expect(err).To(MatchError(store.addError))
 	})
 
 	It("increments the drain count when creating a binding", func() {
@@ -119,13 +169,15 @@ func (s *SpyHealthEmitter) SetCounter(counts map[string]int) {
 }
 
 type SpyStore struct {
-	list   []*v1.Binding
-	add    *v1.Binding
-	delete *v1.Binding
+	list     []*v1.Binding
+	add      *v1.Binding
+	addError error
+	delete   *v1.Binding
 }
 
-func (s *SpyStore) Add(binding *v1.Binding) {
+func (s *SpyStore) Add(binding *v1.Binding) error {
 	s.add = binding
+	return s.addError
 }
 func (s *SpyStore) Delete(binding *v1.Binding) {
 	s.delete = binding

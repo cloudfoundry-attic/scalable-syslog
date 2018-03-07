@@ -46,6 +46,7 @@ type Adapter struct {
 
 	adapterServer          *grpc.Server
 	bindingManager         *binding.BindingManager
+	maxBindings            int
 	logsAPIConnCount       int
 	logsAPIConnTTL         time.Duration
 	logsEgressAPITLSConfig *tls.Config
@@ -74,6 +75,13 @@ func WithHealthAddr(addr string) AdapterOption {
 func WithAdapterServerAddr(addr string) AdapterOption {
 	return func(c *Adapter) {
 		c.adapterServerAddr = addr
+	}
+}
+
+// WithMaxBindings sets the maximum bindings allowed per adapter.
+func WithMaxBindings(i int) AdapterOption {
+	return func(c *Adapter) {
+		c.maxBindings = i
 	}
 }
 
@@ -153,6 +161,7 @@ func NewAdapter(
 	a := &Adapter{
 		healthAddr:             ":8080",
 		adapterServerAddr:      ":443",
+		maxBindings:            500,
 		ctx:                    ctx,
 		cancel:                 cancel,
 		logsAPIConnCount:       10,
@@ -257,7 +266,11 @@ func NewAdapter(
 		ingress.WithMetricsToSyslogEnabled(a.metricsToSyslogEnabled),
 	)
 
-	a.bindingManager = binding.NewBindingManager(subscriber, metricClient)
+	a.bindingManager = binding.NewBindingManager(
+		subscriber,
+		metricClient,
+		binding.WithMaxBindings(a.maxBindings),
+	)
 	a.healthAddr = health.StartServer(a.health, a.healthAddr)
 
 	return a

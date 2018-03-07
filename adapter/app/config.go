@@ -30,6 +30,7 @@ type Config struct {
 	SyslogIOTimeout        time.Duration `env:"SYSLOG_IO_TIMEOUT"`
 	SyslogSkipCertVerify   bool          `env:"SYSLOG_SKIP_CERT_VERIFY"`
 	MetricsToSyslogEnabled bool          `env:"METRICS_TO_SYSLOG_ENABLED"`
+	MaxBindings            int           `env:"MAX_BINDINGS"`
 
 	MetricIngressAddr     string        `env:"METRIC_INGRESS_ADDR,     required"`
 	MetricIngressCN       string        `env:"METRIC_INGRESS_CN,       required"`
@@ -49,6 +50,7 @@ func LoadConfig() *Config {
 		SyslogSkipCertVerify:   false,
 		MetricEmitterInterval:  time.Minute,
 		MetricsToSyslogEnabled: false,
+		MaxBindings:            500,
 	}
 
 	err := envstruct.Load(&cfg)

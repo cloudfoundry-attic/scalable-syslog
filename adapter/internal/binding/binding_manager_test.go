@@ -24,11 +24,12 @@ var _ = Describe("BindingManager", func() {
 
 	Describe("Add()", func() {
 		It("keeps track of the drains", func() {
-			manager.Add(&v1.Binding{
+			err := manager.Add(&v1.Binding{
 				AppId:    "some-id",
 				Hostname: "some-hostname",
 				Drain:    "some.url",
 			})
+			Expect(err).ToNot(HaveOccurred())
 
 			bindings := manager.List()
 
@@ -40,11 +41,12 @@ var _ = Describe("BindingManager", func() {
 
 		It("does not add duplicate bindings", func() {
 			for i := 0; i < 2; i++ {
-				manager.Add(&v1.Binding{
+				err := manager.Add(&v1.Binding{
 					AppId:    "some-id",
 					Hostname: "some-hostname",
 					Drain:    "some.url",
 				})
+				Expect(err).ToNot(HaveOccurred())
 			}
 
 			bindings := manager.List()
@@ -60,8 +62,51 @@ var _ = Describe("BindingManager", func() {
 				Drain:    "some.url",
 			}
 
-			manager.Add(binding)
+			err := manager.Add(binding)
+			Expect(err).ToNot(HaveOccurred())
 			Expect(subscriber.start).To(Equal(binding))
+		})
+
+		Context("when maxBindings is exceeded", func() {
+			It("returns an error and emits rejected_bindings metric", func() {
+				manager = binding.NewBindingManager(
+					subscriber,
+					metricClient,
+					binding.WithMaxBindings(0),
+				)
+
+				binding := &v1.Binding{
+					AppId:    "some-id",
+					Hostname: "some-hostname",
+					Drain:    "some.url",
+				}
+
+				err := manager.Add(binding)
+				Expect(err).To(MatchError("Max bindings for adapter exceeded"))
+
+				Expect(metricClient.GetMetric("rejected_bindings").Delta()).To(Equal(uint64(1)))
+			})
+
+			It("does not return an error if binding already exists", func() {
+				manager = binding.NewBindingManager(
+					subscriber,
+					metricClient,
+					binding.WithMaxBindings(1),
+				)
+
+				binding := &v1.Binding{
+					AppId:    "some-id",
+					Hostname: "some-hostname",
+					Drain:    "some.url",
+				}
+
+				err := manager.Add(binding)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = manager.Add(binding)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
 		})
 	})
 

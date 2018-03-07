@@ -2,13 +2,15 @@ package binding
 
 import (
 	"golang.org/x/net/context"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
 // BindingStore manages the bindings and respective subscriptions
 type BindingStore interface {
-	Add(binding *v1.Binding)
+	Add(binding *v1.Binding) error
 	Delete(binding *v1.Binding)
 	List() (bindings []*v1.Binding)
 }
@@ -38,7 +40,14 @@ func (c *AdapterServer) ListBindings(ctx context.Context, req *v1.ListBindingsRe
 
 // CreateBinding adds a new binding to the binding manager.
 func (c *AdapterServer) CreateBinding(ctx context.Context, req *v1.CreateBindingRequest) (*v1.CreateBindingResponse, error) {
-	c.store.Add(req.Binding)
+	err := c.store.Add(req.Binding)
+	if err != nil {
+		if err == ErrMaxBindingsExceeded {
+			return nil, grpc.Errorf(codes.ResourceExhausted, "%s", err)
+		}
+
+		return nil, err
+	}
 	c.health.SetCounter(map[string]int{"drainCount": len(c.store.List())})
 
 	return &v1.CreateBindingResponse{}, nil

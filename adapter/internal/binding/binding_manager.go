@@ -1,15 +1,21 @@
 package binding
 
 import (
+	"errors"
 	"sync"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
+var (
+	ErrMaxBindingsExceeded = errors.New("Max bindings for adapter exceeded")
+)
+
 // MetricClient is used to emit metrics.
 type MetricClient interface {
 	NewGaugeMetric(string, string, ...pulseemitter.MetricOption) pulseemitter.GaugeMetric
+	NewCounterMetric(name string, opts ...pulseemitter.MetricOption) pulseemitter.CounterMetric
 }
 
 // BindingManager stores binding subscriptions.
@@ -17,8 +23,10 @@ type BindingManager struct {
 	mu            sync.RWMutex
 	subscriptions map[v1.Binding]subscription
 	subscriber    Subscriber
+	maxBindings   int
 
-	drainBindingsMetric pulseemitter.GaugeMetric
+	drainBindingsMetric    pulseemitter.GaugeMetric
+	rejectedBindingsMetric pulseemitter.CounterMetric
 }
 
 // Subscriber reads and writes logs for a specific binding.
@@ -32,23 +40,37 @@ type subscription struct {
 }
 
 // New returns a new Binding Manager.
-func NewBindingManager(s Subscriber, mc MetricClient) *BindingManager {
+func NewBindingManager(s Subscriber, mc MetricClient, opts ...BindingManagerOption) *BindingManager {
 	dbm := mc.NewGaugeMetric("drain_bindings", "bindings")
+	rbm := mc.NewCounterMetric("rejected_bindings")
 
-	return &BindingManager{
-		subscriptions:       make(map[v1.Binding]subscription),
-		subscriber:          s,
-		drainBindingsMetric: dbm,
+	b := &BindingManager{
+		subscriptions:          make(map[v1.Binding]subscription),
+		subscriber:             s,
+		maxBindings:            500,
+		drainBindingsMetric:    dbm,
+		rejectedBindingsMetric: rbm,
 	}
+
+	for _, o := range opts {
+		o(b)
+	}
+
+	return b
 }
 
 // Add stores a new binding subscription to the Binding Manager.
-func (c *BindingManager) Add(binding *v1.Binding) {
+func (c *BindingManager) Add(binding *v1.Binding) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	key := *binding
 	if _, ok := c.subscriptions[key]; !ok {
+		if len(c.subscriptions) >= c.maxBindings {
+			c.rejectedBindingsMetric.Increment(1)
+			return ErrMaxBindingsExceeded
+		}
+
 		unsub := c.subscriber.Start(binding)
 		c.subscriptions[key] = subscription{
 			binding:     binding,
@@ -57,6 +79,8 @@ func (c *BindingManager) Add(binding *v1.Binding) {
 	}
 
 	c.drainBindingsMetric.Set(float64(len(c.subscriptions)))
+
+	return nil
 }
 
 // Delete removes a binding subscription from the Binding Manager.
@@ -89,4 +113,15 @@ func (c *BindingManager) List() []*v1.Binding {
 	}
 
 	return bindings
+}
+
+// BindingManagerOption is a function that can be used to configure optional
+// settings on a BindingManager.
+type BindingManagerOption func(*BindingManager)
+
+// WithMaxBindings sets the maximum number of allowed bindings.
+func WithMaxBindings(max int) BindingManagerOption {
+	return func(m *BindingManager) {
+		m.maxBindings = max
+	}
 }
