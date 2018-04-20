@@ -46,7 +46,7 @@ func (s *SpyMetric) Increment(c uint64) {
 	s.delta += c
 }
 
-func (s *SpyMetric) Emit(c pulseemitter.LoggClient) {}
+func (s *SpyMetric) Emit(c pulseemitter.LogClient) {}
 
 func (s *SpyMetric) Set(c float64) {
 	s.mu.Lock()
