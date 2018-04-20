@@ -26,6 +26,8 @@ var _ = Describe("TCPWriter", func() {
 		}
 		netConf = egress.NetworkTimeoutConfig{
 			WriteTimeout: time.Second,
+			DialTimeout:  time.Second,
+			Keepalive:    time.Second,
 		}
 	)
 
@@ -194,7 +196,7 @@ var _ = Describe("TCPWriter", func() {
 			go func() {
 				errs <- writer.Write(env)
 			}()
-			Eventually(errs).Should(Receive(HaveOccurred()))
+			Eventually(errs, 3).Should(Receive(HaveOccurred()))
 		})
 	})
 
