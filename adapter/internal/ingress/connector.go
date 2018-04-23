@@ -3,7 +3,6 @@ package ingress
 import (
 	"crypto/tls"
 	"io"
-	"log"
 	"sync"
 	"time"
 
@@ -84,11 +83,9 @@ func (c *Connector) Connect() (io.Closer, LogsProviderClient, error) {
 		if err != nil {
 			continue
 		}
+		vc := &ValidClient{client: loggregator_v2.NewEgressClient(conn)}
 
-		client := loggregator_v2.NewEgressClient(conn)
-		log.Println("Created new connection to loggregator egress API")
-
-		return conn, &ValidClient{client: client}, nil
+		return conn, vc, nil
 	}
 
 	return nil, nil, err

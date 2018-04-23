@@ -168,15 +168,15 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		LegacySelector:   selectors[0],
 	})
 
-	if status, ok := status.FromError(err); ok {
-		if status.Code() == codes.ResourceExhausted {
+	if batchStatus, ok := status.FromError(err); ok {
+		if batchStatus.Code() == codes.ResourceExhausted {
 			return true
 		}
 
 		// NOTE Loggregator v93 added BatchedReceiver. Once we can be certain
 		// Loggregator is v93 or above in all deployments, the following failover
 		// code should be deleted.
-		if status.Code() == codes.Unimplemented {
+		if batchStatus.Code() == codes.Unimplemented {
 			receiver, err := client.Receiver(ctx, &v2.EgressRequest{
 				ShardId:          buildShardId(binding),
 				UsePreferredTags: true,
@@ -192,8 +192,11 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 			defer receiver.CloseSend()
 
 			if err := s.readWriteLoop(binding.AppId, receiver, writer); err != nil {
-				log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
 				client.Invalidate()
+				if loopStatus, ok := status.FromError(err); ok && loopStatus.Code() == codes.Canceled {
+					return true
+				}
+				log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
 			}
 
 			return true
@@ -209,6 +212,9 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 
 	if err := s.batchReadWriteLoop(binding.AppId, batchReceiver, writer); err != nil {
 		client.Invalidate()
+		if loopStatus, ok := status.FromError(err); ok && loopStatus.Code() == codes.Canceled {
+			return true
+		}
 		log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
 	}
 
