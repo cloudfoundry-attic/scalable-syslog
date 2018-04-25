@@ -194,7 +194,8 @@ func NewAdapter(
 		connector,
 		a.logsAPIConnCount,
 		a.logsAPIConnTTL,
-		time.Second)
+		time.Second,
+	)
 
 	constructors := map[string]egress.WriterConstructor{
 		"https": egress.RetryWrapper(

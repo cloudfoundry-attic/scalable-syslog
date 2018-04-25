@@ -193,7 +193,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 
 			if err := s.readWriteLoop(binding.AppId, receiver, writer); err != nil {
 				client.Invalidate()
-				if loopStatus, ok := status.FromError(err); ok && loopStatus.Code() == codes.Canceled {
+				if loopStatus, ok := status.FromError(err); ok && (loopStatus.Code() == codes.Canceled || loopStatus.Code() == codes.Unavailable) {
 					return true
 				}
 				log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
@@ -212,7 +212,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 
 	if err := s.batchReadWriteLoop(binding.AppId, batchReceiver, writer); err != nil {
 		client.Invalidate()
-		if loopStatus, ok := status.FromError(err); ok && loopStatus.Code() == codes.Canceled {
+		if loopStatus, ok := status.FromError(err); ok && (loopStatus.Code() == codes.Canceled || loopStatus.Code() == codes.Unavailable) {
 			return true
 		}
 		log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
