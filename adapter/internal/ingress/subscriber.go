@@ -96,7 +96,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 
 	writer, err := s.connector.Connect(ctx, binding)
 	if err != nil {
-		log.Println("Failed connecting to syslog: %s", err)
+		log.Printf("Failed connecting to syslog: %s", err)
 		return false
 	}
 
