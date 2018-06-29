@@ -17,6 +17,8 @@ import (
 )
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
 	cfg := app.LoadConfig()
 
 	tlsConfig, err := api.NewMutualTLSConfig(

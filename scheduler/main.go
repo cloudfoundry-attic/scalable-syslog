@@ -16,6 +16,8 @@ import (
 )
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
 	cfg, err := app.LoadConfig(os.Args[1:])
 	if err != nil {
 		log.Fatalf("Invalid config: %s", err)
