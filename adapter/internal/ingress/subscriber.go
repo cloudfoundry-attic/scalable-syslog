@@ -186,7 +186,6 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 			close(ready)
 			if err != nil {
 				client.Invalidate()
-				log.Printf("failed to open stream for binding %s: %s", binding.AppId, err)
 				return true
 			}
 			defer receiver.CloseSend()
@@ -205,7 +204,6 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 	close(ready)
 	if err != nil {
 		client.Invalidate()
-		log.Printf("failed to open stream for binding %s: %s", binding.AppId, err)
 		return true
 	}
 	defer batchReceiver.CloseSend()

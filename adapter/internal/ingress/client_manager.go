@@ -2,7 +2,6 @@ package ingress
 
 import (
 	"io"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -110,8 +109,6 @@ func (c *ClientManager) monitorConnectionsForRolling() {
 func (c *ClientManager) openNewConnection(idx int) {
 	closer, client, err := c.connector.Connect()
 	if err != nil {
-		log.Printf("Failed to connect to loggregator API: %s", err)
-
 		c.mu.Lock()
 		c.connections[idx] = nil
 		c.mu.Unlock()
