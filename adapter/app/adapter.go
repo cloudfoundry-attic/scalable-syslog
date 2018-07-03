@@ -270,6 +270,8 @@ func NewAdapter(
 	a.bindingManager = binding.NewBindingManager(
 		subscriber,
 		metricClient,
+		logClient,
+		a.sourceIndex,
 		binding.WithMaxBindings(a.maxBindings),
 	)
 	a.healthAddr = health.StartServer(a.health, a.healthAddr)

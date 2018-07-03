@@ -1,6 +1,8 @@
 package binding_test
 
 import (
+	loggregator "code.cloudfoundry.org/go-loggregator"
+	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 	"code.cloudfoundry.org/scalable-syslog/adapter/internal/binding"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
@@ -14,12 +16,14 @@ var _ = Describe("BindingManager", func() {
 		subscriber   *SpySubscriber
 		manager      *binding.BindingManager
 		metricClient *testhelper.SpyMetricClient
+		logClient    *spyLogClient
 	)
 
 	BeforeEach(func() {
 		metricClient = testhelper.NewMetricClient()
 		subscriber = &SpySubscriber{}
-		manager = binding.NewBindingManager(subscriber, metricClient)
+		logClient = newSpyLogClient()
+		manager = binding.NewBindingManager(subscriber, metricClient, logClient, "some-index")
 	})
 
 	Describe("Add()", func() {
@@ -72,6 +76,8 @@ var _ = Describe("BindingManager", func() {
 				manager = binding.NewBindingManager(
 					subscriber,
 					metricClient,
+					logClient,
+					"some-index",
 					binding.WithMaxBindings(0),
 				)
 
@@ -85,12 +91,27 @@ var _ = Describe("BindingManager", func() {
 				Expect(err).To(MatchError("Max bindings for adapter exceeded"))
 
 				Expect(metricClient.GetMetric("rejected_bindings").Delta()).To(Equal(uint64(1)))
+				Expect(logClient.envelopes).To(ContainElement(&loggregator_v2.Envelope{
+					SourceId:   "some-id",
+					InstanceId: "some-index",
+					Message: &loggregator_v2.Envelope_Log{
+						Log: &loggregator_v2.Log{
+							Payload: []byte("Syslog adapter has failed to schedule your drain stream"),
+							Type:    loggregator_v2.Log_ERR,
+						},
+					},
+					Tags: map[string]string{
+						"source_type": "LGR",
+					},
+				}))
 			})
 
 			It("does not return an error if binding already exists", func() {
 				manager = binding.NewBindingManager(
 					subscriber,
 					metricClient,
+					logClient,
+					"some-index",
 					binding.WithMaxBindings(1),
 				)
 
@@ -180,4 +201,30 @@ func (s *SpySubscriber) Start(binding *v1.Binding) (stopFunc func()) {
 	return func() {
 		s.stopCount++
 	}
+}
+
+type spyLogClient struct {
+	envelopes []*loggregator_v2.Envelope
+}
+
+func newSpyLogClient() *spyLogClient {
+	return &spyLogClient{}
+}
+
+func (s *spyLogClient) EmitLog(message string, opts ...loggregator.EmitLogOption) {
+	e := &loggregator_v2.Envelope{
+		Message: &loggregator_v2.Envelope_Log{
+			Log: &loggregator_v2.Log{
+				Payload: []byte(message),
+				Type:    loggregator_v2.Log_ERR,
+			},
+		},
+		Tags: make(map[string]string),
+	}
+
+	for _, o := range opts {
+		o(e)
+	}
+
+	s.envelopes = append(s.envelopes, e)
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 
+	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
@@ -27,11 +28,19 @@ type BindingManager struct {
 
 	drainBindingsMetric    pulseemitter.GaugeMetric
 	rejectedBindingsMetric pulseemitter.CounterMetric
+
+	logClient   LogClient
+	sourceIndex string
 }
 
 // Subscriber reads and writes logs for a specific binding.
 type Subscriber interface {
 	Start(binding *v1.Binding) (stopFunc func())
+}
+
+// LogClient is used to emit logs.
+type LogClient interface {
+	EmitLog(message string, opts ...loggregator.EmitLogOption)
 }
 
 type subscription struct {
@@ -40,7 +49,13 @@ type subscription struct {
 }
 
 // New returns a new Binding Manager.
-func NewBindingManager(s Subscriber, mc MetricClient, opts ...BindingManagerOption) *BindingManager {
+func NewBindingManager(
+	s Subscriber,
+	mc MetricClient,
+	lc LogClient,
+	sourceIndex string,
+	opts ...BindingManagerOption,
+) *BindingManager {
 	dbm := mc.NewGaugeMetric("drain_bindings", "bindings")
 	rbm := mc.NewCounterMetric("rejected_bindings")
 
@@ -50,6 +65,8 @@ func NewBindingManager(s Subscriber, mc MetricClient, opts ...BindingManagerOpti
 		maxBindings:            500,
 		drainBindingsMetric:    dbm,
 		rejectedBindingsMetric: rbm,
+		logClient:              lc,
+		sourceIndex:            sourceIndex,
 	}
 
 	for _, o := range opts {
@@ -68,6 +85,11 @@ func (c *BindingManager) Add(binding *v1.Binding) error {
 	if _, ok := c.subscriptions[key]; !ok {
 		if len(c.subscriptions) >= c.maxBindings {
 			c.rejectedBindingsMetric.Increment(1)
+			c.logClient.EmitLog(
+				"Syslog adapter has failed to schedule your drain stream",
+				loggregator.WithAppInfo(binding.AppId, "LGR", c.sourceIndex),
+			)
+
 			return ErrMaxBindingsExceeded
 		}
 
