@@ -24,7 +24,7 @@ length prefixed to the message. This is used to frame syslog messages when
 transmitting over a streaming protocol.
 
 [loggregator]: https://github.com/cloudfoundry/loggregator
-[ci-badge]:    https://loggregator.ci.cf-app.com/api/v1/pipelines/products/jobs/cf-syslog-drain-tests/badge
-[ci-pipeline]: https://loggregator.ci.cf-app.com/teams/main/pipelines/products?groups=cf-syslog-drain
+[ci-badge]:                 https://loggregator.ci.cf-app.com/api/v1/teams/main/pipelines/cf-syslog-drain/jobs/cf-syslog-drain-tests/badge
+[ci-pipeline]:              https://loggregator.ci.cf-app.com/teams/main/pipelines/cf-syslog-drain
 [rfc5424]:     https://tools.ietf.org/html/rfc5424
 [rfc6587]:     https://tools.ietf.org/html/rfc6587
