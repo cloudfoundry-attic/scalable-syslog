@@ -139,7 +139,6 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 	egressMetric := w.egressMetrics[urlBinding.Scheme()]
 	constructor, ok := w.constructors[urlBinding.Scheme()]
 	if !ok {
-		w.emitErrorLog(b.AppId, "Invalid syslog drain URL: unsupported protocol")
 		return nil, errors.New("unsupported protocol")
 	}
 	netConf := NetworkTimeoutConfig{

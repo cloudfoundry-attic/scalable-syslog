@@ -78,7 +78,7 @@ var _ = Describe("BlacklistRanges", func() {
 			ranges, _ := ingress.NewBlacklistRanges()
 
 			for _, testUrl := range validIPs {
-				host, err := ranges.ParseHost(testUrl)
+				_, host, err := ranges.ParseHost(testUrl)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(host).ToNot(Equal(""))
 			}
@@ -88,10 +88,17 @@ var _ = Describe("BlacklistRanges", func() {
 			ranges, _ := ingress.NewBlacklistRanges()
 
 			for _, testUrl := range malformattedURLs {
-				host, err := ranges.ParseHost(testUrl)
+				_, host, err := ranges.ParseHost(testUrl)
 				Expect(err).To(HaveOccurred())
 				Expect(host).To(Equal(""))
 			}
+		})
+
+		It("returns the scheme from a valid URL", func() {
+			ranges, _ := ingress.NewBlacklistRanges()
+			scheme, _, err := ranges.ParseHost("syslog://10.10.10.10")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(scheme).To(Equal("syslog"))
 		})
 	})
 

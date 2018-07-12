@@ -3,6 +3,7 @@ package ingress_test
 import (
 	"errors"
 	"net"
+	"net/url"
 
 	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/scalable-syslog/scheduler/internal/ingress"
@@ -14,7 +15,7 @@ import (
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
-var _ = Describe("BlacklistFilter", func() {
+var _ = Describe("FilteredBindingFetcher", func() {
 	It("returns valid bindings", func() {
 		input := []v1.Binding{
 			v1.Binding{AppId: "app-id-with-multiple-drains", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
@@ -75,6 +76,37 @@ var _ = Describe("BlacklistFilter", func() {
 			Expect(logClient.calledWith).To(Equal("Invalid syslog drain URL: parse failure"))
 			Expect(logClient.appID).To(Equal("app-id"))
 			Expect(logClient.sourceType).To(Equal("LGR"))
+		})
+	})
+
+	Context("when syslog drain has invalid scheme", func() {
+		var (
+			filter *ingress.FilteredBindingFetcher
+			input  []v1.Binding
+		)
+
+		BeforeEach(func() {
+			input = []v1.Binding{
+				v1.Binding{AppId: "app-id", Hostname: "we.dont.care", Drain: "syslog://10.10.10.10"},
+				v1.Binding{AppId: "app-id", Hostname: "we.dont.care", Drain: "syslog-tls://10.10.10.10"},
+				v1.Binding{AppId: "app-id", Hostname: "we.dont.care", Drain: "https://10.10.10.10"},
+				v1.Binding{AppId: "app-id", Hostname: "we.dont.care", Drain: "bad-scheme://10.10.10.10"},
+				v1.Binding{AppId: "app-id", Hostname: "we.dont.care", Drain: "blah://10.10.10.10"},
+			}
+
+			filter = ingress.NewFilteredBindingFetcher(
+				&spyIPChecker{},
+				&SpyBindingReader{bindings: input},
+				&spyLogClient{},
+			)
+		})
+
+		It("ignores the bindings", func() {
+			actual, removed, err := filter.FetchBindings()
+
+			Expect(err).ToNot(HaveOccurred())
+			Expect(actual).To(Equal(input[:3]))
+			Expect(removed).To(Equal(2))
 		})
 	})
 
@@ -165,6 +197,7 @@ type spyIPChecker struct {
 	resolveAddrError    error
 	resolvedIP          net.IP
 	parseHostError      error
+	parsedScheme        string
 	parsedHost          string
 }
 
@@ -172,8 +205,13 @@ func (s *spyIPChecker) CheckBlacklist(net.IP) error {
 	return s.checkBlacklistError
 }
 
-func (s *spyIPChecker) ParseHost(string) (string, error) {
-	return s.parsedHost, s.parseHostError
+func (s *spyIPChecker) ParseHost(URL string) (string, string, error) {
+	u, err := url.Parse(URL)
+	if err != nil {
+		panic(err)
+	}
+
+	return u.Scheme, s.parsedHost, s.parseHostError
 }
 
 func (s *spyIPChecker) ResolveAddr(host string) (net.IP, error) {

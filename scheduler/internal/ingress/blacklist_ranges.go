@@ -93,17 +93,17 @@ func (i *BlacklistRanges) ResolveAddr(host string) (net.IP, error) {
 	return ipAddress, nil
 }
 
-func (i *BlacklistRanges) ParseHost(drainURL string) (string, error) {
+func (i *BlacklistRanges) ParseHost(drainURL string) (string, string, error) {
 	testURL, err := url.Parse(drainURL)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	if len(testURL.Host) == 0 {
-		return "", errors.New("invalid URL, detected no host")
+		return "", "", errors.New("invalid URL, detected no host")
 	}
 
 	host := strings.Split(testURL.Host, ":")[0]
 
-	return host, nil
+	return testURL.Scheme, host, nil
 }

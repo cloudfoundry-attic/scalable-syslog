@@ -9,12 +9,14 @@ import (
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
 )
 
+var allowedSchemes = []string{"syslog", "syslog-tls", "https"}
+
 type BindingReader interface {
 	FetchBindings() (appBindings []v1.Binding, err error)
 }
 
 type IPChecker interface {
-	ParseHost(url string) (string, error)
+	ParseHost(url string) (string, string, error)
 	ResolveAddr(host string) (net.IP, error)
 	CheckBlacklist(ip net.IP) error
 }
@@ -46,10 +48,14 @@ func (f *FilteredBindingFetcher) FetchBindings() ([]v1.Binding, int, error) {
 	newBindings := []v1.Binding{}
 
 	for _, binding := range sourceBindings {
-		host, err := f.ipChecker.ParseHost(binding.Drain)
+		scheme, host, err := f.ipChecker.ParseHost(binding.Drain)
 		if err != nil {
 			log.Println(err)
 			f.emitErrorLog(binding.AppId, "Invalid syslog drain URL: parse failure")
+			continue
+		}
+
+		if invalidScheme(scheme) {
 			continue
 		}
 
@@ -83,4 +89,14 @@ func (f *FilteredBindingFetcher) emitErrorLog(appID, message string) {
 		"", // source instance is unavailable
 	)
 	f.logClient.EmitLog(message, option)
+}
+
+func invalidScheme(scheme string) bool {
+	for _, s := range allowedSchemes {
+		if s == scheme {
+			return false
+		}
+	}
+
+	return true
 }

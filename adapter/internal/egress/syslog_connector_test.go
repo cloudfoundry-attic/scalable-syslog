@@ -104,27 +104,6 @@ var _ = Describe("SyslogConnector", func() {
 		Expect(err).To(MatchError("unsupported protocol"))
 	})
 
-	It("writes an LGR error for an unsupported syslog protocol", func() {
-		logClient := newSpyLogClient()
-		connector := egress.NewSyslogConnector(
-			netConf,
-			true,
-			spyWaitGroup,
-			egress.WithLogClient(logClient, "3"),
-		)
-
-		binding := &v1.Binding{
-			AppId: "some-app-id",
-			Drain: "bla://some-domain.tld",
-		}
-
-		_, _ = connector.Connect(ctx, binding)
-
-		Expect(logClient.message()).To(ContainElement("Invalid syslog drain URL: unsupported protocol"))
-		Expect(logClient.appID()).To(ContainElement("some-app-id"))
-		Expect(logClient.sourceType()).To(HaveKey("LGR"))
-	})
-
 	It("returns an error for an inproperly formatted drain", func() {
 		connector := egress.NewSyslogConnector(
 			netConf,
