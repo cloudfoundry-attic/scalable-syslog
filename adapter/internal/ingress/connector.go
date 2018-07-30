@@ -31,12 +31,6 @@ type Connector struct {
 // LogsProviderClient describes the gRPC interface for communicating with
 // Loggregator.
 type LogsProviderClient interface {
-	Receiver(
-		ctx context.Context,
-		in *loggregator_v2.EgressRequest,
-		opts ...grpc.CallOption,
-	) (loggregator_v2.Egress_ReceiverClient, error)
-
 	BatchedReceiver(
 		ctx context.Context,
 		in *loggregator_v2.EgressBatchRequest,
@@ -108,14 +102,6 @@ func (v *ValidClient) Invalidate() {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.invalid = true
-}
-
-func (v *ValidClient) Receiver(
-	ctx context.Context,
-	in *loggregator_v2.EgressRequest,
-	opts ...grpc.CallOption,
-) (loggregator_v2.Egress_ReceiverClient, error) {
-	return v.client.Receiver(ctx, in, opts...)
 }
 
 func (v *ValidClient) BatchedReceiver(

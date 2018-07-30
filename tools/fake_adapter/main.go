@@ -39,19 +39,19 @@ func main() {
 	}
 
 	defer conn.Close()
-	req := &loggregator_v2.EgressRequest{
+	req := &loggregator_v2.EgressBatchRequest{
 		ShardId: "some-shard-id",
 	}
-	stream, err := c.Receiver(context.Background(), req)
+	stream, err := c.BatchedReceiver(context.Background(), req)
 	if err != nil {
 		log.Fatalf("did not establish stream: %s", err)
 	}
 
 	for {
-		env, err := stream.Recv()
+		batch, err := stream.Recv()
 		if err != nil {
 			log.Fatalf("error reading from stream: %s", err)
 		}
-		fmt.Printf("%#v\n", env)
+		fmt.Printf("%#v\n", batch)
 	}
 }

@@ -471,16 +471,8 @@ func (t *testEgressServer) addr() string {
 }
 
 func (t *testEgressServer) Receiver(r *v2.EgressRequest, server v2.Egress_ReceiverServer) error {
+	panic("not implemented")
 
-	for i := 0; ; i++ {
-		err := server.Send(buildLogEnvelope(int64(i)))
-		if err != nil {
-			// Subtract 1 due to the last one failing
-			atomic.StoreInt64(&t.lastIdx, int64(i-1))
-			return err
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
 	return nil
 }
 

@@ -186,13 +186,6 @@ func (s *spyReceiver) Invalidate() {
 	s.invalid = true
 }
 
-func (s *spyReceiver) Receiver(
-	context.Context,
-	*v2.EgressRequest, ...grpc.CallOption,
-) (v2.Egress_ReceiverClient, error) {
-	return nil, nil
-}
-
 func (s *spyReceiver) BatchedReceiver(
 	context.Context,
 	*v2.EgressBatchRequest,
