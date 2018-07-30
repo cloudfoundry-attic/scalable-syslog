@@ -144,19 +144,8 @@ func (t *testEgressServer) addr() string {
 	return t.addr_
 }
 
-func (t *testEgressServer) Receiver(r *loggregator_v2.EgressRequest, server loggregator_v2.Egress_ReceiverServer) error {
-	var i int
-	for {
-		e := buildEnvelope(i%2 == 0, r.GetLegacySelector().GetSourceId(), i)
-
-		log.Printf("sending envelope: %d", i)
-		if err := server.Send(e); err != nil {
-			return err
-		}
-		log.Printf("sent envelope: %d", i)
-		i++
-		time.Sleep(t.delay)
-	}
+func (t *testEgressServer) Receiver(*loggregator_v2.EgressRequest, loggregator_v2.Egress_ReceiverServer) error {
+	panic("not implemented")
 
 	return nil
 }

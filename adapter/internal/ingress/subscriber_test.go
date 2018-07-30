@@ -15,7 +15,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -30,9 +29,7 @@ var _ = Describe("Subscriber", func() {
 		client                *spyLogsProviderClient
 		logClient             *spyLogClient
 		batchedReceiverClient *spyBatchedReceiverClient
-		receiver              *spyReceiverClient
 		binding               *v1.Binding
-		unimplemented         = status.Error(codes.Unimplemented, "unimplemented")
 	)
 
 	BeforeEach(func() {
@@ -43,7 +40,6 @@ var _ = Describe("Subscriber", func() {
 		client = newSpyLogsProviderClient()
 		logClient = newSpyLogClient()
 		batchedReceiverClient = newSpyBatchedReceiverClient()
-		receiver = newSpyReceiverClient()
 		binding = &v1.Binding{
 			AppId:    "some-app-id",
 			Hostname: "some-host-name",
@@ -77,34 +73,8 @@ var _ = Describe("Subscriber", func() {
 		Expect(logClient.message()).To(BeEmpty())
 	})
 
-	It("opens a stream with an egress client when batching is unavailable", func() {
-		client.batchedReceiverError = unimplemented
-		receiver.recv = buildLogEnvelope("some-app-id")
-		client.receiverClient = receiver
-		subscriber := ingress.NewSubscriber(
-			context.TODO(),
-			clientPool,
-			syslogConnector,
-			spyEmitter,
-			ingress.WithStreamOpenTimeout(500*time.Millisecond),
-		)
-
-		subscriber.Start(binding)
-
-		Eventually(client.receiverRequest).ShouldNot(BeNil())
-		Expect(client.receiverRequest().LegacySelector.GetSourceId()).To(Equal(binding.AppId))
-		Expect(client.receiverRequest().LegacySelector.GetLog()).ToNot(BeNil())
-		Expect(client.receiverRequest().Selectors[0].GetSourceId()).To(Equal(binding.AppId))
-		Expect(client.receiverRequest().Selectors[0].GetLog()).ToNot(BeNil())
-		Expect(client.receiverRequest().ShardId).To(Equal(fmt.Sprint(binding.AppId, binding.Hostname, binding.Drain)))
-		Expect(client.receiverRequest().UsePreferredTags).To(BeTrue())
-		Eventually(writer.writes).Should(Equal(1))
-	})
-
 	It("acquires another client when one client fails", func() {
 		client.batchedReceiverError = errors.New("cannot get batcher")
-		receiver.recv = buildLogEnvelope("some-app-id")
-		client.receiverClient = receiver
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
 			clientPool,
@@ -119,9 +89,8 @@ var _ = Describe("Subscriber", func() {
 	})
 
 	It("acquires another receiver when Recv() fails", func() {
-		client.batchedReceiverError = unimplemented
 		receiver := newErrorReceiverClient()
-		client.receiverClient = receiver
+		client.batchedReceiverClient = receiver
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
 			clientPool,
@@ -135,45 +104,9 @@ var _ = Describe("Subscriber", func() {
 		Eventually(receiver.recvCalls).Should(BeNumerically(">=", 1))
 	})
 
-	It("invalidates the client if Receiver fails", func() {
-		client.batchedReceiverError = unimplemented
-		client.receiverError = errors.New("some error")
-		receiver := newErrorReceiverClient()
-		client.receiverClient = receiver
-		subscriber := ingress.NewSubscriber(
-			context.TODO(),
-			clientPool,
-			syslogConnector,
-			spyEmitter,
-			ingress.WithStreamOpenTimeout(500*time.Millisecond),
-		)
-
-		subscriber.Start(binding)
-
-		Eventually(client.invalidated).Should(Equal(true))
-	})
-
-	It("invalidates the client if Recv fails", func() {
-		client.batchedReceiverError = unimplemented
-		receiver := newErrorReceiverClient()
-		client.receiverClient = receiver
-		subscriber := ingress.NewSubscriber(
-			context.TODO(),
-			clientPool,
-			syslogConnector,
-			spyEmitter,
-			ingress.WithStreamOpenTimeout(500*time.Millisecond),
-		)
-
-		subscriber.Start(binding)
-
-		Eventually(client.invalidated).Should(Equal(true))
-	})
-
-	It("does not invalidate  the client if BatchedReceiver fails with ResourceExhausted code", func() {
+	It("does not invalidate the client if BatchedReceiver fails with ResourceExhausted code", func() {
 		client.batchedReceiverError = grpc.Errorf(codes.ResourceExhausted, "some-err")
-		receiver := newErrorReceiverClient()
-		client.receiverClient = receiver
+		client.batchedReceiverClient = newErrorReceiverClient()
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
 			clientPool,
@@ -225,9 +158,8 @@ var _ = Describe("Subscriber", func() {
 	})
 
 	It("closes all connections when the cancel function is called", func() {
-		client.batchedReceiverError = unimplemented
-		receiver.recv = buildLogEnvelope("some-app-id")
-		client.receiverClient = receiver
+		batchedReceiverClient.recv = buildBatchedLogs(3)
+		client.batchedReceiverClient = batchedReceiverClient
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
 			clientPool,
@@ -240,23 +172,22 @@ var _ = Describe("Subscriber", func() {
 
 		// Ensure the context is threaded down.
 		Eventually(syslogConnector.connectContext).ShouldNot(BeNil())
-		Eventually(client.receiverContext).ShouldNot(BeNil())
+		Eventually(client.batchedReceiverContext).ShouldNot(BeNil())
 		syslogConnectorCtx := syslogConnector.connectContext()
-		receiverCtx := client.receiverContext()
+		receiverCtx := client.batchedReceiverContext()
 
 		cancel()
 
 		// Ensure the context is now closed.
 		Eventually(syslogConnectorCtx.Done).Should(BeClosed())
 		Eventually(receiverCtx.Done).Should(BeClosed())
-		Eventually(receiver.closeSendCalled).Should(BeTrue())
+		Eventually(batchedReceiverClient.closeSendCalled).Should(BeTrue())
 	})
 
 	It("times out after a configuration duration when opening a stream", func() {
-		client.receiveTime = 10 * time.Millisecond
-		client.batchedReceiverError = unimplemented
-		receiver := newEnvelopeReceiverClient()
-		client.receiverClient = receiver
+		batchedReceiverClient.recv = buildBatchedLogs(3)
+		client.batchedReceiveTime = 10 * time.Millisecond
+		client.batchedReceiverClient = batchedReceiverClient
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
 			clientPool,
@@ -269,9 +200,9 @@ var _ = Describe("Subscriber", func() {
 
 		// Ensure the context is threaded down.
 		Eventually(syslogConnector.connectContext).ShouldNot(BeNil())
-		Eventually(client.receiverContext).ShouldNot(BeNil())
+		Eventually(client.batchedReceiverContext).ShouldNot(BeNil())
 		syslogConnectorCtx := syslogConnector.connectContext()
-		receiverCtx := client.receiverContext()
+		receiverCtx := client.batchedReceiverContext()
 
 		// Ensure the context is now closed.
 		Eventually(syslogConnectorCtx.Done).Should(BeClosed())
@@ -279,9 +210,8 @@ var _ = Describe("Subscriber", func() {
 	})
 
 	It("emits ingress metrics", func() {
-		client.batchedReceiverError = unimplemented
-		receiver.recv = buildLogEnvelope("some-app-id")
-		client.receiverClient = receiver
+		batchedReceiverClient.recv = buildBatchedLogs(1)
+		client.batchedReceiverClient = batchedReceiverClient
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
 			clientPool,
@@ -293,23 +223,6 @@ var _ = Describe("Subscriber", func() {
 		subscriber.Start(binding)
 
 		Eventually(spyEmitter.GetMetric("ingress").Delta).Should(Equal(uint64(1)))
-	})
-
-	It("ignores received envelopes with an unexpected app-id", func() {
-		client.batchedReceiverError = unimplemented
-		receiver.recv = buildLogEnvelope("invalid-source-id")
-		client.receiverClient = receiver
-		subscriber := ingress.NewSubscriber(
-			context.TODO(),
-			clientPool,
-			syslogConnector,
-			spyEmitter,
-			ingress.WithStreamOpenTimeout(500*time.Millisecond),
-		)
-
-		subscriber.Start(binding)
-
-		Consistently(writer.writes).Should(BeZero())
 	})
 
 	It("ignores batched received envelopes with an unexpected app-id", func() {
@@ -637,15 +550,11 @@ func (s *spySyslogConnector) connectContext() context.Context {
 type spyLogsProviderClient struct {
 	mu sync.Mutex
 
-	receiverClient   v2.Egress_ReceiverClient
-	receiverContext_ context.Context
-	receiverRequest_ *v2.EgressRequest
-	receiverError    error
-	receiveTime      time.Duration
-
 	batchedReceiverClient   v2.Egress_BatchedReceiverClient
 	batchedReceiverRequest_ *v2.EgressBatchRequest
 	batchedReceiverError    error
+	batchedReceiverContext_ context.Context
+	batchedReceiveTime      time.Duration
 
 	invalid bool
 }
@@ -672,31 +581,6 @@ func (s *spyLogsProviderClient) Invalidate() {
 	s.invalid = true
 }
 
-func (s *spyLogsProviderClient) Receiver(
-	ctx context.Context,
-	in *v2.EgressRequest,
-	opts ...grpc.CallOption,
-) (v2.Egress_ReceiverClient, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	time.Sleep(s.receiveTime)
-	s.receiverContext_ = ctx
-	s.receiverRequest_ = in
-	return s.receiverClient, s.receiverError
-}
-
-func (s *spyLogsProviderClient) receiverContext() context.Context {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.receiverContext_
-}
-
-func (s *spyLogsProviderClient) receiverRequest() *v2.EgressRequest {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.receiverRequest_
-}
-
 func (s *spyLogsProviderClient) BatchedReceiver(
 	ctx context.Context,
 	in *v2.EgressBatchRequest,
@@ -705,7 +589,10 @@ func (s *spyLogsProviderClient) BatchedReceiver(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	time.Sleep(s.batchedReceiveTime)
+
 	s.batchedReceiverRequest_ = in
+	s.batchedReceiverContext_ = ctx
 
 	return s.batchedReceiverClient, s.batchedReceiverError
 }
@@ -716,43 +603,11 @@ func (s *spyLogsProviderClient) batchedReceiverRequest() *v2.EgressBatchRequest 
 	return s.batchedReceiverRequest_
 }
 
-func newSpyReceiverClient() *spyReceiverClient {
-	return &spyReceiverClient{}
-}
-
-type spyReceiverClient struct {
-	mu               sync.Mutex
-	recv             *v2.Envelope
-	done             bool
-	closeSendCalled_ bool
-	grpc.ClientStream
-}
-
-func (s *spyReceiverClient) closeSendCalled() bool {
+func (s *spyLogsProviderClient) batchedReceiverContext() context.Context {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	return s.closeSendCalled_
-}
-
-func (s *spyReceiverClient) CloseSend() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.closeSendCalled_ = true
-
-	return nil
-}
-
-func (s *spyReceiverClient) Recv() (*v2.Envelope, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if !s.done {
-		s.done = true
-		return s.recv, nil
-	}
-
-	return nil, errors.New("no more data")
+	return s.batchedReceiverContext_
 }
 
 func newSpyBatchedReceiverClient() *spyBatchedReceiverClient {
@@ -764,9 +619,14 @@ type spyBatchedReceiverClient struct {
 	recv *v2.EnvelopeBatch
 	done bool
 	grpc.ClientStream
+	closeSendCalled_ bool
 }
 
 func (s *spyBatchedReceiverClient) CloseSend() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.closeSendCalled_ = true
+
 	return nil
 }
 
@@ -780,6 +640,13 @@ func (s *spyBatchedReceiverClient) Recv() (*v2.EnvelopeBatch, error) {
 	}
 
 	return nil, errors.New("no more data")
+}
+
+func (s *spyBatchedReceiverClient) closeSendCalled() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.closeSendCalled_
 }
 
 func newEnvelopeReceiverClient() *envelopeReceiver {
@@ -798,21 +665,21 @@ func (i *envelopeReceiver) Recv() (*v2.Envelope, error) {
 	return &v2.Envelope{}, nil
 }
 
-func newErrorReceiverClient() *errorReceiver {
-	return &errorReceiver{}
-}
-
 type errorReceiver struct {
 	mu         sync.Mutex
 	recvCalls_ int
 	grpc.ClientStream
 }
 
+func newErrorReceiverClient() *errorReceiver {
+	return &errorReceiver{}
+}
+
 func (e *errorReceiver) CloseSend() error {
 	return nil
 }
 
-func (e *errorReceiver) Recv() (*v2.Envelope, error) {
+func (e *errorReceiver) Recv() (*v2.EnvelopeBatch, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
