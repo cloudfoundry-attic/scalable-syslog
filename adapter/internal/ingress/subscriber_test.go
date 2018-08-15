@@ -15,6 +15,7 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -105,8 +106,8 @@ var _ = Describe("Subscriber", func() {
 	})
 
 	It("does not invalidate the client if BatchedReceiver fails with ResourceExhausted code", func() {
-		client.batchedReceiverError = grpc.Errorf(codes.ResourceExhausted, "some-err")
-		client.batchedReceiverClient = newErrorReceiverClient()
+		batchedReceiverClient.recvErr = status.Error(codes.ResourceExhausted, "resource exhausted")
+		client.batchedReceiverClient = batchedReceiverClient
 		subscriber := ingress.NewSubscriber(
 			context.TODO(),
 			clientPool,
@@ -615,9 +616,10 @@ func newSpyBatchedReceiverClient() *spyBatchedReceiverClient {
 }
 
 type spyBatchedReceiverClient struct {
-	mu   sync.Mutex
-	recv *v2.EnvelopeBatch
-	done bool
+	mu      sync.Mutex
+	recv    *v2.EnvelopeBatch
+	recvErr error
+	done    bool
 	grpc.ClientStream
 	closeSendCalled_ bool
 }
@@ -633,6 +635,10 @@ func (s *spyBatchedReceiverClient) CloseSend() error {
 func (s *spyBatchedReceiverClient) Recv() (*v2.EnvelopeBatch, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.recvErr != nil {
+		return nil, s.recvErr
+	}
 
 	if !s.done {
 		s.done = true

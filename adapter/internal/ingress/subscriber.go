@@ -170,6 +170,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 
 	if batchStatus, ok := status.FromError(err); ok {
 		if batchStatus.Code() == codes.ResourceExhausted {
+			time.Sleep(20 * time.Millisecond)
 			return true
 		}
 	}
@@ -181,8 +182,14 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 	defer batchReceiver.CloseSend()
 
 	if err := s.batchReadWriteLoop(binding.AppId, batchReceiver, writer); err != nil {
+		loopStatus, ok := status.FromError(err)
+		if ok && loopStatus.Code() == codes.ResourceExhausted {
+			time.Sleep(20 * time.Millisecond)
+			return true
+		}
+
 		client.Invalidate()
-		if loopStatus, ok := status.FromError(err); ok && (loopStatus.Code() == codes.Canceled || loopStatus.Code() == codes.Unavailable) {
+		if ok && (loopStatus.Code() == codes.Canceled || loopStatus.Code() == codes.Unavailable) {
 			return true
 		}
 		log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
