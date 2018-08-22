@@ -153,6 +153,9 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 		egressMetric,
 	)
 
+	anonymousUrl := *urlBinding.URL
+	anonymousUrl.User = nil
+
 	dw := NewDiodeWriter(ctx, writer, diodes.AlertFunc(func(missed int) {
 		if droppedMetric != nil {
 			droppedMetric.Increment(uint64(missed))
@@ -160,7 +163,10 @@ func (w *SyslogConnector) Connect(ctx context.Context, b *v1.Binding) (Writer, e
 
 		w.emitErrorLog(b.AppId, fmt.Sprintf("%d messages lost in user provided syslog drain", missed))
 
-		log.Printf("Dropped %d %s logs", missed, urlBinding.Scheme())
+		log.Printf(
+			"Dropped %d %s logs for url %s in app %s",
+			missed, urlBinding.Scheme(), anonymousUrl.String(), b.AppId,
+		)
 	}), w.wg)
 
 	return dw, nil
