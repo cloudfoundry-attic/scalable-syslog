@@ -63,8 +63,8 @@ func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
 		"LGR",
 		r.sourceIndex,
 	)
-	logMsgTemplate := "Syslog Drain: Error when writing. Backing off for %s."
-	logTemplate := "failed to write to %s, retrying in %s, err: %s"
+	logMsgTemplate := "Syslog Drain: Error when writing. Backing off for %s. Retry %d/%d."
+	logTemplate := "failed to write to %s, retrying in %s, retry %d/%d, err: %s"
 
 	var err error
 
@@ -79,9 +79,11 @@ func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
 		}
 
 		sleepDuration := r.retryDuration(i)
-		log.Printf(logTemplate, r.binding.URL.Host, sleepDuration, err)
-		msg := fmt.Sprintf(logMsgTemplate, sleepDuration)
-		r.logClient.EmitLog(msg, logMsgOption)
+		log.Printf(logTemplate, r.binding.URL.Host, sleepDuration, i, r.maxRetries, err)
+		if i >= 2 {
+			msg := fmt.Sprintf(logMsgTemplate, sleepDuration, i, r.maxRetries)
+			r.logClient.EmitLog(msg, logMsgOption)
+		}
 
 		time.Sleep(sleepDuration)
 	}
