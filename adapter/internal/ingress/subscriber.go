@@ -2,6 +2,7 @@ package ingress
 
 import (
 	"log"
+	"math/rand"
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
@@ -98,7 +99,7 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 
 	writer, err := s.connector.Connect(ctx, binding)
 	if err != nil {
-		log.Println("Failed connecting to syslog: %s", err)
+		log.Printf("Failed connecting to syslog: %s", err)
 		return false
 	}
 
@@ -125,9 +126,9 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 		},
 	})
 
-	status, ok := status.FromError(err)
+	st, ok := status.FromError(err)
 
-	if ok && status.Code() == codes.Unimplemented {
+	if ok && st.Code() == codes.Unimplemented {
 		receiver, err := client.Receiver(ctx, &v2.EgressRequest{
 			ShardId:          buildShardId(binding),
 			UsePreferredTags: true,
@@ -158,6 +159,11 @@ func (s *Subscriber) attemptConnectAndRead(ctx context.Context, binding *v1.Bind
 	defer batchReceiver.CloseSend()
 
 	err = s.batchReadWriteLoop(batchReceiver, writer)
+	if st, ok := status.FromError(err); ok && st.Code() == codes.ResourceExhausted {
+		time.Sleep(time.Duration(100+rand.Intn(100)) * time.Millisecond)
+		return true
+	}
+
 	log.Printf("Subscriber read/write loop has unexpectedly closed: %s", err)
 
 	return true
