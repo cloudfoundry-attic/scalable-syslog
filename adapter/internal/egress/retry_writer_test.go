@@ -90,29 +90,6 @@ var _ = Describe("Retry Writer", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(writeCloser.WriteAttempts()).To(Equal(1))
 		})
-
-		It("writes out the LGR message", func() {
-			writeCloser := &spyWriteCloser{
-				returnErrCount: 1,
-				writeErr:       errors.New("write error"),
-				binding: &egress.URLBinding{
-					URL:     &url.URL{},
-					AppID:   "some-app-id",
-					Context: context.Background(),
-				},
-			}
-			logClient := newSpyLogClient()
-			r := buildRetryWriter(writeCloser, 2, 0, logClient)
-
-			_ = r.Write(&v2.Envelope{Tags: map[string]string{
-				"source_instance": "a source instance",
-			}})
-
-			Expect(logClient.message()).To(ContainElement("Syslog Drain: Error when writing. Backing off for 0s."))
-			Expect(logClient.appID()).To(ContainElement("some-app-id"))
-			Expect(logClient.sourceType()).To(HaveKey("LGR"))
-			Expect(logClient.sourceInstance()).To(HaveKey("a source instance"))
-		})
 	})
 
 	Describe("Close()", func() {

@@ -1,13 +1,11 @@
 package egress
 
 import (
-	"fmt"
 	"log"
 	"math"
 	"math/rand"
 	"time"
 
-	loggregator "code.cloudfoundry.org/go-loggregator"
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"code.cloudfoundry.org/go-loggregator/rpc/loggregator_v2"
 )
@@ -39,7 +37,6 @@ func RetryWrapper(
 			retryDuration: r,
 			maxRetries:    maxRetries,
 			binding:       binding,
-			logClient:     logClient,
 		}
 	})
 }
@@ -53,17 +50,10 @@ type RetryWriter struct {
 	retryDuration RetryDuration
 	maxRetries    int
 	binding       *URLBinding
-	logClient     LogClient
 }
 
 // Write will retry writes unitl maxRetries has been reached.
 func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
-	logMsgOption := loggregator.WithAppInfo(
-		r.binding.AppID,
-		"LGR",
-		e.GetTags()["source_instance"],
-	)
-	logMsgTemplate := "Syslog Drain: Error when writing. Backing off for %s."
 	logTemplate := "failed to write to %s, retrying in %s, err: %s"
 
 	var err error
@@ -80,8 +70,6 @@ func (r *RetryWriter) Write(e *loggregator_v2.Envelope) error {
 
 		sleepDuration := r.retryDuration(i)
 		log.Printf(logTemplate, r.binding.URL.Host, sleepDuration, err)
-		msg := fmt.Sprintf(logMsgTemplate, sleepDuration)
-		r.logClient.EmitLog(msg, logMsgOption)
 
 		time.Sleep(sleepDuration)
 	}
