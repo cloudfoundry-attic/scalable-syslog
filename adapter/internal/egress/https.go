@@ -71,6 +71,10 @@ func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
 }
 
 func (*HTTPSWriter) sanitizeError(u *url.URL, err error) error {
+	if u == nil || u.User == nil {
+		return err
+	}
+
 	if user := u.User.Username(); user != "" {
 		err = errors.New(strings.Replace(err.Error(), user, "<REDACTED>", -1))
 	}
