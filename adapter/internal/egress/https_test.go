@@ -72,6 +72,28 @@ var _ = Describe("HTTPWriter", func() {
 		Expect(writer.Write(env)).To(HaveOccurred())
 	})
 
+	It("does not leak creds when reporting a POST error", func() {
+		b := buildURLBinding(
+			"http://user:password@localhost:garbage",
+			"test-app-id",
+			"test-hostname",
+		)
+
+		writer := egress.NewHTTPSWriter(
+			b,
+			netConf,
+			true,
+			&testhelper.SpyMetric{},
+		)
+
+		env := buildLogEnvelope("APP", "1", "just a test", loggregator_v2.Log_OUT)
+		err := writer.Write(env)
+		Expect(err).To(HaveOccurred())
+
+		Expect(err.Error()).ToNot(ContainSubstring("user"))
+		Expect(err.Error()).ToNot(ContainSubstring("password"))
+	})
+
 	It("writes syslog formatted messages to http drain", func() {
 		drain := newMockOKDrain()
 

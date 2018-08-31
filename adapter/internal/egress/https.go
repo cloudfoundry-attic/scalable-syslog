@@ -2,12 +2,14 @@ package egress
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"code.cloudfoundry.org/go-loggregator/pulseemitter"
@@ -51,7 +53,7 @@ func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
 
 		resp, err := w.client.Post(w.url.String(), "text/plain", bytes.NewBuffer(b))
 		if err != nil {
-			return err
+			return w.sanitizeError(w.url, err)
 		}
 		defer func() {
 			io.Copy(ioutil.Discard, resp.Body)
@@ -66,6 +68,17 @@ func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
 	}
 
 	return nil
+}
+
+func (*HTTPSWriter) sanitizeError(u *url.URL, err error) error {
+	if user := u.User.Username(); user != "" {
+		err = errors.New(strings.Replace(err.Error(), user, "<REDACTED>", -1))
+	}
+
+	if p, ok := u.User.Password(); ok {
+		err = errors.New(strings.Replace(err.Error(), p, "<REDACTED>", -1))
+	}
+	return err
 }
 
 func (*HTTPSWriter) Close() error {
