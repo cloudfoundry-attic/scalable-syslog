@@ -53,13 +53,14 @@ func (w *HTTPSWriter) Write(env *loggregator_v2.Envelope) error {
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer func() {
+			io.Copy(ioutil.Discard, resp.Body)
+			resp.Body.Close()
+		}()
 
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
 			return fmt.Errorf("Syslog Writer: Post responded with %d status code", resp.StatusCode)
 		}
-
-		io.Copy(ioutil.Discard, resp.Body)
 
 		w.egressMetric.Increment(1)
 	}
