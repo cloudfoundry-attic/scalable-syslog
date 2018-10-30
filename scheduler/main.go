@@ -80,6 +80,7 @@ func main() {
 		app.WithHTTPClient(api.NewHTTPSClient(apiTLSConfig, 5*time.Second)),
 		app.WithBlacklist(cfg.Blacklist),
 		app.WithPollingInterval(cfg.APIPollingInterval),
+		app.WithAPIBatchSize(cfg.APIBatchSize),
 	)
 	scheduler.Start()
 
