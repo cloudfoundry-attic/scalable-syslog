@@ -75,16 +75,15 @@ func httpClient(netConf NetworkTimeoutConfig, skipCertVerify bool) *http.Client 
 	tlsConfig := api.NewTLSConfig()
 	tlsConfig.InsecureSkipVerify = skipCertVerify
 
+	dialer := &net.Dialer{Timeout: netConf.DialTimeout}
+
 	tr := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   netConf.DialTimeout,
-			KeepAlive: netConf.Keepalive,
-		}).DialContext,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       tlsConfig,
+		MaxIdleConnsPerHost: 1,
+		TLSClientConfig:     tlsConfig,
+		TLSHandshakeTimeout: netConf.DialTimeout * 2,
+		Dial: func(network, addr string) (net.Conn, error) {
+			return dialer.Dial(network, addr)
+		},
 	}
 
 	return &http.Client{
