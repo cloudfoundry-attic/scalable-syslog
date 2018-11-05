@@ -46,8 +46,8 @@ func buildEnvelope(isLog bool, sourceId string, id int) *loggregator_v2.Envelope
 	if isLog {
 		return &loggregator_v2.Envelope{
 			DeprecatedTags: map[string]*loggregator_v2.Value{
-				"source_type":     {&loggregator_v2.Value_Text{"APP"}},
-				"source_instance": {&loggregator_v2.Value_Text{"3"}},
+				"source_type":     {Data: &loggregator_v2.Value_Text{"APP"}},
+				"source_instance": {Data: &loggregator_v2.Value_Text{"3"}},
 			},
 			Timestamp: time.Now().UnixNano(),
 			SourceId:  sourceId,
@@ -61,8 +61,8 @@ func buildEnvelope(isLog bool, sourceId string, id int) *loggregator_v2.Envelope
 	}
 	return &loggregator_v2.Envelope{
 		DeprecatedTags: map[string]*loggregator_v2.Value{
-			"source_type":     {&loggregator_v2.Value_Text{"APP"}},
-			"source_instance": {&loggregator_v2.Value_Text{"3"}},
+			"source_type":     {Data: &loggregator_v2.Value_Text{"APP"}},
+			"source_instance": {Data: &loggregator_v2.Value_Text{"3"}},
 		},
 		Timestamp: time.Now().UnixNano(),
 		SourceId:  sourceId,
