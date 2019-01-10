@@ -221,28 +221,30 @@ func NewAdapter(
 		),
 	}
 
+	droppedMetric := buildMetric(metricClient, "dropped")
 	droppedMetrics := map[string]pulseemitter.CounterMetric{
 		// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
 		// when sending to a syslog drain over https.
-		"https": buildMetric(metricClient, "dropped"),
+		"https": droppedMetric,
 		// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
 		// when sending to a syslog drain over syslog.
-		"syslog": buildMetric(metricClient, "dropped"),
+		"syslog": droppedMetric,
 		// metric-documentation-v2: (adapter.dropped) Number of envelopes dropped
 		// when sending to a syslog drain over syslog-tls.
-		"syslog-tls": buildMetric(metricClient, "dropped"),
+		"syslog-tls": droppedMetric,
 	}
 
+	egressMetric := buildMetric(metricClient, "egress")
 	egressMetrics := map[string]pulseemitter.CounterMetric{
 		// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
 		// to a syslog drain over https.
-		"https": buildMetric(metricClient, "egress"),
+		"https": egressMetric,
 		// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
 		// to a syslog drain over syslog.
-		"syslog": buildMetric(metricClient, "egress"),
+		"syslog": egressMetric,
 		// metric-documentation-v2: (adapter.egress) Number of envelopes sent out
 		// to a syslog drain over syslog-tls.
-		"syslog-tls": buildMetric(metricClient, "egress"),
+		"syslog-tls": egressMetric,
 	}
 
 	syslogConnector := egress.NewSyslogConnector(
