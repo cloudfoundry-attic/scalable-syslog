@@ -58,7 +58,7 @@ func NewScheduler(
 		apiBatchSize:     1000,
 		adapterAddrs:     adapterAddrs,
 		adapterTLSConfig: adapterTLSConfig,
-		healthAddr:       ":8080",
+		healthAddr:       "127.0.0.1:8080",
 		client:           http.DefaultClient,
 		interval:         15 * time.Second,
 		blacklist:        &ingress.BlacklistRanges{},

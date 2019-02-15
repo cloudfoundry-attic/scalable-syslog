@@ -159,7 +159,7 @@ func NewAdapter(
 	ctx, cancel := context.WithCancel(context.Background())
 
 	a := &Adapter{
-		healthAddr:             ":8080",
+		healthAddr:             "127.0.0.1:8080",
 		adapterServerAddr:      ":443",
 		maxBindings:            500,
 		ctx:                    ctx,
