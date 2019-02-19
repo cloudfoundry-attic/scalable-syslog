@@ -490,7 +490,7 @@ func (t *testEgressServer) BatchedReceiver(r *v2.EgressBatchRequest, server v2.E
 			atomic.StoreInt64(&t.lastIdx, int64(i-1))
 			return err
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 	return nil
 }
