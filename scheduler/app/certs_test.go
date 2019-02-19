@@ -5,8 +5,10 @@ import (
 	"log"
 )
 
-//go:generate ../../scripts/generate-certs no-ca
-//go:generate go-bindata -o bindata_test.go -nocompress -pkg app_test -prefix scalable-syslog-certs/ scalable-syslog-certs/
+//go:generate go get github.com/jteeuwen/go-bindata/...
+//go:generate ../../../../../scripts/generate-certs
+//go:generate go-bindata -o bindata_test.go -nocompress -pkg app_test -prefix certs/ certs/
+//go:generate rm -rf certs
 
 func Cert(filename string) string {
 	contents := MustAsset(filename)
