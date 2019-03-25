@@ -31,9 +31,9 @@ import (
 
 var _ = Describe("Adapter", func() {
 	var (
-		logsAPIAddr  string
-		rlpTLSConfig *tls.Config
-		tlsConfig    *tls.Config
+		logsAPIAddr      string
+		rlpTLSConfig     *tls.Config
+		adapterTlsConfig *tls.Config
 
 		adapterHealthAddr string
 		client            v1.AdapterClient
@@ -55,7 +55,7 @@ var _ = Describe("Adapter", func() {
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		tlsConfig, err = api.NewMutualTLSConfig(
+		adapterTlsConfig, err = api.NewMutualTLSConfig(
 			test_util.Cert("adapter.crt"),
 			test_util.Cert("adapter.key"),
 			test_util.Cert("scalable-syslog-ca.crt"),
@@ -70,7 +70,7 @@ var _ = Describe("Adapter", func() {
 				logsAPIAddr,
 				logsAPIAddr,
 				rlpTLSConfig,
-				tlsConfig,
+				adapterTlsConfig,
 				testhelper.NewMetricClient(),
 				&spyLogClient{},
 				"instance",
@@ -149,7 +149,7 @@ var _ = Describe("Adapter", func() {
 					logsAPIAddr,
 					logsAPIAddr,
 					rlpTLSConfig,
-					tlsConfig,
+					adapterTlsConfig,
 					testhelper.NewMetricClient(),
 					&spyLogClient{},
 					"instance",
@@ -198,7 +198,7 @@ var _ = Describe("Adapter", func() {
 					logsAPIAddr,
 					logsAPIAddr,
 					rlpTLSConfig,
-					tlsConfig,
+					adapterTlsConfig,
 					testhelper.NewMetricClient(),
 					&spyLogClient{},
 					"instance",
@@ -239,7 +239,7 @@ var _ = Describe("Adapter", func() {
 					logsAPIAddr,
 					logsAPIAddr,
 					rlpTLSConfig,
-					tlsConfig,
+					adapterTlsConfig,
 					testhelper.NewMetricClient(),
 					&spyLogClient{},
 					"instance",

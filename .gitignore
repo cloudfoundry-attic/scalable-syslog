@@ -1,2 +1,3 @@
 scalable-syslog-certs
 *.test
+.idea
