@@ -37,6 +37,7 @@ type Scheduler struct {
 // Emitter sends gauge metrics
 type Emitter interface {
 	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) pulseemitter.GaugeMetric
+	NewCounterMetric(name string, opts ...pulseemitter.MetricOption) pulseemitter.CounterMetric
 }
 
 // LogClient is used to emit logs.
@@ -144,7 +145,7 @@ func (s *Scheduler) startEgress() {
 		PermitWithoutStream: true,
 	}
 
-	pool := egress.NewAdapterPool(s.adapterAddrs, s.health,
+	pool := egress.NewAdapterPool(s.adapterAddrs, s.health, s.emitter,
 		grpc.WithTransportCredentials(creds),
 		grpc.WithKeepaliveParams(kp),
 	)

@@ -1,9 +1,10 @@
 package egress_test
 
 import (
+	"code.cloudfoundry.org/scalable-syslog/internal/testhelper"
 	"net"
 
-	context "golang.org/x/net/context"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 
 	v1 "code.cloudfoundry.org/scalable-syslog/internal/api/v1"
@@ -14,11 +15,14 @@ import (
 )
 
 var _ = Describe("AdapterPool", func() {
-	It("returns a pool of adapter clients", func() {
+	spyMetricClient := testhelper.NewMetricClient()
+
+	It("returns a Pool of adapter clients", func() {
 		addr, cleanup := startGRPCServer()
 		defer cleanup()
 
-		pool := egress.NewAdapterPool([]string{addr}, nil, grpc.WithInsecure())
+		adapterPool := egress.NewAdapterPool([]string{addr}, nil, spyMetricClient, grpc.WithInsecure())
+		pool := adapterPool.Pool
 		Expect(pool).To(HaveLen(1))
 		client := pool[addr]
 
@@ -26,9 +30,10 @@ var _ = Describe("AdapterPool", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("returns a pool with a unconnected client", func() {
+	It("returns a Pool with a unconnected client", func() {
 		addr := "0.0.0.0:1234"
-		pool := egress.NewAdapterPool([]string{addr}, nil, grpc.WithInsecure())
+		adapterPool := egress.NewAdapterPool([]string{addr}, nil, spyMetricClient, grpc.WithInsecure())
+		pool := adapterPool.Pool
 		Expect(pool).To(HaveLen(1))
 		client := pool[addr]
 
@@ -37,14 +42,15 @@ var _ = Describe("AdapterPool", func() {
 	})
 
 	It("dedupes multiple adapters with the same addr", func() {
-		pool := egress.NewAdapterPool([]string{
+		adapterPool := egress.NewAdapterPool([]string{
 			"0.0.0.0:1234",
 			"0.0.0.0:1236",
 			"0.0.0.0:1235",
 			"0.0.0.0:1234",
 			"0.0.0.0:1235",
 			"0.0.0.0:1236",
-		}, nil, grpc.WithInsecure())
+		}, nil, spyMetricClient, grpc.WithInsecure())
+		pool := adapterPool.Pool
 		Expect(pool).To(HaveLen(3))
 	})
 
@@ -53,7 +59,7 @@ var _ = Describe("AdapterPool", func() {
 		defer cleanup()
 
 		healthEmitter := &spyHealthEmitter{}
-		egress.NewAdapterPool([]string{addr}, healthEmitter, grpc.WithInsecure())
+		egress.NewAdapterPool([]string{addr}, healthEmitter, spyMetricClient, grpc.WithInsecure())
 		counters := healthEmitter.setCounterArg
 		Expect(counters).To(HaveLen(1))
 		Expect(counters["adapterCount"]).To(Equal(1))
@@ -65,31 +71,32 @@ var _ = Describe("AdapterPool", func() {
 		addr2, cleanup2 := startGRPCServer()
 		defer cleanup2()
 
-		pool := egress.NewAdapterPool([]string{addr1, addr2}, nil, grpc.WithInsecure())
+		adapterPool := egress.NewAdapterPool([]string{addr1, addr2}, nil, spyMetricClient, grpc.WithInsecure())
+		pool := adapterPool.Pool
 
 		// Add 2 binding to adapter1 and 2 bindings to adapter2
-		err := pool.Add(context.Background(), pool[addr1], v1.Binding{})
+		err := adapterPool.Add(context.Background(), pool[addr1], v1.Binding{})
 		Expect(err).ToNot(HaveOccurred())
-		err = pool.Add(context.Background(), pool[addr1], v1.Binding{
+		err = adapterPool.Add(context.Background(), pool[addr1], v1.Binding{
 			Hostname: "will-be-removed",
 		})
 		Expect(err).ToNot(HaveOccurred())
-		err = pool.Add(context.Background(), pool[addr2], v1.Binding{})
+		err = adapterPool.Add(context.Background(), pool[addr2], v1.Binding{})
 		Expect(err).ToNot(HaveOccurred())
-		err = pool.Add(context.Background(), pool[addr2], v1.Binding{})
+		err = adapterPool.Add(context.Background(), pool[addr2], v1.Binding{})
 		Expect(err).ToNot(HaveOccurred())
 
 		// Remove 1 binding from adapter1
-		err = pool.Remove(context.Background(), pool[addr1], v1.Binding{
+		err = adapterPool.Remove(context.Background(), pool[addr1], v1.Binding{
 			Hostname: "will-be-removed",
 		})
 		Expect(err).ToNot(HaveOccurred())
 
-		results, err := pool.List(context.Background(), pool[addr1])
+		results, err := adapterPool.List(context.Background(), pool[addr1])
 		Expect(err).ToNot(HaveOccurred())
 		Expect(results).To(HaveLen(1))
 
-		results, err = pool.List(context.Background(), pool[addr2])
+		results, err = adapterPool.List(context.Background(), pool[addr2])
 		Expect(err).ToNot(HaveOccurred())
 		Expect(results).To(HaveLen(2))
 	})

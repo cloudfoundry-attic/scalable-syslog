@@ -1,6 +1,7 @@
 package egress
 
 import (
+	"code.cloudfoundry.org/go-loggregator/pulseemitter"
 	"log"
 
 	"context"
@@ -10,13 +11,20 @@ import (
 	"google.golang.org/grpc"
 )
 
-type AdapterPool map[string]v1.AdapterClient
+type AdapterPool struct {
+	badConn pulseemitter.CounterMetric
+	Pool    map[string]v1.AdapterClient
+}
 
-func NewAdapterPool(addrs []string, h HealthEmitter, opts ...grpc.DialOption) AdapterPool {
-	pool := AdapterPool{}
+func NewAdapterPool(addrs []string, h HealthEmitter, m MetricEmitter, opts ...grpc.DialOption) AdapterPool {
+	badConnMetrics := m.NewCounterMetric("bad_adapter_connections")
+	adapterPool := AdapterPool{
+		badConn: badConnMetrics,
+		Pool:    map[string]v1.AdapterClient{},
+	}
 
 	for _, addr := range addrs {
-		_, ok := pool[addr]
+		_, ok := adapterPool.Pool[addr]
 		if ok {
 			continue
 		}
@@ -24,21 +32,23 @@ func NewAdapterPool(addrs []string, h HealthEmitter, opts ...grpc.DialOption) Ad
 		conn, err := grpc.Dial(addr, opts...)
 		if err != nil {
 			log.Printf("error dialing adapter: %v", err)
+			badConnMetrics.Increment(uint64(1))
 			continue
 		}
-		pool[addr] = v1.NewAdapterClient(conn)
+		adapterPool.Pool[addr] = v1.NewAdapterClient(conn)
 	}
 
 	if h != nil {
-		h.SetCounter(map[string]int{"adapterCount": len(pool)})
+		h.SetCounter(map[string]int{"adapterCount": len(adapterPool.Pool)})
 	}
 
-	return pool
+	return adapterPool
 }
 
 func (p AdapterPool) List(ctx context.Context, adapter interface{}) ([]interface{}, error) {
 	results, err := adapter.(v1.AdapterClient).ListBindings(ctx, &v1.ListBindingsRequest{})
 	if err != nil {
+		p.badConn.Increment(uint64(1))
 		return nil, err
 	}
 

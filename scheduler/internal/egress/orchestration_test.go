@@ -38,12 +38,15 @@ var _ = Describe("Orchestration", func() {
 		mc := testhelper.NewMetricClient()
 
 		bindingReader := &spyReader{}
-		orch := egress.NewOrchestrator(
-			egress.AdapterPool{
+		adapterPool := egress.AdapterPool{
+			Pool: map[string]v1.AdapterClient{
 				"test-addr-1": client1,
 				"test-addr-2": client2,
 				"test-addr-3": client3,
 			},
+		}
+		orch := egress.NewOrchestrator(
+			adapterPool,
 			bindingReader,
 			comm,
 			&spyHealthEmitter{},

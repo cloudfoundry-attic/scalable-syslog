@@ -48,11 +48,12 @@ type Communicator interface {
 
 type MetricEmitter interface {
 	NewGaugeMetric(name, unit string, opts ...pulseemitter.MetricOption) pulseemitter.GaugeMetric
+	NewCounterMetric(name string, opts ...pulseemitter.MetricOption) pulseemitter.CounterMetric
 }
 
 // NewOrchestrator creates a new orchestrator.
 func NewOrchestrator(
-	clients AdapterPool,
+	adapterPool AdapterPool,
 	r BindingReader,
 	c Communicator,
 	h HealthEmitter,
@@ -73,7 +74,7 @@ func NewOrchestrator(
 			adapterGauge.Set(float64(s.WorkerCount))
 		}),
 	)
-	for _, client := range clients {
+	for _, client := range adapterPool.Pool {
 		orch.AddWorker(client)
 	}
 

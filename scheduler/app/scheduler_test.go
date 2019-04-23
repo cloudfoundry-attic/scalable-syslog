@@ -33,7 +33,7 @@ var _ = Describe("Scheduler", func() {
 				},
 			},
 		})
-		healthAddr, _ := startScheduler(dataSource.URL, 1, defaultOps())
+		healthAddr, _ := startScheduler(dataSource.URL, 1, testhelper.NewMetricClient(), false, defaultOps())
 
 		f := func() []byte {
 			resp, err := http.Get(fmt.Sprintf("http://%s/health", healthAddr))
@@ -74,7 +74,7 @@ var _ = Describe("Scheduler", func() {
 		Expect(err).ToNot(HaveOccurred())
 		opts := defaultOps()
 		opts = append(opts, app.WithBlacklist(blacklistIPs))
-		_, spyAdapterServers := startScheduler(dataSource.URL, 1, opts)
+		_, spyAdapterServers := startScheduler(dataSource.URL, 1, testhelper.NewMetricClient(), false, opts)
 
 		expectedRequests := []*v1.CreateBindingRequest{
 			{
@@ -114,7 +114,7 @@ var _ = Describe("Scheduler", func() {
 				},
 			},
 		})
-		_, spyAdapterServers := startScheduler(dataSource.URL, 1, defaultOps())
+		_, spyAdapterServers := startScheduler(dataSource.URL, 1, testhelper.NewMetricClient(), false, defaultOps())
 		expectedRequests := []*v1.DeleteBindingRequest{
 			{
 				Binding: &v1.Binding{
@@ -148,7 +148,7 @@ var _ = Describe("Scheduler", func() {
 		dataSource := httptest.NewServer(&fakeCC{
 			withRenamedApps: true,
 		})
-		_, spyAdapterServers := startScheduler(dataSource.URL, 1, defaultOps())
+		_, spyAdapterServers := startScheduler(dataSource.URL, 1, testhelper.NewMetricClient(), false, defaultOps())
 
 		createReq := <-spyAdapterServers[0].ActualCreateBindingRequest
 		Expect(createReq.Binding).To(Equal(&v1.Binding{
@@ -183,7 +183,7 @@ var _ = Describe("Scheduler", func() {
 				},
 			},
 		})
-		_, spyAdapterServers := startScheduler(dataSource.URL, 3, defaultOps())
+		_, spyAdapterServers := startScheduler(dataSource.URL, 3, testhelper.NewMetricClient(), false, defaultOps())
 		var createCount int
 		f := func() int {
 			select {
@@ -198,6 +198,29 @@ var _ = Describe("Scheduler", func() {
 		}
 		Eventually(f).Should(Equal(2))
 		Consistently(f).Should(Equal(2))
+	})
+
+	It("emits a metric for bad adapter connections", func() {
+		dataSource := httptest.NewServer(&fakeCC{
+			results: results{
+				"9be15160-4845-4f05-b089-40e827ba61f1": appBindings{
+					Hostname: "org.space.name",
+					Drains: []string{
+						"syslog://1.1.1.1",
+					},
+				},
+			},
+		})
+
+		mc := testhelper.NewMetricClient()
+
+		startScheduler(dataSource.URL, 1, mc, true, defaultOps())
+		badConnMetric := mc.GetMetric("bad_adapter_connections")
+		Expect(badConnMetric).ToNot(BeNil())
+
+		Eventually(func() uint64 {
+			return badConnMetric.Delta()
+		}).Should(BeNumerically(">", 0))
 	})
 })
 
@@ -295,7 +318,7 @@ func defaultOps() []app.SchedulerOption {
 	}
 }
 
-func startScheduler(dataSourceURL string, adapterCount int, opts []app.SchedulerOption) (string, []*spyAdapterServer) {
+func startScheduler(dataSourceURL string, adapterCount int, sm *testhelper.SpyMetricClient, closedListeners bool, opts []app.SchedulerOption) (string, []*spyAdapterServer) {
 
 	adapterTLSConfig, err := api.NewMutualTLSConfig(
 		Cert("adapter.crt"),
@@ -309,10 +332,12 @@ func startScheduler(dataSourceURL string, adapterCount int, opts []app.Scheduler
 
 	var adapterAddrs []string
 	var spyAdapterServers []*spyAdapterServer
+	var listeners []net.Listener
 
 	for i := 0; i < adapterCount; i++ {
 		lis, err := net.Listen("tcp", "localhost:0")
 		Expect(err).ToNot(HaveOccurred())
+		listeners = append(listeners, lis)
 
 		spyAdapterServer := newSpyAdapterServer()
 		grpcServer := grpc.NewServer(
@@ -337,11 +362,19 @@ func startScheduler(dataSourceURL string, adapterCount int, opts []app.Scheduler
 		dataSourceURL,
 		adapterAddrs,
 		tlsConfig,
-		testhelper.NewMetricClient(),
+		sm,
 		&spyLogClient{},
 		opts...,
 	)
-	return scheduler.Start(), spyAdapterServers
+
+	if closedListeners {
+		for _, lis := range listeners {
+			lis.Close()
+		}
+	}
+
+	health := scheduler.Start()
+	return health, spyAdapterServers
 }
 
 type spyLogClient struct{}
