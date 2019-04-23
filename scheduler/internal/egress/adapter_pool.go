@@ -48,6 +48,7 @@ func NewAdapterPool(addrs []string, h HealthEmitter, m MetricEmitter, opts ...gr
 func (p AdapterPool) List(ctx context.Context, adapter interface{}) ([]interface{}, error) {
 	results, err := adapter.(v1.AdapterClient).ListBindings(ctx, &v1.ListBindingsRequest{})
 	if err != nil {
+		log.Printf("error dialing adapter: %v", err)
 		p.badConn.Increment(uint64(1))
 		return nil, err
 	}
