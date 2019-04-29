@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-//go:generate go get github.com/jteeuwen/go-bindata/...
+//go:generate go get github.com/loggregator/go-bindata/...
 //go:generate ../../../../../scripts/generate-certs
 //go:generate go-bindata -o bindata_test.go -nocompress -pkg app_test -prefix certs/ certs/
 //go:generate rm -rf certs
