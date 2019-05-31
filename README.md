@@ -1,4 +1,6 @@
-# Scalable Syslog
+# (Deprecated) Scalable Syslog
+
+Use https://github.com/cloudfoundry/cf-syslog-drain-release
 
 [![CI Badge][ci-badge]][ci-pipeline]
 
