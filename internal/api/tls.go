@@ -26,6 +26,7 @@ func NewTLSConfig() *tls.Config {
 	return &tls.Config{
 		InsecureSkipVerify: false,
 		MinVersion:         tls.VersionTLS12,
+		MaxVersion:         tls.VersionTLS12,
 		CipherSuites:       supportedCipherSuites,
 	}
 }
